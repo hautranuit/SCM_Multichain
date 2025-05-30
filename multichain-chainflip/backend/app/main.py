@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes
 from app.core.config import get_settings
 from app.core.database import init_database
 from app.services.blockchain_service import BlockchainService

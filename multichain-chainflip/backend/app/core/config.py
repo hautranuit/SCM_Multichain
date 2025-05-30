@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     
     # IPFS/Web3.Storage
     w3storage_token: str = os.getenv("W3STORAGE_TOKEN", "")
+    w3storage_proof: str = os.getenv("W3STORAGE_PROOF", "")
     ipfs_gateway: str = os.getenv("IPFS_GATEWAY", "https://w3s.link/ipfs/")
     
     # Federated Learning
@@ -38,14 +39,15 @@ class Settings(BaseSettings):
     
     # Security
     secret_key: str = os.getenv("SECRET_KEY", "chainflip-multichain-secret-key")
+    aes_secret_key: str = os.getenv("AES_SECRET_KEY", "")
+    hmac_secret_key: str = os.getenv("HMAC_SECRET_KEY", "")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     
     # Redis for caching and messaging
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     
-    class Config:
-        env_file = ".env"
+    model_config = {"env_file": ".env", "extra": "allow"}
 
 @lru_cache()
 def get_settings():
