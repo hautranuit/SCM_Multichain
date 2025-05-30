@@ -39,6 +39,7 @@ app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(fl_system.router, prefix="/api/federated-learning", tags=["federated-learning"])
 app.include_router(ipfs_service.router, prefix="/api/ipfs", tags=["ipfs"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(qr_routes.router, prefix="/api/qr", tags=["qr-codes"])
 
 @app.on_event("startup")
 async def startup_event():
