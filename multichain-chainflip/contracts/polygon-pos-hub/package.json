@@ -1,0 +1,23 @@
+{
+  "name": "chainflip-polygon-pos-hub",
+  "version": "1.0.0",
+  "description": "ChainFLIP Polygon PoS Hub Contracts",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "deploy:polygon": "hardhat run scripts/deploy.js --network polygon"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.23.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "@fx-portal/contracts": "^1.0.3",
+    "dotenv": "^16.5.0",
+    "ethers": "^6.13.7"
+  }
+}
