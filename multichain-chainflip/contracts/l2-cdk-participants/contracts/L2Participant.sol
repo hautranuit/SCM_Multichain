@@ -294,14 +294,14 @@ contract L2Participant is Ownable, ReentrancyGuard, Pausable {
     }
     
     /**
-     * @dev Record anomaly detection
+     * @dev Record anomaly detection (internal)
      */
     function recordAnomalyDetection(
         uint256 productId,
         string memory anomalyType,
         uint256 severity,
         string memory evidenceCID
-    ) external onlyParticipant returns (uint256) {
+    ) internal returns (uint256) {
         uint256 detectionId = _nextDetectionId;
         _nextDetectionId++;
         
@@ -323,6 +323,18 @@ contract L2Participant is Ownable, ReentrancyGuard, Pausable {
         }
         
         return detectionId;
+    }
+    
+    /**
+     * @dev Record anomaly detection (external wrapper)
+     */
+    function recordAnomalyDetectionExternal(
+        uint256 productId,
+        string memory anomalyType,
+        uint256 severity,
+        string memory evidenceCID
+    ) external onlyParticipant returns (uint256) {
+        return recordAnomalyDetection(productId, anomalyType, severity, evidenceCID);
     }
     
     /**

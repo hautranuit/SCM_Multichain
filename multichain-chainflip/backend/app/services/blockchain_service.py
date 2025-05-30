@@ -6,7 +6,7 @@ import asyncio
 import json
 from typing import Dict, List, Optional, Any
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
+# from web3.middleware import geth_poa_middleware
 import httpx
 from app.core.config import get_settings
 from app.core.database import get_database
@@ -30,7 +30,8 @@ class BlockchainService:
         # Initialize Polygon PoS connection
         if settings.polygon_pos_rpc:
             self.pos_web3 = Web3(Web3.HTTPProvider(settings.polygon_pos_rpc))
-            self.pos_web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+            # For PoS networks like Polygon
+            # self.pos_web3.middleware_onion.inject(geth_poa_middleware, layer=0)
             
             if self.pos_web3.is_connected():
                 print(f"✅ Connected to Polygon PoS (Chain ID: {settings.polygon_pos_chain_id})")
@@ -40,7 +41,8 @@ class BlockchainService:
         # Initialize L2 CDK connection (if configured)
         if settings.l2_cdk_rpc:
             self.l2_web3 = Web3(Web3.HTTPProvider(settings.l2_cdk_rpc))
-            self.l2_web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+            # For L2 CDK networks
+            # self.l2_web3.middleware_onion.inject(geth_poa_middleware, layer=0)
             
             if self.l2_web3.is_connected():
                 print(f"✅ Connected to L2 CDK (Chain ID: {settings.l2_cdk_chain_id})")
