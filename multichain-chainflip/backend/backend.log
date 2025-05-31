@@ -1,11 +1,14 @@
-INFO:     Started server process [7885]
+INFO:     Will watch for changes in these directories: ['/app/multichain-chainflip/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [2357] using WatchFiles
+INFO:     Started server process [2385]
 INFO:     Waiting for application startup.
 🚀 ChainFLIP Multi-Chain Backend Starting...
 🔗 Initializing MongoDB connection...
 MongoDB URL: mongodb://localhost:27017
 Database name: chainflip_multichain
 ✅ Successfully connected to MongoDB!
-Existing collections: ['qr_codes', 'transactions', 'products', 'anomalies', 'transport_logs', 'participants', 'fl_models', 'counterfeits']
+Existing collections: ['products', 'participants', 'fl_models', 'anomalies', 'transactions', 'transport_logs', 'qr_codes', 'cross_chain_messages', 'counterfeits']
 📋 Collection already exists: products
 📋 Collection already exists: transactions
 📋 Collection already exists: participants
@@ -14,76 +17,195 @@ Existing collections: ['qr_codes', 'transactions', 'products', 'anomalies', 'tra
 📋 Collection already exists: transport_logs
 📋 Collection already exists: anomalies
 📋 Collection already exists: counterfeits
-✅ Created collection: cross_chain_messages
+📋 Collection already exists: cross_chain_messages
 📊 Creating database indexes...
-ERROR:    Traceback (most recent call last):
-  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 693, in lifespan
-    async with self.lifespan_context(app) as maybe_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/usr/local/lib/python3.11/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 133, in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 569, in __aenter__
-    await self._router.startup()
-  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 670, in startup
-    await handler()
-  File "/app/multichain-chainflip/backend/app/main.py", line 50, in startup_event
-    db_instance = await init_database()
-                  ^^^^^^^^^^^^^^^^^^^^^
-  File "/app/multichain-chainflip/backend/app/core/database.py", line 68, in init_database
-    await create_indexes()
-  File "/app/multichain-chainflip/backend/app/core/database.py", line 78, in create_indexes
-    await database.products.create_index("token_id", unique=True)
-  File "/usr/local/lib/python3.11/concurrent/futures/thread.py", line 58, in run
-    result = self.fn(*self.args, **self.kwargs)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/collection.py", line 2337, in create_index
-    return (self._create_indexes([index], session, **cmd_options))[0]
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/_csot.py", line 120, in csot_wrapper
-    return func(self, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/collection.py", line 2211, in _create_indexes
-    self._command(
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/collection.py", line 600, in _command
-    return conn.command(
-           ^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/helpers.py", line 45, in inner
-    return func(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/pool.py", line 538, in command
-    return command(
-           ^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/synchronous/network.py", line 218, in command
-    helpers_shared._check_command_response(
-  File "/root/.venv/lib/python3.11/site-packages/pymongo/helpers_shared.py", line 247, in _check_command_response
-    raise OperationFailure(errmsg, code, response, max_wire_version)
-pymongo.errors.OperationFailure: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { token_id: 1 }, name: "token_id_1" }, existing index: { v: 2, key: { token_id: 1 }, name: "token_id_1" }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { token_id: 1 }, name: "token_id_1" }, existing index: { v: 2, key: { token_id: 1 }, name: "token_id_1" }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
-
-ERROR:    Application startup failed. Exiting.
+✅ Database indexes created successfully
+📊 Database initialized: AsyncIOMotorDatabase(Database(MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=False, driver=DriverInfo(name='Motor', version='3.6.0', platform='asyncio')), 'chainflip_multichain'))
+🔗 Initializing Multi-Chain Blockchain Service...
+✅ Connected to Polygon PoS (Chain ID: 80002)
+✅ Connected to L2 CDK (Chain ID: 2442)
+✅ Loaded pos_hub contract
+✅ Loaded l2_participant contract
+🤖 Initializing Federated Learning Service...
+✅ Global FL models initialized
+✅ Federated Learning Service initialized
+✅ ChainFLIP Backend Initialized Successfully
+INFO:     Application startup complete.
+INFO:     127.0.0.1:44496 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47066 - "GET /api/qr/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52046 - "GET /api/blockchain/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53188 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38658 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38672 - "GET /api/qr/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38682 - "GET /api HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:38684 - "GET /api/blockchain/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38700 - "POST /api/blockchain/participants/register HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38714 - "POST /api/blockchain/products/mint HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38716 - "GET /api/blockchain/participants/0x032041b4b356fEE1496805DD4749f181bC736FFA/products HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/multichain-chainflip/backend/app/api/routes/blockchain.py", line 111, in get_participant_products
+    products = await blockchain_service.get_participant_products(address)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/multichain-chainflip/backend/app/services/blockchain_service.py", line 234, in get_participant_products
+    cursor = self.database.products.find({"current_owner": participant_address})
+             ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'products'
+INFO:     127.0.0.1:38720 - "POST /api/blockchain/cross-chain/message HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38736 - "GET /api/federated-learning/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38738 - "POST /api/federated-learning/detect/anomaly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38754 - "POST /api/federated-learning/detect/counterfeit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38766 - "POST /api/federated-learning/aggregate/anomaly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38778 - "POST /api/federated-learning/aggregate/counterfeit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38788 - "GET /api/federated-learning/models/anomaly/global HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38790 - "GET /api/federated-learning/models/counterfeit/global HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38796 - "GET /api/ipfs/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38806 - "GET /api/ipfs/bafkreiabcdefghijklmnopqrstuvwxyz1234567890 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38808 - "POST /api/ipfs/qr/generate HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:38816 - "GET /api/qr/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38818 - "POST /api/qr/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38820 - "GET /api/qr/verify/effb1473ed8bbe6774a0422d163d985d%3Ac3d89975c5a29e48701eab40b42a09162a4ed922b03c44b09482b4d66b4fd89418fa82b413887314c41cfc2f87691ee95976c557e5b66070a7b0cdbe308142497baf7cf657a387ba3ba853643ee2725b6c0a9e8a3ad26acf6f4e735927252008cc26e086ab062912ee452a87a224b151f5181dda179a5125f3fcfd309badec8965a0ed8ce52ed6df2a0574704eeb87e9d79bd6106e553a994d17654d1649b39421f6e256e5e50fc584d891888239de4ef09318370bf14a9aee53c66a1cbad4dc78b2b7688e752b4e3aa240b82e58cdda8edd9ebea0a3a7293f8bd1f2d5377316e5855ef23ec703c3e1b4d87342d190e4e6c79d2e1e27a7ec737e0b00c0f4d9a51718bf47af434fcea144ce7cfd8719e4ce0e74fe81689c59a80eba983f97955e54ffc6df34a53560a8d7699e36c12cb0%3Afe81890cc42057f632b434d1c4cf7be992f1941c4d6fa62a2ff5982709fe74b2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38826 - "POST /api/qr/scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38838 - "POST /api/qr/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38844 - "POST /api/qr/generate-multi-chain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38854 - "GET /api/analytics/dashboard HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38864 - "GET /api/analytics/supply-chain/flow HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38878 - "GET /api/analytics/participants/activity HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38882 - "GET /api/analytics/security/threats HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38896 - "GET /api/analytics/performance/metrics HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38908 - "GET /api/products?limit=5 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:38908 - "GET /api/products/?limit=5 HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38910 - "GET /api/products/statistics/overview HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38912 - "GET /api/products/anomalies/recent HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:38920 - "GET /api/products/counterfeits/recent HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41018 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41024 - "GET /api/qr/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41040 - "GET /api HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:41052 - "GET /api/blockchain/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41056 - "POST /api/blockchain/participants/register HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41062 - "POST /api/blockchain/products/mint HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41068 - "GET /api/blockchain/participants/0x032041b4b356fEE1496805DD4749f181bC736FFA/products HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/multichain-chainflip/backend/app/api/routes/blockchain.py", line 111, in get_participant_products
+    products = await blockchain_service.get_participant_products(address)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/multichain-chainflip/backend/app/services/blockchain_service.py", line 234, in get_participant_products
+    cursor = self.database.products.find({"current_owner": participant_address})
+             ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'products'
+INFO:     127.0.0.1:41078 - "POST /api/blockchain/cross-chain/message HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41090 - "GET /api/federated-learning/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41096 - "POST /api/federated-learning/detect/anomaly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41098 - "POST /api/federated-learning/detect/counterfeit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41110 - "POST /api/federated-learning/aggregate/anomaly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41126 - "POST /api/federated-learning/aggregate/counterfeit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41136 - "GET /api/federated-learning/models/anomaly/global HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41146 - "GET /api/federated-learning/models/counterfeit/global HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41152 - "GET /api/ipfs/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41168 - "GET /api/ipfs/bafkreiabcdefghijklmnopqrstuvwxyz1234567890 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41172 - "POST /api/ipfs/qr/generate HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:41180 - "GET /api/qr/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41182 - "POST /api/qr/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41192 - "GET /api/qr/verify/fe58fa88891f0509c95ba9a16d13a5dd%3Aecbafdc268b494da527a1fcf6d444f4da7ccabbb6240d93c36adf476ac6dea6f11c4f5896c87f7c16b09c64654a4e9302bc61e6dae4ed894d32ea16c264a8886b2eb98659aca5b6b77350b2b45b0e63d48b0ef5272bf51ca046dc7b4726dc11cc3f51b6441e020519d4038a65e2b5d21a0ee172fb82e69b7d2709f7ac3d356859dd97ac1931673ba45ab5510ef680a0daaf11d7872716dfe6c632e6a6707b95dcfa745228bead83d8e8b28e4782707505b01633dcf86d92588c0a2d060cf112281725d609b6934b0dd371387a2f3f0e2b42d007bd1f1e9ea63132ff6c644940422da9cc0488d7bfbb30951b8c6c9a491e97fee9f6fa08880ff232af3a49136a97dba44bc8a03601680a178136a1e7d2ec767c68ad39d7a450d8c461904fc7fb75f699f7cc1c9836ced7fc814df8d2210%3Ab9af9737467b84a01c48baf302274177a4bf91f11948073f2d82d083830995d1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41202 - "POST /api/qr/scan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41214 - "POST /api/qr/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41230 - "POST /api/qr/generate-multi-chain HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41246 - "GET /api/analytics/dashboard HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41262 - "GET /api/analytics/supply-chain/flow HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41276 - "GET /api/analytics/participants/activity HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41280 - "GET /api/analytics/security/threats HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41296 - "GET /api/analytics/performance/metrics HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41312 - "GET /api/products?limit=5 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:41312 - "GET /api/products/?limit=5 HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41328 - "GET /api/products/statistics/overview HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41332 - "GET /api/products/anomalies/recent HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41336 - "GET /api/products/counterfeits/recent HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:42362 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52112 - "GET /api/blockchain/status HTTP/1.1" 200 OK
