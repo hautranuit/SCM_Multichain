@@ -1,0 +1,38 @@
+# Python virtual environment
+venv/
+backend/venv/
+.venv/
+env/
+.env/
+
+# Node.js dependencies
+node_modules/
+frontend/node_modules/
+multichain-chainflip/frontend/node_modules/
+multichain-chainflip/contracts/l2-cdk-participants/node_modules/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build directories
+dist/
+build/
+.next/
+.nuxt/
