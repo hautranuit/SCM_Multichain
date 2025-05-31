@@ -9,10 +9,10 @@ import pickle
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-import tensorflow as tf
+# import tensorflow as tf  # Commented out for simplified deployment
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-import pandas as pd
+# import pandas as pd  # Commented out for simplified deployment
 
 from app.core.config import get_settings
 from app.core.database import get_database
@@ -83,23 +83,17 @@ class FederatedLearningService:
         print("✅ Global FL models initialized")
     
     def create_counterfeit_detection_model(self):
-        """Create neural network for counterfeit detection"""
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(64, activation='relu', input_shape=(7,)),
-            tf.keras.layers.Dropout(0.3),
-            tf.keras.layers.Dense(32, activation='relu'),
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(16, activation='relu'),
-            tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
-        ])
+        """Create simplified counterfeit detection model (without TensorFlow)"""
+        # Simplified model using scikit-learn for now
+        # This would be replaced with TensorFlow model when ML dependencies are available
+        model_config = {
+            'type': 'isolation_forest',
+            'contamination': 0.1,
+            'random_state': 42,
+            'features': ['price_variance', 'delivery_time', 'route_deviation', 'temperature_variance']
+        }
         
-        model.compile(
-            optimizer='adam',
-            loss='binary_crossentropy',
-            metrics=['accuracy', 'precision', 'recall']
-        )
-        
-        return model
+        return model_config
     
     async def train_local_anomaly_model(self, participant_address: str, training_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Train local anomaly detection model for a participant"""

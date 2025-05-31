@@ -1,0 +1,17 @@
+INFO:     Started server process [6468]
+INFO:     Waiting for application startup.
+🚀 ChainFLIP Multi-Chain Backend Starting...
+✅ Database indexes created successfully
+🔗 Initializing Multi-Chain Blockchain Service...
+✅ Connected to Polygon PoS (Chain ID: 80002)
+✅ Connected to L2 CDK (Chain ID: 2442)
+✅ Loaded pos_hub contract
+✅ Loaded l2_participant contract
+🤖 Initializing Federated Learning Service...
+✅ Global FL models initialized
+✅ Federated Learning Service initialized
+✅ ChainFLIP Backend Initialized Successfully
+INFO:     Application startup complete.
+ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8001): address already in use
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
