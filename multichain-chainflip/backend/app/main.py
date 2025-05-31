@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes
 from app.core.config import get_settings
-from app.core.database import init_database
+from app.core.database import init_database, close_database
 from app.services.blockchain_service import BlockchainService
 from app.services.fl_service import FederatedLearningService
 
@@ -46,8 +46,9 @@ async def startup_event():
     """Initialize services on startup"""
     print("🚀 ChainFLIP Multi-Chain Backend Starting...")
     
-    # Initialize database
-    await init_database()
+    # Initialize database first
+    db_instance = await init_database()
+    print(f"📊 Database initialized: {db_instance}")
     
     # Initialize blockchain services
     blockchain_service = BlockchainService()
@@ -58,6 +59,13 @@ async def startup_event():
     await fl_service.initialize()
     
     print("✅ ChainFLIP Backend Initialized Successfully")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up on shutdown"""
+    print("🔄 ChainFLIP Backend Shutting Down...")
+    await close_database()
+    print("✅ ChainFLIP Backend Shutdown Complete")
 
 @app.get("/")
 async def root():

@@ -7,44 +7,75 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Async MongoDB client for FastAPI
-motor_client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_url)
-database = motor_client[settings.database_name]
+# Global database instances
+motor_client = None
+database = None
+sync_client = None
+sync_database = None
 
-# Sync client for non-async operations if needed
-sync_client = MongoClient(settings.mongo_url)
-sync_database = sync_client[settings.database_name]
+def init_sync_database():
+    """Initialize synchronous database connection"""
+    global sync_client, sync_database
+    sync_client = MongoClient(settings.mongo_url)
+    sync_database = sync_client[settings.database_name]
+    return sync_database
 
 async def init_database():
     """Initialize database collections and indexes"""
+    global motor_client, database
+    
+    print("🔗 Initializing MongoDB connection...")
+    print(f"MongoDB URL: {settings.mongo_url}")
+    print(f"Database name: {settings.database_name}")
+    
+    # Initialize async MongoDB client
+    motor_client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_url)
+    database = motor_client[settings.database_name]
+    
+    # Test the connection
+    try:
+        # This will throw an exception if connection fails
+        await motor_client.admin.command('ping')
+        print("✅ Successfully connected to MongoDB!")
+    except Exception as e:
+        print(f"❌ Failed to connect to MongoDB: {e}")
+        raise e
     
     # Create collections if they don't exist
     collections = [
         "products",
-        "transactions",
+        "transactions", 
         "participants",
         "fl_models",
         "qr_codes",
         "transport_logs",
         "anomalies",
-        "counterfeits"
+        "counterfeits",
+        "cross_chain_messages"
     ]
     
     existing_collections = await database.list_collection_names()
+    print(f"Existing collections: {existing_collections}")
     
     for collection_name in collections:
         if collection_name not in existing_collections:
             await database.create_collection(collection_name)
             print(f"✅ Created collection: {collection_name}")
+        else:
+            print(f"📋 Collection already exists: {collection_name}")
     
     # Create indexes for better performance
     await create_indexes()
+    
+    return database
 
 async def create_indexes():
     """Create database indexes"""
     
+    print("📊 Creating database indexes...")
+    
     # Products collection
-    await database.products.create_index("token_id")
+    await database.products.create_index("token_id", unique=True)
     await database.products.create_index("chain_id")
     await database.products.create_index("manufacturer")
     await database.products.create_index("created_at")
@@ -56,7 +87,7 @@ async def create_indexes():
     await database.transactions.create_index("timestamp")
     
     # Participants collection
-    await database.participants.create_index("address")
+    await database.participants.create_index("address", unique=True)
     await database.participants.create_index("participant_type")
     await database.participants.create_index("chain_id")
     
@@ -71,8 +102,32 @@ async def create_indexes():
     await database.qr_codes.create_index("qr_hash")
     await database.qr_codes.create_index("created_at")
     
+    # Cross-chain messages
+    await database.cross_chain_messages.create_index("source_chain")
+    await database.cross_chain_messages.create_index("target_chain")
+    await database.cross_chain_messages.create_index("timestamp")
+    
     print("✅ Database indexes created successfully")
 
 def get_database():
     """Dependency to get database instance"""
+    global database
+    if database is None:
+        # Initialize sync database as fallback
+        return init_sync_database()
     return database
+
+def get_sync_database():
+    """Get synchronous database instance"""
+    global sync_database
+    if sync_database is None:
+        return init_sync_database()
+    return sync_database
+
+async def close_database():
+    """Close database connections"""
+    global motor_client, sync_client
+    if motor_client:
+        motor_client.close()
+    if sync_client:
+        sync_client.close()
