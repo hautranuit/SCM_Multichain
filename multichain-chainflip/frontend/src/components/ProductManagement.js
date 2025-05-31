@@ -14,7 +14,10 @@ const ProductManagement = () => {
     batchNumber: '',
     category: '',
     price: '',
-    location: ''
+    location: '',
+    manufacturingDate: '',
+    expirationDate: '',
+    uniqueProductID: ''
   });
 
   useEffect(() => {
@@ -36,20 +39,35 @@ const ProductManagement = () => {
   const createProduct = async (e) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
+      // Prepare metadata for NFTCore contract
+      const metadata = {
+        name: newProduct.name,
+        description: newProduct.description,
+        category: newProduct.category,
+        batchNumber: newProduct.batchNumber || `BATCH-${Date.now()}`,
+        price: newProduct.price,
+        location: newProduct.location,
+        manufacturingDate: newProduct.manufacturingDate || new Date().toISOString().split('T')[0],
+        expirationDate: newProduct.expirationDate,
+        uniqueProductID: newProduct.uniqueProductID || `PROD-${Date.now()}`,
+        productType: newProduct.category || 'General'
+      };
+
+      console.log('Creating product with metadata:', metadata);
+
+      // Send to backend (backend will handle IPFS upload & encryption)
       const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/blockchain/products/mint`, {
         manufacturer: newProduct.manufacturer || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-        metadata: {
-          name: newProduct.name,
-          description: newProduct.description,
-          category: newProduct.category,
-          batchNumber: newProduct.batchNumber,
-          price: newProduct.price,
-          location: newProduct.location
-        }
+        metadata: metadata
       });
       
-      console.log('Product created:', response.data);
+      console.log('Product created successfully:', response.data);
+      
+      // Show success message with details
+      alert(`Product created successfully!\n\nToken ID: ${response.data.token_id}\nMetadata CID: ${response.data.metadata_cid}\nTransaction: ${response.data.transaction_hash}`);
+      
       await fetchProducts();
       setShowCreateForm(false);
       setNewProduct({
@@ -59,24 +77,44 @@ const ProductManagement = () => {
         batchNumber: '',
         category: '',
         price: '',
-        location: ''
+        location: '',
+        manufacturingDate: '',
+        expirationDate: '',
+        uniqueProductID: ''
       });
     } catch (error) {
-      console.error('Error creating product:', error);
-      alert('Error creating product: ' + (error.response?.data?.detail || error.message));
+      console.error('Error creating product:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error occurred';
+      alert(`Error creating product: ${errorMessage}`);
     }
     setLoading(false);
   };
 
   const generateQRCode = (product) => {
+    // Use encrypted QR code if available, otherwise fallback to basic data
+    if (product.encrypted_qr_code) {
+      return product.encrypted_qr_code;
+    }
+    
+    // Fallback QR data
     const qrData = {
-      productId: product.id || product._id,
+      productId: product.token_id || product.id || product._id,
       name: product.name || product.metadata?.name,
       manufacturer: product.manufacturer,
       blockchain: 'polygon',
-      contractAddress: process.env.REACT_APP_CONTRACT_ADDRESS
+      contractAddress: process.env.REACT_APP_CONTRACT_ADDRESS || '0x60C466cF52cb9705974a89b72DeA045c45cb7572'
     };
     return JSON.stringify(qrData);
+  };
+
+  const getCurrentDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getExpirationDate = () => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() + 1); // 1 year from now
+    return date.toISOString().split('T')[0];
   };
 
   return (
@@ -103,7 +141,7 @@ const ProductManagement = () => {
       {/* Create Product Form */}
       {showCreateForm && (
         <div className="card" style={{ marginBottom: '30px', padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Create New Product</h3>
+          <h3 style={{ marginBottom: '20px' }}>Create New Product (NFTCore Contract)</h3>
           <form onSubmit={createProduct}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
               <div>
@@ -123,7 +161,22 @@ const ProductManagement = () => {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Category</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Unique Product ID</label>
+                <input
+                  type="text"
+                  value={newProduct.uniqueProductID}
+                  onChange={(e) => setNewProduct({...newProduct, uniqueProductID: e.target.value})}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '4px' 
+                  }}
+                  placeholder="Auto-generated if empty"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Category/Product Type</label>
                 <select
                   value={newProduct.category}
                   onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
@@ -143,6 +196,51 @@ const ProductManagement = () => {
                   <option value="Other">Other</option>
                 </select>
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Batch Number</label>
+                <input
+                  type="text"
+                  value={newProduct.batchNumber}
+                  onChange={(e) => setNewProduct({...newProduct, batchNumber: e.target.value})}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '4px' 
+                  }}
+                  placeholder="Auto-generated if empty"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturing Date</label>
+                <input
+                  type="date"
+                  value={newProduct.manufacturingDate}
+                  onChange={(e) => setNewProduct({...newProduct, manufacturingDate: e.target.value})}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '4px' 
+                  }}
+                  defaultValue={getCurrentDate()}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Expiration Date</label>
+                <input
+                  type="date"
+                  value={newProduct.expirationDate}
+                  onChange={(e) => setNewProduct({...newProduct, expirationDate: e.target.value})}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '4px' 
+                  }}
+                  placeholder="Optional"
+                />
+              </div>
               <div style={{ gridColumn: 'span 2' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Description</label>
                 <textarea
@@ -156,21 +254,6 @@ const ProductManagement = () => {
                     minHeight: '80px'
                   }}
                   placeholder="Enter product description"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Batch Number</label>
-                <input
-                  type="text"
-                  value={newProduct.batchNumber}
-                  onChange={(e) => setNewProduct({...newProduct, batchNumber: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="BATCH-001"
                 />
               </div>
               <div>
@@ -190,22 +273,7 @@ const ProductManagement = () => {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturer Address</label>
-                <input
-                  type="text"
-                  value={newProduct.manufacturer}
-                  onChange={(e) => setNewProduct({...newProduct, manufacturer: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="0x..."
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Location</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturing Location</label>
                 <input
                   type="text"
                   value={newProduct.location}
@@ -217,6 +285,21 @@ const ProductManagement = () => {
                     borderRadius: '4px' 
                   }}
                   placeholder="Manufacturing location"
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturer Address</label>
+                <input
+                  type="text"
+                  value={newProduct.manufacturer}
+                  onChange={(e) => setNewProduct({...newProduct, manufacturer: e.target.value})}
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '4px' 
+                  }}
+                  placeholder="0x... (defaults to demo address if empty)"
                 />
               </div>
             </div>
@@ -235,7 +318,7 @@ const ProductManagement = () => {
                   cursor: loading ? 'not-allowed' : 'pointer'
                 }}
               >
-                {loading ? 'Creating...' : 'Create Product on Blockchain'}
+                {loading ? 'Creating Product NFT...' : 'Create Product on Blockchain'}
               </button>
             </div>
           </form>
@@ -276,9 +359,9 @@ const ProductManagement = () => {
         )}
 
         {!loading && products.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
             {products.map((product, index) => (
-              <div key={product.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
+              <div key={product.token_id || product.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                   <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
                     {product.name || product.metadata?.name || `Product ${index + 1}`}
@@ -298,9 +381,13 @@ const ProductManagement = () => {
                   <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
                   <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
                   <div><strong>Price:</strong> ${product.price || product.metadata?.price || '0.00'}</div>
-                  {product.tokenId && <div><strong>Token ID:</strong> {product.tokenId}</div>}
+                  {product.token_id && <div><strong>Token ID:</strong> {product.token_id}</div>}
+                  {product.metadata_cid && <div><strong>IPFS CID:</strong> {product.metadata_cid.substring(0, 20)}...</div>}
                   {product.manufacturer && (
                     <div><strong>Manufacturer:</strong> {product.manufacturer.substring(0, 10)}...</div>
+                  )}
+                  {product.qr_hash && (
+                    <div><strong>QR Hash:</strong> {product.qr_hash.substring(0, 16)}...</div>
                   )}
                 </div>
 
@@ -312,8 +399,11 @@ const ProductManagement = () => {
                       style={{ border: '1px solid #e5e7eb', padding: '5px' }}
                     />
                   </div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px' }}>
+                    {product.encrypted_qr_code ? '🔐 Encrypted QR Code' : '📱 Basic QR Code'}
+                  </div>
                   <button
-                    onClick={() => setSelectedProduct(selectedProduct?.id === product.id ? null : product)}
+                    onClick={() => setSelectedProduct(selectedProduct?.token_id === product.token_id ? null : product)}
                     className="btn"
                     style={{ 
                       background: '#3b82f6', 
@@ -325,11 +415,11 @@ const ProductManagement = () => {
                       cursor: 'pointer'
                     }}
                   >
-                    {selectedProduct?.id === product.id ? 'Hide Details' : 'View Details'}
+                    {selectedProduct?.token_id === product.token_id ? 'Hide Details' : 'View Details'}
                   </button>
                 </div>
 
-                {selectedProduct?.id === product.id && (
+                {selectedProduct?.token_id === product.token_id && (
                   <div style={{ 
                     marginTop: '15px', 
                     padding: '10px', 
@@ -337,11 +427,22 @@ const ProductManagement = () => {
                     borderRadius: '6px',
                     fontSize: '12px'
                   }}>
-                    <div><strong>Product ID:</strong> {product.id || 'N/A'}</div>
-                    <div><strong>Created:</strong> {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : 'N/A'}</div>
-                    <div><strong>Status:</strong> Active</div>
-                    {product.transactionHash && (
-                      <div><strong>Tx Hash:</strong> {product.transactionHash.substring(0, 20)}...</div>
+                    <div><strong>Token ID:</strong> {product.token_id || 'N/A'}</div>
+                    <div><strong>Created:</strong> {product.created_at ? new Date(product.created_at * 1000).toLocaleDateString() : 'N/A'}</div>
+                    <div><strong>Status:</strong> {product.status || 'Active'}</div>
+                    <div><strong>Chain ID:</strong> {product.chain_id || 'N/A'}</div>
+                    {product.transaction_hash && (
+                      <div><strong>Tx Hash:</strong> {product.transaction_hash.substring(0, 20)}...</div>
+                    )}
+                    {product.mint_params && (
+                      <div style={{ marginTop: '8px' }}>
+                        <strong>NFT Parameters:</strong>
+                        <div style={{ marginLeft: '10px', fontSize: '11px' }}>
+                          <div>Unique ID: {product.mint_params.uniqueProductID}</div>
+                          <div>Manufacturing Date: {product.mint_params.manufacturingDate}</div>
+                          <div>Product Type: {product.mint_params.productType}</div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
