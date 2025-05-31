@@ -318,7 +318,7 @@ const ParticipantManagement = () => {
       {/* Participants List */}
       <div className="card" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Registered Participants</h3>
+          <h3 style={{ margin: 0 }}>Participants List</h3>
           <button
             onClick={fetchParticipants}
             className="btn"
@@ -343,8 +343,8 @@ const ParticipantManagement = () => {
 
         {!loading && participants.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>No participants registered</div>
-            <div style={{ fontSize: '14px', color: '#9ca3af' }}>Register your first participant to get started</div>
+            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>No participants found</div>
+            <div style={{ fontSize: '14px', color: '#9ca3af' }}>Register the first participant to get started</div>
           </div>
         )}
 
@@ -352,53 +352,45 @@ const ParticipantManagement = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
             {participants.map((participant, index) => (
               <div key={participant.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                  <div>
-                    <h4 style={{ margin: '0 0 5px 0', fontSize: '18px', fontWeight: '600' }}>
-                      {getRoleIcon(participant.role || participant.metadata?.role)} {participant.name || participant.metadata?.name || 'Unknown'}
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginRight: '15px',
+                    padding: '10px',
+                    background: '#f3f4f6',
+                    borderRadius: '50%'
+                  }}>
+                    {getRoleIcon(participant.role || participant.metadata?.role)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                      {participant.name || participant.metadata?.name || 'Anonymous'}
                     </h4>
-                    <div style={{ fontSize: '14px', color: '#6b7280', fontWeight: '500' }}>
-                      {participant.company || participant.metadata?.company || 'Unknown Company'}
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      {participant.company || participant.metadata?.company || 'No company'}
                     </div>
                   </div>
-                  <span style={{ 
-                    background: getParticipantTypeColor(participant.participant_type || participant.participantType),
-                    color: 'white',
-                    padding: '4px 8px', 
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}>
-                    {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
-                  </span>
                 </div>
-                
-                <div style={{ fontSize: '14px', color: '#374151', marginBottom: '15px' }}>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>📧 Email:</strong> {participant.email || participant.metadata?.email || 'Not provided'}
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>📞 Phone:</strong> {participant.phone || participant.metadata?.phone || 'Not provided'}
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>📍 Location:</strong> {participant.location || participant.metadata?.location || 'Not specified'}
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>🔗 Address:</strong> 
-                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                      {participant.address ? `${participant.address.substring(0, 15)}...` : 'Not provided'}
-                    </span>
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>⛓️ Chain:</strong> {participant.chain_id === 80002 ? 'Polygon PoS' : 'L2 CDK'} ({participant.chain_id})
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong>👤 Role:</strong> 
+
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <span style={{ 
-                      background: '#f3f4f6', 
-                      padding: '2px 6px', 
-                      borderRadius: '4px',
-                      marginLeft: '5px'
+                      background: getParticipantTypeColor(participant.participant_type || participant.participantType),
+                      color: 'white',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: '500'
+                    }}>
+                      {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
+                    </span>
+                    <span style={{ 
+                      background: '#e5e7eb',
+                      color: '#374151',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: '500'
                     }}>
                       {(participant.role || participant.metadata?.role || 'viewer').toUpperCase()}
                     </span>
