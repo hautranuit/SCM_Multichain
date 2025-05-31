@@ -22,8 +22,10 @@ class CounterfeitDetection(BaseModel):
     product_data: Dict[str, Any]
 
 # Dependency to get FL service
-def get_fl_service():
-    return FederatedLearningService()
+async def get_fl_service():
+    service = FederatedLearningService()
+    await service.initialize()
+    return service
 
 @router.get("/status")
 async def get_fl_status(

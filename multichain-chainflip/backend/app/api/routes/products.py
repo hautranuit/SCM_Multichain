@@ -22,11 +22,15 @@ class ProductQuery(BaseModel):
     offset: int = 0
 
 # Dependencies
-def get_blockchain_service():
-    return BlockchainService()
+async def get_blockchain_service():
+    service = BlockchainService()
+    await service.initialize()
+    return service
 
-def get_fl_service():
-    return FederatedLearningService()
+async def get_fl_service():
+    service = FederatedLearningService()
+    await service.initialize()
+    return service
 
 @router.get("/")
 async def get_products(

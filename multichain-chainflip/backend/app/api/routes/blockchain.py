@@ -32,8 +32,10 @@ class CrossChainMessage(BaseModel):
     message_data: Dict[str, Any]
 
 # Dependency to get blockchain service
-def get_blockchain_service():
-    return BlockchainService()
+async def get_blockchain_service():
+    service = BlockchainService()
+    await service.initialize()
+    return service
 
 @router.get("/status")
 async def get_blockchain_status(

@@ -109,12 +109,22 @@ async def create_indexes():
     
     print("✅ Database indexes created successfully")
 
-def get_database():
-    """Dependency to get database instance"""
-    global database
+async def get_database():
+    """Async dependency to get database instance"""
+    global motor_client, database
     if database is None:
-        # Initialize sync database as fallback
-        return init_sync_database()
+        # Initialize async MongoDB client if not already initialized
+        motor_client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_url)
+        database = motor_client[settings.database_name]
+        
+        # Test the connection
+        try:
+            await motor_client.admin.command('ping')
+            print("✅ Database connection established via get_database()")
+        except Exception as e:
+            print(f"❌ Database connection failed in get_database(): {e}")
+            raise e
+    
     return database
 
 def get_sync_database():

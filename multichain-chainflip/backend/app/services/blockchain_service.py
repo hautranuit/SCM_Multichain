@@ -24,8 +24,8 @@ class BlockchainService:
         """Initialize blockchain connections and contracts"""
         print("🔗 Initializing Multi-Chain Blockchain Service...")
         
-        # Initialize database connection
-        self.database = get_database()
+        # Initialize database connection using async method
+        self.database = await get_database()
         
         # Initialize Polygon PoS connection
         if settings.polygon_pos_rpc:

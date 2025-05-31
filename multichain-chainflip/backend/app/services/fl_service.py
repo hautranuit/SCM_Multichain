@@ -31,7 +31,7 @@ class FederatedLearningService:
         """Initialize FL service"""
         print("🤖 Initializing Federated Learning Service...")
         
-        self.database = get_database()
+        self.database = await get_database()
         
         # Create model storage directory
         os.makedirs(self.model_storage_path, exist_ok=True)

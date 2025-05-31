@@ -9,8 +9,10 @@ from app.services.blockchain_service import BlockchainService
 
 router = APIRouter()
 
-def get_blockchain_service():
-    return BlockchainService()
+async def get_blockchain_service():
+    service = BlockchainService()
+    await service.initialize()
+    return service
 
 @router.get("/dashboard")
 async def get_dashboard_analytics(
