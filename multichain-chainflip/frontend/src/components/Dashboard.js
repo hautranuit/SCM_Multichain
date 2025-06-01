@@ -81,6 +81,54 @@ const Dashboard = ({ backendStatus }) => {
 
   return (
     <div>
+      {/* Top Navigation Header */}
+      <header className="bg-white shadow border-b border-gray-200 mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-indigo-600 mr-4">
+                🔗 ChainFLIP
+              </h1>
+              <span className="text-sm text-gray-500">
+                Multi-Chain Supply Chain Management
+              </span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm">
+                Backend: <span className={backendStatus.includes('✅') ? 'text-green-600' : 'text-red-600'}>
+                  {backendStatus}
+                </span>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => window.location.href = '/admin'}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium flex items-center"
+                >
+                  <Shield className="h-4 w-4 mr-1" />
+                  Admin Panel
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  try {
+                    // Clear localStorage and redirect to login
+                    localStorage.clear();
+                    window.location.href = '/login';
+                  } catch (error) {
+                    console.error('Logout error:', error);
+                    localStorage.clear();
+                    window.location.href = '/login';
+                  }
+                }}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-sm font-medium flex items-center"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       {/* Welcome Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between">

@@ -81,9 +81,8 @@ async def login_user(
         )
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+async def get_current_user_info(current_user: dict = Depends(get_current_user), auth_service: AuthService = Depends(get_auth_service)):
     """Get current user information"""
-    auth_service = AuthService(None)  # We don't need DB for this conversion
     return auth_service._user_to_response(current_user)
 
 @router.post("/logout")
