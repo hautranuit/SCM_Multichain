@@ -9,11 +9,12 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 from app.services.blockchain_service import BlockchainService
 from app.services.fl_service import FederatedLearningService
+from app.services.auth_service import AuthService
 
 load_dotenv()
 
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(blockchain.router, prefix="/api/blockchain", tags=["blockchain"])
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(fl_system.router, prefix="/api/federated-learning", tags=["federated-learning"])
@@ -49,6 +51,10 @@ async def startup_event():
     # Initialize database first
     db_instance = await init_database()
     print(f"📊 Database initialized: {db_instance}")
+    
+    # Initialize authentication service and admin account
+    auth_service = AuthService(db_instance)
+    await auth_service.initialize_admin()
     
     # Initialize blockchain services
     blockchain_service = BlockchainService()

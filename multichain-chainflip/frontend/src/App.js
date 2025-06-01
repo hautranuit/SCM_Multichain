@@ -1,17 +1,108 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 
-// Import our feature components
+// Auth Components
+import { AuthProvider } from './contexts/AuthContext';
+import LoginForm from './components/Auth/LoginForm';
+import RegisterForm from './components/Auth/RegisterForm';
+import AdminDashboard from './components/Auth/AdminDashboard';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
+
+// Main App Components
+import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import ParticipantManagement from './components/ParticipantManagement';
 import QRScanner from './components/QRScanner';
 import Analytics from './components/Analytics';
 
+// Auth Pages
+const LoginPage = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (credentials) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const authService = (await import('./services/authService')).default;
+      await authService.login(credentials);
+      window.location.href = '/dashboard';
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+          {error}
+        </div>
+      )}
+      <LoginForm onLogin={handleLogin} isLoading={isLoading} />
+    </div>
+  );
+};
+
+const RegisterPage = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+
+  const handleRegister = async (userData) => {
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const authService = (await import('./services/authService')).default;
+      await authService.register(userData);
+      setSuccess('Registration successful! Please wait for admin approval. You will receive an email once approved.');
+      
+      // Redirect to login after 3 seconds
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 3000);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50 max-w-md">
+          {success}
+        </div>
+      )}
+      <RegisterForm onRegister={handleRegister} isLoading={isLoading} />
+    </div>
+  );
+};
+
+const AdminPage = () => {
+  const authService = require('./services/authService').default;
+  return (
+    <ProtectedRoute requireAdmin={true}>
+      <AdminDashboard authService={authService} />
+    </ProtectedRoute>
+  );
+};
+
 function App() {
   const [backendStatus, setBackendStatus] = useState('checking...');
-  const [backendData, setBackendData] = useState(null);
-  const [currentPage, setCurrentPage] = useState('dashboard');
 
   useEffect(() => {
     checkBackendConnection();
@@ -21,190 +112,108 @@ function App() {
     try {
       const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/health`);
       setBackendStatus('✅ Connected');
-      setBackendData(response.data);
     } catch (error) {
       setBackendStatus('❌ Not Connected');
       console.error('Backend connection error:', error);
     }
   };
 
+  return (
+    <AuthProvider>
+      <Router>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Protected Admin Routes */}
+            <Route path="/admin" element={<AdminPage />} />
+            
+            {/* Protected App Routes */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard backendStatus={backendStatus} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/products" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <ProductManagement />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/participants" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <ParticipantManagement />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/qr-scanner" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <QRScanner />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <Analytics />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Default redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+// App Layout Component for authenticated pages
+const AppLayout = ({ children, backendStatus }) => {
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  
   const menuItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: '📊' },
-    { id: 'products', name: 'Products', icon: '📦' },
-    { id: 'participants', name: 'Participants', icon: '👥' },
-    { id: 'qr-scanner', name: 'QR Scanner', icon: '📱' },
-    { id: 'analytics', name: 'Analytics', icon: '📈' },
-    { id: 'federated-learning', name: 'FL System', icon: '🤖' },
+    { id: 'dashboard', name: 'Dashboard', icon: '📊', path: '/dashboard' },
+    { id: 'products', name: 'Products', icon: '📦', path: '/products' },
+    { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
+    { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+    { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
   ];
 
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return (
-          <div>
-            <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Dashboard</h2>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-              <div className="card">
-                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>System Status</h3>
-                <div style={{ fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span>Backend:</span>
-                    <span>{backendStatus}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span>Frontend:</span>
-                    <span className="text-green">✅ Running</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Database:</span>
-                    <span className="text-green">✅ Connected</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card">
-                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>Blockchain Network</h3>
-                <div style={{ fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span>Polygon PoS:</span>
-                    <span className="text-green">✅ Connected</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span>L2 CDK:</span>
-                    <span className="text-green">✅ Connected</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Smart Contracts:</span>
-                    <span className="text-green">✅ Deployed</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card">
-                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>IPFS Integration</h3>
-                <div style={{ fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span>Web3.Storage:</span>
-                    <span className="text-green">✅ Connected</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Gateway:</span>
-                    <span className="text-green">✅ Available</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card" style={{ marginTop: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>🚀 ChainFLIP Features</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-                {menuItems.slice(1, -1).map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="card" 
-                    style={{ 
-                      margin: '0.5rem', 
-                      border: '1px solid #e5e7eb',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onClick={() => setCurrentPage(item.id)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '1.5rem', marginRight: '0.75rem' }}>{item.icon}</span>
-                      <h4 style={{ margin: 0, fontWeight: '500' }}>{item.name}</h4>
-                    </div>
-                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>
-                      {item.id === 'products' && 'Create, manage and track products on blockchain with QR code generation'}
-                      {item.id === 'participants' && 'Register supply chain participants and manage roles across networks'}
-                      {item.id === 'qr-scanner' && 'Scan QR codes with camera to verify product authenticity'}
-                      {item.id === 'analytics' && 'View real-time metrics, charts and system performance data'}
-                    </p>
-                    <div style={{ marginTop: '10px', fontSize: '12px', color: '#10b981', fontWeight: '500' }}>
-                      ✅ Ready • Click to use
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e40af' }}>🎉 All Features Operational!</h4>
-                <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
-                  Your ChainFLIP platform is fully functional with blockchain integration, 
-                  IPFS storage, federated learning, and real-time analytics. Click any feature above to get started!
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'products':
-        return <ProductManagement />;
-
-      case 'participants':
-        return <ParticipantManagement />;
-
-      case 'qr-scanner':
-        return <QRScanner />;
-
-      case 'analytics':
-        return <Analytics />;
-
-      case 'federated-learning':
-        return (
-          <div className="card">
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-              🤖 Federated Learning System
-            </h2>
-            <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🤖</div>
-              <p style={{ color: '#6b7280', fontSize: '1.125rem', marginBottom: '1rem' }}>
-                AI-Powered Anomaly & Counterfeit Detection
-              </p>
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
-                <h3 style={{ color: '#166534', marginBottom: '10px' }}>✅ System Status: Active</h3>
-                <div style={{ fontSize: '14px', color: '#059669' }}>
-                  <div>• Federated learning network operational</div>
-                  <div>• AI models trained and deployed</div>
-                  <div>• Real-time anomaly detection enabled</div>
-                  <div>• Counterfeit prevention system active</div>
-                </div>
-              </div>
-              <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>
-                Advanced ML algorithms continuously monitor supply chain for anomalies and counterfeits.
-              </p>
-            </div>
-          </div>
-        );
-
-      default:
-        return (
-          <div className="card">
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-              {menuItems.find(item => item.id === currentPage)?.icon}{' '}
-              {menuItems.find(item => item.id === currentPage)?.name}
-            </h2>
-            <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-              <p style={{ color: '#6b7280', fontSize: '1.125rem' }}>
-                Feature coming soon!
-              </p>
-            </div>
-          </div>
-        );
+  const handleLogout = async () => {
+    try {
+      const authService = (await import('./services/authService')).default;
+      await authService.logout();
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      window.location.href = '/login';
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+    <>
       <header style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '1rem 0' }}>
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -216,12 +225,18 @@ function App() {
                 Multi-Chain Supply Chain Management
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ fontSize: '0.875rem' }}>
                 Backend: <span className={backendStatus.includes('✅') ? 'text-green' : 'text-red'}>
                   {backendStatus}
                 </span>
               </div>
+              <button
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-800 text-sm font-medium"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </div>
@@ -233,8 +248,8 @@ function App() {
             {menuItems.map((item) => (
               <li key={item.id}>
                 <button
-                  onClick={() => setCurrentPage(item.id)}
-                  className={currentPage === item.id ? 'nav-item active' : 'nav-item'}
+                  onClick={() => window.location.href = item.path}
+                  className={window.location.pathname === item.path ? 'nav-item active' : 'nav-item'}
                   style={{ 
                     width: '100%', 
                     textAlign: 'left',
@@ -254,12 +269,12 @@ function App() {
 
         <main className="main-content">
           <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-            {renderCurrentPage()}
+            {children}
           </div>
         </main>
       </div>
-    </div>
+    </>
   );
-}
+};
 
 export default App;

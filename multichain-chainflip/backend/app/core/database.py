@@ -43,6 +43,7 @@ async def init_database():
     
     # Create collections if they don't exist
     collections = [
+        "users",                 # User authentication and management
         "products",
         "transactions", 
         "participants",
@@ -73,6 +74,13 @@ async def create_indexes():
     """Create database indexes"""
     
     print("📊 Creating database indexes...")
+    
+    # Users collection
+    await database.users.create_index("email", unique=True)
+    await database.users.create_index("wallet_address", unique=True)
+    await database.users.create_index("role")
+    await database.users.create_index("approval_status")
+    await database.users.create_index("registration_date")
     
     # Products collection
     await database.products.create_index("token_id", unique=True)
