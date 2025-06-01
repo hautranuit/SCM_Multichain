@@ -2,6 +2,7 @@
 Authentication service for ChainFLIP user management
 """
 import jwt
+from jwt.exceptions import InvalidTokenError
 import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
@@ -149,9 +150,19 @@ class AuthService:
 
     async def approve_user(self, user_id: str, approval_status: str, admin_id: str, admin_notes: Optional[str] = None) -> UserResponse:
         """Admin approves or rejects a user"""
+        from bson import ObjectId
+        
+        # Convert string user_id to ObjectId
+        try:
+            object_id = ObjectId(user_id)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user ID format"
+            )
         
         # Find user to approve
-        user = await self.users_collection.find_one({"_id": user_id})
+        user = await self.users_collection.find_one({"_id": object_id})
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -179,11 +190,11 @@ class AuthService:
         
         # Update user
         await self.users_collection.update_one(
-            {"_id": user_id},
+            {"_id": object_id},
             {"$set": update_data}
         )
         
-        updated_user = await self.users_collection.find_one({"_id": user_id})
+        updated_user = await self.users_collection.find_one({"_id": object_id})
         return self._user_to_response(updated_user)
 
     async def get_pending_users(self) -> list[UserResponse]:
@@ -200,7 +211,12 @@ class AuthService:
 
     async def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
         """Get user by ID"""
-        user = await self.users_collection.find_one({"_id": user_id})
+        from bson import ObjectId
+        try:
+            object_id = ObjectId(user_id)
+        except Exception:
+            return None
+        user = await self.users_collection.find_one({"_id": object_id})
         return self._user_to_response(user) if user else None
 
     async def get_admin_stats(self) -> dict:
@@ -266,6 +282,7 @@ class AuthService:
     async def verify_token(self, token: str) -> dict:
         """Verify JWT token and return user data"""
         try:
+            from bson import ObjectId
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             user_id = payload.get("user_id")
             
@@ -275,7 +292,16 @@ class AuthService:
                     detail="Invalid token"
                 )
             
-            user = await self.users_collection.find_one({"_id": user_id})
+            # Convert string user_id to ObjectId for MongoDB query
+            try:
+                object_id = ObjectId(user_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid user ID format"
+                )
+            
+            user = await self.users_collection.find_one({"_id": object_id})
             if user is None:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -289,7 +315,7 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired"
             )
-        except jwt.JWTError:
+        except InvalidTokenError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"

@@ -1,38 +1,356 @@
-# Python virtual environment
+# =============================================================================
+# PYTHON / BACKEND IGNORES
+# =============================================================================
+# Virtual environments
 venv/
 backend/venv/
 .venv/
 env/
 .env/
+ENV/
+env.bak/
+venv.bak/
+pyvenv.cfg
 
-# Node.js dependencies
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Pyenv
+.python-version
+
+# Pipenv
+Pipfile.lock
+
+# Poetry
+poetry.lock
+
+# =============================================================================
+# NODE.JS / FRONTEND IGNORES
+# =============================================================================
+# Dependencies
 node_modules/
 frontend/node_modules/
 multichain-chainflip/frontend/node_modules/
 multichain-chainflip/contracts/l2-cdk-participants/node_modules/
+multichain-chainflip/contracts/polygon-pos-hub/node_modules/
+jspm_packages/
 
-# Python cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Package manager files
+package-lock.json
+yarn.lock
+yarn-error.log
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Build directories
-dist/
+# Build outputs
 build/
+dist/
 .next/
 .nuxt/
+out/
+.cache/
+.parcel-cache/
+
+# React / Create React App
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =============================================================================
+# DATABASE FILES
+# =============================================================================
+# MongoDB data directories
+data/
+database/
+mongo-data/
+E:/data/db/
+C:/data/db/
+/data/db/
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.sql
+*.dump
+*.backup
+
+# =============================================================================
+# BLOCKCHAIN / WEB3 IGNORES
+# =============================================================================
+# Hardhat
+artifacts/
+cache/
+typechain/
+typechain-types/
+
+# Truffle
+contracts/build/
+
+# Foundry
+out/
+cache_forge/
+
+# Blockchain data
+.chaindata/
+geth/
+keystore/
+
+# =============================================================================
+# LOGS & TEMPORARY FILES
+# =============================================================================
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+backend.log
+frontend.log
+mongodb.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# =============================================================================
+# IDE & EDITOR FILES
+# =============================================================================
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# OPERATING SYSTEM FILES
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# DEVELOPMENT & BUILD TOOLS
+# =============================================================================
+# ESLint
+.eslintcache
+
+# Stylelint
+.stylelintcache
+
+# Prettier
+.prettierignore
+
+# Webpack
+.webpack/
+
+# Rollup
+.rollup.cache/
+
+# Snowpack
+web_modules/
+
+# Serverless Framework
+.serverless/
+
+# FuseBox
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# =============================================================================
+# CLOUD & DEPLOYMENT
+# =============================================================================
+# Docker
+Dockerfile.prod
+docker-compose.override.yml
+
+# Kubernetes
+*.kubeconfig
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# =============================================================================
+# BACKUP & ARCHIVE FILES
+# =============================================================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.old
+*.orig
+*.save
+*.swp
+*.swo
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# =============================================================================
+# CHAINFLIP SPECIFIC IGNORES
+# =============================================================================
+# ChainFLIP specific data
+fl_models/
+ipfs_data/
+qr_codes/
+uploads/
+temp/
+
+# Deployment artifacts
+deployment_status.json
+contracts/deployments/
+contracts/artifacts/
+contracts/cache/
+
+# Test data
+test_data/
+mock_data/
+sample_data/
+
+# Local configuration overrides
+local.config.js
+local.config.json
+config.local.js
+
+# =============================================================================
+# KEEP THESE IMPORTANT FILES (DO NOT IGNORE)
+# =============================================================================
+# !requirements.txt
+# !package.json
+# !.env.example
+# !README.md
+# !docker-compose.yml
+# !Dockerfile
+# !.github/
+# !docs/
+# !scripts/
+# !src/
+# !contracts/*.sol
+# !frontend/public/
+# !backend/app/
