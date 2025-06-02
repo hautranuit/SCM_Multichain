@@ -23,16 +23,27 @@ class Settings(BaseSettings):
     deployer_private_key: str = os.getenv("DEPLOYER_PRIVATE_KEY", "")
     operator_private_key: str = os.getenv("OPERATOR_PRIVATE_KEY", "")
     
-    # Contract Addresses
-    pos_hub_contract: str = os.getenv("POS_HUB_CONTRACT", "")
-    l2_participant_contract: str = os.getenv("L2_PARTICIPANT_CONTRACT", "")
-    bridge_contract: str = os.getenv("BRIDGE_CONTRACT", "")
+    # Contract Addresses - Multi-Chain Architecture
+    # Hub Contract (Polygon PoS)
+    hub_contract: str = os.getenv("HUB_CONTRACT_ADDRESS", "")
+    pos_hub_contract: str = os.getenv("POS_HUB_CONTRACT", "")  # Legacy support
+    
+    # L2 Specialized Contracts
+    manufacturer_contract: str = os.getenv("MANUFACTURER_CONTRACT_ADDRESS", "")
+    transporter_contract: str = os.getenv("TRANSPORTER_CONTRACT_ADDRESS", "")
+    buyer_contract: str = os.getenv("BUYER_CONTRACT_ADDRESS", "")
+    
+    # Legacy contracts (for backward compatibility)
     nft_core_contract: str = os.getenv("NFT_CORE_CONTRACT", "")
     supply_chain_nft_contract: str = os.getenv("SUPPLY_CHAIN_NFT_CONTRACT", "")
     node_management_contract: str = os.getenv("NODE_MANAGEMENT_CONTRACT", "")
     batch_processing_contract: str = os.getenv("BATCH_PROCESSING_CONTRACT", "")
     dispute_resolution_contract: str = os.getenv("DISPUTE_RESOLUTION_CONTRACT", "")
     marketplace_contract: str = os.getenv("MARKETPLACE_CONTRACT", "")
+    
+    # Bridge and Cross-chain
+    bridge_contract: str = os.getenv("BRIDGE_CONTRACT", "")
+    l2_participant_contract: str = os.getenv("L2_PARTICIPANT_CONTRACT", "")
     
     # IPFS/Web3.Storage
     w3storage_token: str = os.getenv("W3STORAGE_TOKEN", "")
