@@ -1,11 +1,14 @@
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 async function main() {
     console.log("🚀 Deploying ManufacturerChain contract...");
     
     const [deployer] = await ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
-    console.log("Account balance:", (await deployer.getBalance()).toString());
+    
+    // Fix for ethers v6: Use provider to get balance
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log("Account balance:", ethers.formatEther(balance), "ETH");
 
     // Hub contract address (needs to be deployed first)
     const hubContractAddress = process.env.HUB_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
@@ -21,10 +24,16 @@ async function main() {
         hubContractAddress // hubContract
     );
 
-    await manufacturerChain.deployed();
+    // Fix for ethers v6: Use waitForDeployment instead of deployed
+    await manufacturerChain.waitForDeployment();
 
-    console.log("✅ ManufacturerChain deployed to:", manufacturerChain.address);
-    console.log("📋 Transaction hash:", manufacturerChain.deployTransaction.hash);
+    // Fix for ethers v6: Use getAddress() method
+    const contractAddress = await manufacturerChain.getAddress();
+    console.log("✅ ManufacturerChain deployed to:", contractAddress);
+    
+    // Fix for ethers v6: Use deploymentTransaction() method
+    const deployTx = manufacturerChain.deploymentTransaction();
+    console.log("📋 Transaction hash:", deployTx?.hash || "N/A");
 
     // Verify deployment
     console.log("\n🔍 Verifying deployment...");
@@ -52,10 +61,10 @@ async function main() {
         console.log("✅ Granted QUALITY_INSPECTOR_ROLE to deployer");
     }
 
-    // Fund the contract for incentives
-    const fundingAmount = ethers.utils.parseEther("1.0"); // 1 ETH
+    // Fund the contract for incentives (Fix for ethers v6: Use parseEther directly)
+    const fundingAmount = ethers.parseEther("1.0"); // 1 ETH
     const fundTx = await deployer.sendTransaction({
-        to: manufacturerChain.address,
+        to: contractAddress,
         value: fundingAmount
     });
     await fundTx.wait();
@@ -63,23 +72,23 @@ async function main() {
 
     console.log("\n📝 Deployment Summary:");
     console.log("=".repeat(50));
-    console.log("Contract Address:", manufacturerChain.address);
+    console.log("Contract Address:", contractAddress);
     console.log("Deployer:", deployer.address);
     console.log("Hub Contract:", hubContractAddress);
     console.log("Network:", network.name);
     console.log("Chain ID:", network.config.chainId);
-    console.log("Gas Used:", manufacturerChain.deployTransaction.gasLimit.toString());
+    console.log("Gas Used:", deployTx?.gasLimit?.toString() || "N/A");
     console.log("=".repeat(50));
 
     // Save deployment info
     const deploymentInfo = {
         network: network.name,
         chainId: network.config.chainId,
-        contractAddress: manufacturerChain.address,
+        contractAddress: contractAddress,
         deployer: deployer.address,
         hubContract: hubContractAddress,
-        transactionHash: manufacturerChain.deployTransaction.hash,
-        blockNumber: manufacturerChain.deployTransaction.blockNumber,
+        transactionHash: deployTx?.hash || "N/A",
+        blockNumber: deployTx?.blockNumber || "N/A",
         timestamp: new Date().toISOString(),
         roles: {
             DEFAULT_ADMIN_ROLE: await manufacturerChain.DEFAULT_ADMIN_ROLE(),
@@ -93,7 +102,7 @@ async function main() {
     const fs = require('fs');
     fs.writeFileSync('deployment-manufacturer.json', JSON.stringify(deploymentInfo, null, 2));
 
-    return manufacturerChain.address;
+    return contractAddress;
 }
 
 main()

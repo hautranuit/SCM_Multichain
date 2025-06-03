@@ -1,11 +1,14 @@
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 async function main() {
     console.log("🚛 Deploying TransporterChain contract...");
     
     const [deployer] = await ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
-    console.log("Account balance:", (await deployer.getBalance()).toString());
+    
+    // Fix for ethers v6: Use provider to get balance
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log("Account balance:", ethers.formatEther(balance), "ETH");
 
     // Hub contract address (needs to be deployed first)
     const hubContractAddress = process.env.HUB_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
@@ -21,10 +24,16 @@ async function main() {
         hubContractAddress // hubContract
     );
 
-    await transporterChain.deployed();
+    // Fix for ethers v6: Use waitForDeployment instead of deployed
+    await transporterChain.waitForDeployment();
 
-    console.log("✅ TransporterChain deployed to:", transporterChain.address);
-    console.log("📋 Transaction hash:", transporterChain.deployTransaction.hash);
+    // Fix for ethers v6: Use getAddress() method
+    const contractAddress = await transporterChain.getAddress();
+    console.log("✅ TransporterChain deployed to:", contractAddress);
+    
+    // Fix for ethers v6: Use deploymentTransaction() method
+    const deployTx = transporterChain.deploymentTransaction();
+    console.log("📋 Transaction hash:", deployTx?.hash || "N/A");
 
     // Verify deployment
     console.log("\n🔍 Verifying deployment...");
@@ -59,10 +68,10 @@ async function main() {
     await registerTx.wait();
     console.log("🚛 Registered deployer as transport node");
 
-    // Fund the contract for incentives
-    const fundingAmount = ethers.utils.parseEther("2.0"); // 2 ETH
+    // Fund the contract for incentives (Fix for ethers v6: Use parseEther directly)
+    const fundingAmount = ethers.parseEther("2.0"); // 2 ETH
     const fundTx = await deployer.sendTransaction({
-        to: transporterChain.address,
+        to: contractAddress,
         value: fundingAmount
     });
     await fundTx.wait();
@@ -70,24 +79,24 @@ async function main() {
 
     console.log("\n📝 Deployment Summary:");
     console.log("=".repeat(50));
-    console.log("Contract Address:", transporterChain.address);
+    console.log("Contract Address:", contractAddress);
     console.log("Deployer:", deployer.address);
     console.log("Hub Contract:", hubContractAddress);
     console.log("Network:", network.name);
     console.log("Chain ID:", network.config.chainId);
     console.log("Consensus Threshold:", consensusThreshold.toString() + "%");
-    console.log("Gas Used:", transporterChain.deployTransaction.gasLimit.toString());
+    console.log("Gas Used:", deployTx?.gasLimit?.toString() || "N/A");
     console.log("=".repeat(50));
 
     // Save deployment info
     const deploymentInfo = {
         network: network.name,
         chainId: network.config.chainId,
-        contractAddress: transporterChain.address,
+        contractAddress: contractAddress,
         deployer: deployer.address,
         hubContract: hubContractAddress,
-        transactionHash: transporterChain.deployTransaction.hash,
-        blockNumber: transporterChain.deployTransaction.blockNumber,
+        transactionHash: deployTx?.hash || "N/A",
+        blockNumber: deployTx?.blockNumber || "N/A",
         timestamp: new Date().toISOString(),
         consensusThreshold: consensusThreshold.toString(),
         roles: {
@@ -102,7 +111,7 @@ async function main() {
     const fs = require('fs');
     fs.writeFileSync('deployment-transporter.json', JSON.stringify(deploymentInfo, null, 2));
 
-    return transporterChain.address;
+    return contractAddress;
 }
 
 main()

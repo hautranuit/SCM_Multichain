@@ -305,7 +305,7 @@ contract EnhancedPolygonPoSHub is ERC721, Ownable, ReentrancyGuard, Pausable {
             })
         });
         
-        chainParticipants[chainId].push(_nextParticipantId);
+        chainParticipants[chainId].push(participantAddress);
         _nextParticipantId++;
         
         emit ParticipantRegistered(participantAddress, participantType, chainId, l2ContractAddress);

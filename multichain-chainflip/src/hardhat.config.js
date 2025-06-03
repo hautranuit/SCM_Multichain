@@ -14,6 +14,8 @@ module.exports = {
     },
   },
   networks: {
+    // === POLYGON ECOSYSTEM ===
+    
     // Polygon Amoy Testnet (Hub)
     amoy: {
       url: process.env.POLYGON_AMOY_RPC || "https://polygon-amoy.drpc.org",
@@ -34,7 +36,7 @@ module.exports = {
       maxFeePerGas: 100000000000,
     },
 
-    // Polygon CDK Cardona Testnet (L2 Chains)
+    // Polygon CDK Cardona Testnet (Manufacturer L2)
     cardona: {
       url: process.env.L2_CDK_RPC || "https://rpc.cardona.zkevm-rpc.com",
       accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
@@ -44,6 +46,54 @@ module.exports = {
       maxFeePerGas: 70000000000,
     },
 
+    // === ARBITRUM ECOSYSTEM ===
+    
+    // Arbitrum Sepolia Testnet (Transporter L2)
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
+      accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+      chainId: 421614,
+      gas: 30_000_000,
+      maxPriorityFeePerGas: 1000000000,  // 1 gwei
+      maxFeePerGas: 10000000000,         // 10 gwei
+      gasPrice: "auto",
+    },
+
+    // Arbitrum One Mainnet (Production)
+    arbitrumOne: {
+      url: process.env.ARBITRUM_ONE_RPC || "https://arb1.arbitrum.io/rpc",
+      accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+      chainId: 42161,
+      gas: 30_000_000,
+      maxPriorityFeePerGas: 1000000000,
+      maxFeePerGas: 10000000000,
+    },
+
+    // === OPTIMISM ECOSYSTEM ===
+    
+    // Optimism Sepolia Testnet (Buyer L2)
+    optimismSepolia: {
+      url: process.env.OPTIMISM_SEPOLIA_RPC || "https://sepolia.optimism.io",
+      accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+      chainId: 11155420,
+      gas: 30_000_000,
+      maxPriorityFeePerGas: 1000000000,  // 1 gwei
+      maxFeePerGas: 10000000000,         // 10 gwei
+      gasPrice: "auto",
+    },
+
+    // Optimism Mainnet (Production)
+    optimismMainnet: {
+      url: process.env.OPTIMISM_MAINNET_RPC || "https://mainnet.optimism.io",
+      accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+      chainId: 10,
+      gas: 30_000_000,
+      maxPriorityFeePerGas: 1000000000,
+      maxFeePerGas: 10000000000,
+    },
+
+    // === LOCAL DEVELOPMENT NETWORKS ===
+    
     // Local Manufacturer Chain (L2)
     manufacturer: {
       url: process.env.MANUFACTURER_RPC || "http://localhost:8545",

@@ -1,11 +1,14 @@
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 async function main() {
     console.log("🌐 Deploying EnhancedPolygonPoSHub contract...");
     
     const [deployer] = await ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
-    console.log("Account balance:", (await deployer.getBalance()).toString());
+    
+    // Fix for ethers v6: Use provider to get balance
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log("Account balance:", ethers.formatEther(balance), "ETH");
 
     // Deploy EnhancedPolygonPoSHub
     const EnhancedHub = await ethers.getContractFactory("EnhancedPolygonPoSHub");
@@ -13,10 +16,16 @@ async function main() {
         deployer.address // initialOwner
     );
 
-    await enhancedHub.deployed();
+    // Fix for ethers v6: Use waitForDeployment instead of deployed
+    await enhancedHub.waitForDeployment();
 
-    console.log("✅ EnhancedPolygonPoSHub deployed to:", enhancedHub.address);
-    console.log("📋 Transaction hash:", enhancedHub.deployTransaction.hash);
+    // Fix for ethers v6: Use getAddress() method
+    const contractAddress = await enhancedHub.getAddress();
+    console.log("✅ EnhancedPolygonPoSHub deployed to:", contractAddress);
+    
+    // Fix for ethers v6: Use deploymentTransaction() method
+    const deployTx = enhancedHub.deploymentTransaction();
+    console.log("📋 Transaction hash:", deployTx?.hash || "N/A");
 
     // Verify deployment
     console.log("\n🔍 Verifying deployment...");
@@ -43,10 +52,10 @@ async function main() {
     console.log("📝 Note: L2 contract addresses need to be registered after deployment");
     console.log("Use registerChainContract() with actual deployed addresses");
 
-    // Fund the contract
-    const fundingAmount = ethers.utils.parseEther("2.0"); // 2 ETH
+    // Fund the contract (Fix for ethers v6: Use parseEther directly)
+    const fundingAmount = ethers.parseEther("2.0"); // 2 ETH
     const fundTx = await deployer.sendTransaction({
-        to: enhancedHub.address,
+        to: contractAddress,
         value: fundingAmount
     });
     await fundTx.wait();
@@ -54,24 +63,24 @@ async function main() {
 
     console.log("\n📝 Deployment Summary:");
     console.log("=".repeat(50));
-    console.log("Contract Address:", enhancedHub.address);
+    console.log("Contract Address:", contractAddress);
     console.log("Deployer:", deployer.address);
     console.log("Network:", network.name);
     console.log("Chain ID:", network.config.chainId);
     console.log("Contract Name:", name);
     console.log("Contract Symbol:", symbol);
     console.log("Total FL Models:", flMetrics.totalModels.toString());
-    console.log("Gas Used:", enhancedHub.deployTransaction.gasLimit.toString());
+    console.log("Gas Used:", deployTx?.gasLimit?.toString() || "N/A");
     console.log("=".repeat(50));
 
     // Save deployment info
     const deploymentInfo = {
         network: network.name,
         chainId: network.config.chainId,
-        contractAddress: enhancedHub.address,
+        contractAddress: contractAddress,
         deployer: deployer.address,
-        transactionHash: enhancedHub.deployTransaction.hash,
-        blockNumber: enhancedHub.deployTransaction.blockNumber,
+        transactionHash: deployTx?.hash || "N/A",
+        blockNumber: deployTx?.blockNumber || "N/A",
         timestamp: new Date().toISOString(),
         contractName: name,
         contractSymbol: symbol,
@@ -100,7 +109,7 @@ async function main() {
     console.log("3. Register participants using registerParticipant()");
     console.log("4. Fund L2 contracts for incentive mechanisms");
 
-    return enhancedHub.address;
+    return contractAddress;
 }
 
 main()

@@ -1,7 +1,7 @@
 {
   "name": "chainflip-multichain-contracts",
   "version": "1.0.0",
-  "description": "ChainFLIP Multi-Chain Supply Chain Smart Contracts",
+  "description": "ChainFLIP Multi-Ecosystem Supply Chain Smart Contracts",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -17,26 +17,36 @@
     "deploy:manufacturer:local": "hardhat run deployment/deploy-manufacturer.js --network manufacturer",
     
     "deploy:transporter:cardona": "hardhat run deployment/deploy-transporter.js --network cardona",
+    "deploy:transporter:arbitrum": "hardhat run deployment/deploy-transporter.js --network arbitrumSepolia",
     "deploy:transporter:local": "hardhat run deployment/deploy-transporter.js --network transporter",
     
     "deploy:buyer:cardona": "hardhat run deployment/deploy-buyer.js --network cardona",
+    "deploy:buyer:optimism": "hardhat run deployment/deploy-buyer.js --network optimismSepolia",
     "deploy:buyer:local": "hardhat run deployment/deploy-buyer.js --network buyer",
     
     "deploy:all:testnet": "npm run deploy:hub:amoy && npm run deploy:manufacturer:cardona && npm run deploy:transporter:cardona && npm run deploy:buyer:cardona",
+    "deploy:all:multichain": "npm run deploy:hub:amoy && npm run deploy:manufacturer:cardona && npm run deploy:transporter:arbitrum && npm run deploy:buyer:optimism",
     "deploy:all:local": "npm run deploy:hub:local && npm run deploy:manufacturer:local && npm run deploy:transporter:local && npm run deploy:buyer:local",
+    "deploy:all:mainnet": "npm run deploy:hub:polygon && npm run deploy:manufacturer:cardona && npm run deploy:transporter:arbitrumOne && npm run deploy:buyer:optimismMainnet",
     
     "verify:amoy": "hardhat verify --network amoy",
     "verify:polygon": "hardhat verify --network polygon",
-    "verify:cardona": "hardhat verify --network cardona"
+    "verify:cardona": "hardhat verify --network cardona",
+    "verify:arbitrum": "hardhat verify --network arbitrumSepolia",
+    "verify:optimism": "hardhat verify --network optimismSepolia"
   },
   "keywords": [
     "blockchain",
     "supply-chain",
     "multi-chain",
+    "multi-ecosystem",
     "smart-contracts",
     "polygon",
+    "arbitrum",
+    "optimism",
     "federated-learning",
-    "nft"
+    "nft",
+    "cross-chain"
   ],
   "author": "ChainFLIP Team",
   "license": "MIT",

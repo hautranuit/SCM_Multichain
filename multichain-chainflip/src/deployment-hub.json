@@ -1,0 +1,24 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "contractAddress": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8",
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "transactionHash": "0xa70b4b2e8ea50276bb5acf2b3419364dd6b12de29887d55271b19933815cb7fb",
+  "blockNumber": "N/A",
+  "timestamp": "2025-06-03T03:51:03.889Z",
+  "contractName": "ChainFLIP Enhanced Supply Chain NFT",
+  "contractSymbol": "CFESC",
+  "totalFLModels": "5",
+  "chainIds": {
+    "MANUFACTURER_CHAIN_ID": 2001,
+    "TRANSPORTER_CHAIN_ID": 2002,
+    "BUYER_CHAIN_ID": 2003
+  },
+  "flModels": [
+    "anomaly_detection",
+    "counterfeit_detection",
+    "quality_prediction",
+    "route_optimization",
+    "fraud_detection"
+  ]
+}

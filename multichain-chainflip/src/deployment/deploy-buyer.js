@@ -1,11 +1,14 @@
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 async function main() {
     console.log("🛒 Deploying BuyerChain contract...");
     
     const [deployer] = await ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
-    console.log("Account balance:", (await deployer.getBalance()).toString());
+    
+    // Fix for ethers v6: Use provider to get balance
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log("Account balance:", ethers.formatEther(balance), "ETH");
 
     // Hub contract address (needs to be deployed first)
     const hubContractAddress = process.env.HUB_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
@@ -21,16 +24,22 @@ async function main() {
         hubContractAddress // hubContract
     );
 
-    await buyerChain.deployed();
+    // Fix for ethers v6: Use waitForDeployment instead of deployed
+    await buyerChain.waitForDeployment();
 
-    console.log("✅ BuyerChain deployed to:", buyerChain.address);
-    console.log("📋 Transaction hash:", buyerChain.deployTransaction.hash);
+    // Fix for ethers v6: Use getAddress() method
+    const contractAddress = await buyerChain.getAddress();
+    console.log("✅ BuyerChain deployed to:", contractAddress);
+    
+    // Fix for ethers v6: Use deploymentTransaction() method
+    const deployTx = buyerChain.deploymentTransaction();
+    console.log("📋 Transaction hash:", deployTx?.hash || "N/A");
 
     // Verify deployment
     console.log("\n🔍 Verifying deployment...");
     const disputeFee = await buyerChain.disputeResolutionFee();
     const confirmationPeriod = await buyerChain.confirmationPeriod();
-    console.log("Dispute resolution fee:", ethers.utils.formatEther(disputeFee), "ETH");
+    console.log("Dispute resolution fee:", ethers.formatEther(disputeFee), "ETH");
     console.log("Confirmation period:", confirmationPeriod.toString(), "seconds");
 
     // Setup initial roles and permissions
@@ -58,10 +67,10 @@ async function main() {
     await registerArbitratorTx.wait();
     console.log("⚖️  Registered deployer as arbitrator");
 
-    // Fund the contract for payments and incentives
-    const fundingAmount = ethers.utils.parseEther("5.0"); // 5 ETH
+    // Fund the contract for payments and incentives (Fix for ethers v6: Use parseEther directly)
+    const fundingAmount = ethers.parseEther("5.0"); // 5 ETH
     const fundTx = await deployer.sendTransaction({
-        to: buyerChain.address,
+        to: contractAddress,
         value: fundingAmount
     });
     await fundTx.wait();
@@ -69,27 +78,27 @@ async function main() {
 
     console.log("\n📝 Deployment Summary:");
     console.log("=".repeat(50));
-    console.log("Contract Address:", buyerChain.address);
+    console.log("Contract Address:", contractAddress);
     console.log("Deployer:", deployer.address);
     console.log("Hub Contract:", hubContractAddress);
     console.log("Network:", network.name);
     console.log("Chain ID:", network.config.chainId);
-    console.log("Dispute Fee:", ethers.utils.formatEther(disputeFee), "ETH");
+    console.log("Dispute Fee:", ethers.formatEther(disputeFee), "ETH");
     console.log("Confirmation Period:", confirmationPeriod.toString(), "seconds");
-    console.log("Gas Used:", buyerChain.deployTransaction.gasLimit.toString());
+    console.log("Gas Used:", deployTx?.gasLimit?.toString() || "N/A");
     console.log("=".repeat(50));
 
     // Save deployment info
     const deploymentInfo = {
         network: network.name,
         chainId: network.config.chainId,
-        contractAddress: buyerChain.address,
+        contractAddress: contractAddress,
         deployer: deployer.address,
         hubContract: hubContractAddress,
-        transactionHash: buyerChain.deployTransaction.hash,
-        blockNumber: buyerChain.deployTransaction.blockNumber,
+        transactionHash: deployTx?.hash || "N/A",
+        blockNumber: deployTx?.blockNumber || "N/A",
         timestamp: new Date().toISOString(),
-        disputeResolutionFee: ethers.utils.formatEther(disputeFee),
+        disputeResolutionFee: ethers.formatEther(disputeFee),
         confirmationPeriod: confirmationPeriod.toString(),
         roles: {
             DEFAULT_ADMIN_ROLE: await buyerChain.DEFAULT_ADMIN_ROLE(),
@@ -104,7 +113,7 @@ async function main() {
     const fs = require('fs');
     fs.writeFileSync('deployment-buyer.json', JSON.stringify(deploymentInfo, null, 2));
 
-    return buyerChain.address;
+    return contractAddress;
 }
 
 main()
