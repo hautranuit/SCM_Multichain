@@ -8,27 +8,26 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "clean": "hardhat clean",
-    
     "deploy:hub:amoy": "hardhat run deployment/deploy-hub.js --network amoy",
     "deploy:hub:polygon": "hardhat run deployment/deploy-hub.js --network polygon",
     "deploy:hub:local": "hardhat run deployment/deploy-hub.js --network localhost",
-    
     "deploy:manufacturer:cardona": "hardhat run deployment/deploy-manufacturer.js --network cardona",
     "deploy:manufacturer:local": "hardhat run deployment/deploy-manufacturer.js --network manufacturer",
-    
     "deploy:transporter:cardona": "hardhat run deployment/deploy-transporter.js --network cardona",
     "deploy:transporter:arbitrum": "hardhat run deployment/deploy-transporter.js --network arbitrumSepolia",
     "deploy:transporter:local": "hardhat run deployment/deploy-transporter.js --network transporter",
-    
     "deploy:buyer:cardona": "hardhat run deployment/deploy-buyer.js --network cardona",
     "deploy:buyer:optimism": "hardhat run deployment/deploy-buyer.js --network optimismSepolia",
     "deploy:buyer:local": "hardhat run deployment/deploy-buyer.js --network buyer",
-    
+    "deploy:bridges:amoy": "hardhat run deployment/deploy-bridges.js --network amoy",
+    "deploy:bridges:cardona": "hardhat run deployment/deploy-bridges.js --network cardona",
+    "deploy:bridges:arbitrum": "hardhat run deployment/deploy-bridges.js --network arbitrumSepolia",
+    "deploy:bridges:optimism": "hardhat run deployment/deploy-bridges.js --network optimismSepolia",
     "deploy:all:testnet": "npm run deploy:hub:amoy && npm run deploy:manufacturer:cardona && npm run deploy:transporter:cardona && npm run deploy:buyer:cardona",
     "deploy:all:multichain": "npm run deploy:hub:amoy && npm run deploy:manufacturer:cardona && npm run deploy:transporter:arbitrum && npm run deploy:buyer:optimism",
+    "deploy:all:with-bridges": "npm run deploy:all:multichain && npm run deploy:bridges:amoy && npm run deploy:bridges:cardona && npm run deploy:bridges:arbitrum && npm run deploy:bridges:optimism",
     "deploy:all:local": "npm run deploy:hub:local && npm run deploy:manufacturer:local && npm run deploy:transporter:local && npm run deploy:buyer:local",
     "deploy:all:mainnet": "npm run deploy:hub:polygon && npm run deploy:manufacturer:cardona && npm run deploy:transporter:arbitrumOne && npm run deploy:buyer:optimismMainnet",
-    
     "verify:amoy": "hardhat verify --network amoy",
     "verify:polygon": "hardhat verify --network polygon",
     "verify:cardona": "hardhat verify --network cardona",
@@ -51,8 +50,23 @@
   "author": "ChainFLIP Team",
   "license": "MIT",
   "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.11",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.23.0"
+    "@nomicfoundation/hardhat-verify": "^2.0.14",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "chai": "^4.5.0",
+    "hardhat": "^2.23.0",
+    "hardhat-gas-reporter": "^1.0.10",
+    "solidity-coverage": "^0.8.16",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2",
