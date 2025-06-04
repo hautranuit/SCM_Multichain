@@ -12,7 +12,7 @@ const LAYERZERO_ENDPOINTS = {
 // FxPortal contracts for Polygon ecosystem
 const FX_PORTAL_ADDRESSES = {
   80002: {
-    fxStateSender: "0x4CdF39285D7Ca8eB3f090fDA0C069ba5F4145B37", // Polygon Amoy FxStateSender
+    fxStateSender: "0x4cdF39285D7Ca8eB3f090fDA0C069ba5F4145B37", // Polygon Amoy FxStateSender
     checkpointManager: "0x2890bA17EfE978480615e330ecB65333b880928e"
   },
   2442: {
@@ -42,7 +42,7 @@ async function main() {
       // Deploy LayerZero Config
       const LayerZeroConfig = await ethers.getContractFactory("LayerZeroConfig");
       const layerZeroConfig = await LayerZeroConfig.deploy(
-        LAYERZERO_ENDPOINTS[chainId],
+        ethers.getAddress(LAYERZERO_ENDPOINTS[chainId]),
         deployer.address
       );
       await layerZeroConfig.waitForDeployment();
@@ -52,7 +52,7 @@ async function main() {
       // Deploy FxPortal Bridge
       const FxPortalBridge = await ethers.getContractFactory("FxPortalBridge");
       const fxPortalBridge = await FxPortalBridge.deploy(
-        FX_PORTAL_ADDRESSES[chainId].fxStateSender,
+        ethers.getAddress(FX_PORTAL_ADDRESSES[chainId].fxStateSender),
         deployer.address
       );
       await fxPortalBridge.waitForDeployment();
@@ -94,7 +94,7 @@ async function main() {
       // Deploy LayerZero Config
       const LayerZeroConfig = await ethers.getContractFactory("LayerZeroConfig");
       const layerZeroConfig = await LayerZeroConfig.deploy(
-        LAYERZERO_ENDPOINTS[chainId],
+        ethers.getAddress(LAYERZERO_ENDPOINTS[chainId]),
         deployer.address
       );
       await layerZeroConfig.waitForDeployment();
@@ -108,7 +108,7 @@ async function main() {
       // Deploy LayerZero Config
       const LayerZeroConfig = await ethers.getContractFactory("LayerZeroConfig");
       const layerZeroConfig = await LayerZeroConfig.deploy(
-        LAYERZERO_ENDPOINTS[chainId],
+        ethers.getAddress(LAYERZERO_ENDPOINTS[chainId]),
         deployer.address
       );
       await layerZeroConfig.waitForDeployment();

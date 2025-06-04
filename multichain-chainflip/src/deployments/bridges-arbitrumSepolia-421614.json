@@ -1,0 +1,11 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": 421614,
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "deployedAt": "2025-06-04T08:34:11.251Z",
+  "contracts": {
+    "layerZeroConfig": "0x217e72E43e9375c1121ca36dcAc3fe878901836D"
+  },
+  "bridgeType": "LayerZero",
+  "gasUsed": "TBD"
+}

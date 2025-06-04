@@ -1,0 +1,13 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "deployedAt": "2025-06-04T08:40:42.298Z",
+  "contracts": {
+    "layerZeroConfig": "0x72a336eAAC8186906F1Ee85dF00C7d6b91257A43",
+    "fxPortalBridge": "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476",
+    "crossChainMessenger": "0x04C881aaE303091Bda3e06731f6fa565A929F983"
+  },
+  "bridgeType": "LayerZero",
+  "gasUsed": "TBD"
+}

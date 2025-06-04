@@ -1,0 +1,13 @@
+{
+  "network": "optimismSepolia",
+  "chainId": 11155420,
+  "contractAddress": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d",
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "hubContract": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8",
+  "transactionHash": "0x3b10c4a07f8f017393838d9b30e5b53c4278d4197b73e60d11e7b286f890c4e9",
+  "blockNumber": 28611272,
+  "timestamp": "2025-06-04T08:18:12.412Z",
+  "disputeResolutionFee": "0.001",
+  "confirmationPeriod": "604800",
+  "deploymentType": "simplified"
+}
