@@ -12,10 +12,21 @@ class Settings(BaseSettings):
     mongo_url: str = os.getenv("MONGO_URL", "mongodb://localhost:27017")
     database_name: str = os.getenv("DATABASE_NAME", "chainflip_multichain")
     
-    # Blockchain Networks
+    # Blockchain Networks - Updated Multi-chain Architecture
     polygon_pos_rpc: str = os.getenv("POLYGON_POS_RPC", "https://polygon-amoy.drpc.org")
     polygon_pos_chain_id: int = int(os.getenv("POLYGON_POS_CHAIN_ID", "80002"))
     
+    # Individual L2 Network RPCs
+    zkevm_cardona_rpc: str = os.getenv("ZKEVM_CARDONA_RPC", "https://rpc.cardona.zkevm-rpc.com")
+    zkevm_cardona_chain_id: int = int(os.getenv("ZKEVM_CARDONA_CHAIN_ID", "2442"))
+    
+    arbitrum_sepolia_rpc: str = os.getenv("ARBITRUM_SEPOLIA_RPC", "https://sepolia-rollup.arbitrum.io/rpc") 
+    arbitrum_sepolia_chain_id: int = int(os.getenv("ARBITRUM_SEPOLIA_CHAIN_ID", "421614"))
+    
+    optimism_sepolia_rpc: str = os.getenv("OPTIMISM_SEPOLIA_RPC", "https://sepolia.optimism.io")
+    optimism_sepolia_chain_id: int = int(os.getenv("OPTIMISM_SEPOLIA_CHAIN_ID", "11155420"))
+    
+    # Legacy L2 CDK (for backward compatibility)
     l2_cdk_rpc: str = os.getenv("L2_CDK_RPC", "")
     l2_cdk_chain_id: int = int(os.getenv("L2_CDK_CHAIN_ID", "0"))
     
@@ -25,13 +36,13 @@ class Settings(BaseSettings):
     
     # Contract Addresses - Multi-Chain Architecture
     # Hub Contract (Polygon PoS)
-    hub_contract: str = os.getenv("HUB_CONTRACT_ADDRESS", "")
-    pos_hub_contract: str = os.getenv("POS_HUB_CONTRACT", "")  # Legacy support
+    hub_contract: str = os.getenv("HUB_CONTRACT_ADDRESS", "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8")
+    pos_hub_contract: str = os.getenv("POS_HUB_CONTRACT", "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8")  # Legacy support
     
-    # L2 Specialized Contracts
-    manufacturer_contract: str = os.getenv("MANUFACTURER_CONTRACT_ADDRESS", "")
-    transporter_contract: str = os.getenv("TRANSPORTER_CONTRACT_ADDRESS", "")
-    buyer_contract: str = os.getenv("BUYER_CONTRACT_ADDRESS", "")
+    # L2 Specialized Contracts - Real Deployed Addresses
+    manufacturer_contract_address: str = os.getenv("MANUFACTURER_CONTRACT_ADDRESS", "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d")
+    transporter_contract_address: str = os.getenv("TRANSPORTER_CONTRACT_ADDRESS", "0x5D9E723dC9f8A54a3904aaCF188893fb67d582a9")
+    buyer_contract_address: str = os.getenv("BUYER_CONTRACT_ADDRESS", "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d")
     
     # Legacy contracts (for backward compatibility)
     nft_core_contract: str = os.getenv("NFT_CORE_CONTRACT", "")

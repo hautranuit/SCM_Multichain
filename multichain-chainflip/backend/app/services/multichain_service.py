@@ -25,27 +25,31 @@ class MultiChainService:
         self.contracts: Dict[str, Contract] = {}
         self.database = None
         
-        # Chain configurations
+        # Chain configurations - Updated with real deployed addresses
         self.chain_configs = {
             "hub": {
                 "chain_id": 80002,  # Polygon Amoy
                 "name": "Enhanced Polygon PoS Hub",
-                "role": "Central coordination and FL aggregation"
+                "role": "Central coordination and FL aggregation",
+                "contract_address": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8"
             },
             "manufacturer": {
-                "chain_id": 2001,
-                "name": "Manufacturer L2 Chain", 
-                "role": "Product creation and quality control"
+                "chain_id": 2442,  # zkEVM Cardona
+                "name": "Manufacturer zkEVM Chain", 
+                "role": "Product creation and quality control",
+                "contract_address": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d"
             },
             "transporter": {
-                "chain_id": 2002,
-                "name": "Transporter L2 Chain",
-                "role": "Logistics and consensus"
+                "chain_id": 421614,  # Arbitrum Sepolia
+                "name": "Transporter Arbitrum Chain",
+                "role": "Logistics and consensus",
+                "contract_address": "0x5D9E723dC9f8A54a3904aaCF188893fb67d582a9"
             },
             "buyer": {
-                "chain_id": 2003,
-                "name": "Buyer L2 Chain", 
-                "role": "Marketplace and disputes"
+                "chain_id": 11155420,  # Optimism Sepolia
+                "name": "Buyer Optimism Chain", 
+                "role": "Marketplace and disputes",
+                "contract_address": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d"
             }
         }
         
@@ -64,15 +68,30 @@ class MultiChainService:
             else:
                 print("❌ Failed to connect to Hub Chain")
         
-        # Initialize L2 connections
-        if settings.l2_cdk_rpc:
-            # For simplicity, using same RPC for all L2 chains in development
-            # In production, each L2 would have its own RPC endpoint
-            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.l2_cdk_rpc))
-            self.transporter_web3 = Web3(Web3.HTTPProvider(settings.l2_cdk_rpc))
-            self.buyer_web3 = Web3(Web3.HTTPProvider(settings.l2_cdk_rpc))
-            
-            print(f"✅ Connected to L2 Chains (Base RPC: {settings.l2_cdk_rpc})")
+        # Initialize L2 connections - Real multichain deployment
+        # Manufacturer L2: zkEVM Cardona
+        if settings.zkevm_cardona_rpc:
+            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.zkevm_cardona_rpc))
+            if self.manufacturer_web3.is_connected():
+                print(f"✅ Connected to Manufacturer Chain (zkEVM Cardona - Chain ID: {self.chain_configs['manufacturer']['chain_id']})")
+            else:
+                print("❌ Failed to connect to Manufacturer Chain")
+        
+        # Transporter L2: Arbitrum Sepolia  
+        if settings.arbitrum_sepolia_rpc:
+            self.transporter_web3 = Web3(Web3.HTTPProvider(settings.arbitrum_sepolia_rpc))
+            if self.transporter_web3.is_connected():
+                print(f"✅ Connected to Transporter Chain (Arbitrum Sepolia - Chain ID: {self.chain_configs['transporter']['chain_id']})")
+            else:
+                print("❌ Failed to connect to Transporter Chain")
+        
+        # Buyer L2: Optimism Sepolia
+        if settings.optimism_sepolia_rpc:
+            self.buyer_web3 = Web3(Web3.HTTPProvider(settings.optimism_sepolia_rpc))
+            if self.buyer_web3.is_connected():
+                print(f"✅ Connected to Buyer Chain (Optimism Sepolia - Chain ID: {self.chain_configs['buyer']['chain_id']})")
+            else:
+                print("❌ Failed to connect to Buyer Chain")
         
         # Load contract ABIs and addresses
         await self.load_contracts()
@@ -124,12 +143,12 @@ class MultiChainService:
     
     async def _get_contract_addresses(self) -> Dict[str, str]:
         """Get contract addresses from environment or database"""
-        # Check environment variables first
+        # Updated with real deployed addresses
         addresses = {
-            "hub": settings.pos_hub_contract,
-            "manufacturer": os.getenv("MANUFACTURER_CONTRACT_ADDRESS", ""),
-            "transporter": os.getenv("TRANSPORTER_CONTRACT_ADDRESS", ""),
-            "buyer": os.getenv("BUYER_CONTRACT_ADDRESS", "")
+            "hub": settings.pos_hub_contract or "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8",
+            "manufacturer": settings.manufacturer_contract_address or "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d",
+            "transporter": settings.transporter_contract_address or "0x5D9E723dC9f8A54a3904aaCF188893fb67d582a9",
+            "buyer": settings.buyer_contract_address or "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d"
         }
         
         # If not in environment, check database
