@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import QRCode from 'qrcode.react';
+import { useAuth } from '../contexts/AuthContext';
+import blockchainService from '../services/blockchainService';
+import CrossChainTransfer from './CrossChainTransfer';
+import { Package, Truck, Shield, Store, Eye, ArrowRight } from 'lucide-react';
 
 const ProductManagement = () => {
+  const { user, userRole } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showCrossChainTransfer, setShowCrossChainTransfer] = useState(false);
+  const [transferProductId, setTransferProductId] = useState(null);
+  const [showVerificationForm, setShowVerificationForm] = useState(false);
+  const [verificationProductId, setVerificationProductId] = useState(null);
+  const [multiChainStats, setMultiChainStats] = useState(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
@@ -22,7 +32,17 @@ const ProductManagement = () => {
 
   useEffect(() => {
     fetchProducts();
+    loadMultiChainStats();
   }, []);
+
+  const loadMultiChainStats = async () => {
+    try {
+      const stats = await blockchainService.getAllChainStats();
+      setMultiChainStats(stats);
+    } catch (error) {
+      console.error('Error loading multi-chain stats:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -41,7 +61,7 @@ const ProductManagement = () => {
     setLoading(true);
     
     try {
-      // Prepare metadata for NFTCore contract
+      // Prepare metadata for cross-chain minting
       const metadata = {
         name: newProduct.name,
         description: newProduct.description,
@@ -55,20 +75,21 @@ const ProductManagement = () => {
         productType: newProduct.category || 'General'
       };
 
-      console.log('Creating product with metadata:', metadata);
+      console.log('Creating product with enhanced blockchain service:', metadata);
 
-      // Send to backend (backend will handle IPFS upload & encryption)
-      const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/blockchain/products/mint`, {
-        manufacturer: newProduct.manufacturer || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+      // Use the enhanced blockchain service for cross-chain minting
+      const result = await blockchainService.mintProduct({
+        manufacturer: newProduct.manufacturer || user?.wallet_address || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
         metadata: metadata
       });
       
-      console.log('Product created successfully:', response.data);
+      console.log('Product created successfully with cross-chain integration:', result);
       
-      // Show success message with details
-      alert(`Product created successfully!\n\nToken ID: ${response.data.token_id}\nMetadata CID: ${response.data.metadata_cid}\nTransaction: ${response.data.transaction_hash}`);
+      // Show success message with enhanced details
+      alert(`✅ Product created successfully on blockchain!\n\n🆔 Token ID: ${result.token_id}\n📁 Metadata CID: ${result.metadata_cid}\n🔗 Transaction: ${result.transaction_hash}\n🔐 QR Hash: ${result.qr_hash}`);
       
       await fetchProducts();
+      await loadMultiChainStats(); // Refresh multi-chain stats
       setShowCreateForm(false);
       setNewProduct({
         name: '',
@@ -83,9 +104,9 @@ const ProductManagement = () => {
         uniqueProductID: ''
       });
     } catch (error) {
-      console.error('Error creating product:', error.response?.data || error.message);
-      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error occurred';
-      alert(`Error creating product: ${errorMessage}`);
+      console.error('Error creating product:', error);
+      const errorMessage = error.message || 'Unknown error occurred';
+      alert(`❌ Error creating product: ${errorMessage}`);
     }
     setLoading(false);
   };
@@ -107,6 +128,96 @@ const ProductManagement = () => {
     return JSON.stringify(qrData);
   };
 
+  // Cross-chain operations
+  const handleCrossChainTransfer = (productTokenId) => {
+    setTransferProductId(productTokenId);
+    setShowCrossChainTransfer(true);
+  };
+
+  const handleVerifyProduct = async (productTokenId) => {
+    try {
+      setLoading(true);
+      const product = products.find(p => p.token_id === productTokenId);
+      if (!product) {
+        alert('Product not found');
+        return;
+      }
+
+      // Use Algorithm 4: Product Authenticity Verification
+      const result = await blockchainService.verifyProductAuthenticity({
+        product_id: productTokenId,
+        qr_data: generateQRCode(product),
+        current_owner: user?.wallet_address || product.current_owner
+      });
+
+      alert(`🔍 Product Verification Result:\n\n✅ Status: ${result.status}\n📅 Verified: ${new Date(result.verification_timestamp * 1000).toLocaleString()}\n🔐 QR Verified: ${result.details?.qr_verified ? '✅' : '❌'}\n👤 Owner Verified: ${result.details?.owner_verified ? '✅' : '❌'}`);
+    } catch (error) {
+      console.error('Verification error:', error);
+      alert(`❌ Verification failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleListInMarketplace = async (productTokenId) => {
+    try {
+      const price = prompt('Enter price for marketplace listing:');
+      if (!price || isNaN(price)) {
+        alert('Please enter a valid price');
+        return;
+      }
+
+      setLoading(true);
+
+      // Use Algorithm 5: Post Supply Chain Management (Marketplace)
+      const result = await blockchainService.listProductForSale({
+        product_id: productTokenId,
+        price: parseFloat(price),
+        target_chains: [80002, 2442, 421614, 11155420] // All chains
+      });
+
+      alert(`🛒 Product listed in marketplace!\n\n💰 Price: $${price}\n📅 Listed: ${new Date(result.listing_timestamp * 1000).toLocaleString()}\n🌐 Available on ${result.listed_on_chains.length} chains`);
+      
+      await fetchProducts();
+    } catch (error) {
+      console.error('Marketplace listing error:', error);
+      alert(`❌ Failed to list in marketplace: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQualityCheck = async (productTokenId) => {
+    try {
+      const score = prompt('Enter quality score (0-100):');
+      if (!score || isNaN(score) || score < 0 || score > 100) {
+        alert('Please enter a valid score between 0 and 100');
+        return;
+      }
+
+      const passed = parseInt(score) >= 70;
+      
+      setLoading(true);
+
+      // Perform quality check (manufacturer chain operation)
+      const result = await blockchainService.performQualityCheck(
+        productTokenId,
+        user?.wallet_address || 'inspector',
+        passed,
+        parseInt(score)
+      );
+
+      alert(`🔍 Quality Check ${passed ? 'PASSED' : 'FAILED'}!\n\n📊 Score: ${score}/100\n✅ Status: ${result.status}\n📅 Checked: ${new Date().toLocaleString()}`);
+      
+      await fetchProducts();
+    } catch (error) {
+      console.error('Quality check error:', error);
+      alert(`❌ Quality check failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getCurrentDate = () => {
     return new Date().toISOString().split('T')[0];
   };
@@ -118,25 +229,79 @@ const ProductManagement = () => {
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>📦 Products Management</h2>
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="btn"
-          style={{ 
-            background: '#3b82f6', 
-            color: 'white', 
-            border: 'none', 
-            padding: '12px 24px', 
-            borderRadius: '8px',
-            fontSize: '16px',
-            cursor: 'pointer'
-          }}
-        >
-          {showCreateForm ? 'Cancel' : '+ Create Product'}
-        </button>
+        <div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>📦 Cross-Chain Product Management</h2>
+          <p style={{ color: '#6b7280', margin: '5px 0' }}>Multi-chain product lifecycle with blockchain verification</p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={loadMultiChainStats}
+            className="btn"
+            style={{ 
+              background: '#6b7280', 
+              color: 'white', 
+              border: 'none', 
+              padding: '10px 20px', 
+              borderRadius: '6px',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            🔄 Refresh Stats
+          </button>
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="btn"
+            style={{ 
+              background: '#3b82f6', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 24px', 
+              borderRadius: '8px',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            {showCreateForm ? 'Cancel' : '+ Create Product'}
+          </button>
+        </div>
       </div>
+
+      {/* Multi-Chain Stats */}
+      {multiChainStats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-800 mb-2">🏛️ Hub Chain</h3>
+            <div className="text-sm text-blue-700">
+              <div>Status: {multiChainStats.multichain?.polygon_pos_hub?.connected ? '✅ Connected' : '❌ Disconnected'}</div>
+              <div>Products: {multiChainStats.multichain?.statistics?.total_products || 0}</div>
+            </div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 className="font-semibold text-green-800 mb-2">🏭 Manufacturer</h3>
+            <div className="text-sm text-green-700">
+              <div>Chain: zkEVM Cardona</div>
+              <div>Products: {multiChainStats.multichain?.statistics?.total_products || 0}</div>
+            </div>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="font-semibold text-yellow-800 mb-2">🚛 Transporter</h3>
+            <div className="text-sm text-yellow-700">
+              <div>Chain: Arbitrum Sepolia</div>
+              <div>Shipments: {multiChainStats.multichain?.statistics?.total_transactions || 0}</div>
+            </div>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <h3 className="font-semibold text-purple-800 mb-2">🛒 Buyer</h3>
+            <div className="text-sm text-purple-700">
+              <div>Chain: Optimism Sepolia</div>
+              <div>Purchases: {multiChainStats.multichain?.statistics?.total_disputes || 0}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Product Form */}
       {showCreateForm && (
@@ -391,17 +556,107 @@ const ProductManagement = () => {
                   )}
                 </div>
 
-                <div style={{ marginTop: '15px', textAlign: 'center' }}>
-                  <div style={{ marginBottom: '10px' }}>
+                <div style={{ marginTop: '15px' }}>
+                  <div style={{ marginBottom: '10px', textAlign: 'center' }}>
                     <QRCode 
                       value={generateQRCode(product)} 
-                      size={120}
+                      size={100}
                       style={{ border: '1px solid #e5e7eb', padding: '5px' }}
                     />
                   </div>
-                  <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px', textAlign: 'center' }}>
                     {product.encrypted_qr_code ? '🔐 Encrypted QR Code' : '📱 Basic QR Code'}
                   </div>
+                  
+                  {/* Cross-Chain Operations */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                    <button
+                      onClick={() => handleCrossChainTransfer(product.token_id)}
+                      className="btn"
+                      style={{ 
+                        background: '#10b981', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '6px 8px', 
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Transfer to another chain"
+                    >
+                      <Truck className="w-3 h-3 mr-1" />
+                      Ship
+                    </button>
+                    
+                    <button
+                      onClick={() => handleVerifyProduct(product.token_id)}
+                      className="btn"
+                      style={{ 
+                        background: '#8b5cf6', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '6px 8px', 
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Verify authenticity using Algorithm 4"
+                    >
+                      <Shield className="w-3 h-3 mr-1" />
+                      Verify
+                    </button>
+                    
+                    {userRole === 'manufacturer' && (
+                      <button
+                        onClick={() => handleQualityCheck(product.token_id)}
+                        className="btn"
+                        style={{ 
+                          background: '#f59e0b', 
+                          color: 'white', 
+                          border: 'none', 
+                          padding: '6px 8px', 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Perform quality check"
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        QC
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={() => handleListInMarketplace(product.token_id)}
+                      className="btn"
+                      style={{ 
+                        background: '#ec4899', 
+                        color: 'white', 
+                        border: 'none', 
+                        padding: '6px 8px', 
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="List in marketplace using Algorithm 5"
+                    >
+                      <Store className="w-3 h-3 mr-1" />
+                      Sell
+                    </button>
+                  </div>
+                  
                   <button
                     onClick={() => setSelectedProduct(selectedProduct?.token_id === product.token_id ? null : product)}
                     className="btn"
@@ -409,10 +664,11 @@ const ProductManagement = () => {
                       background: '#3b82f6', 
                       color: 'white', 
                       border: 'none', 
-                      padding: '6px 12px', 
+                      padding: '8px 12px', 
                       borderRadius: '4px',
                       fontSize: '14px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      width: '100%'
                     }}
                   >
                     {selectedProduct?.token_id === product.token_id ? 'Hide Details' : 'View Details'}
@@ -451,6 +707,18 @@ const ProductManagement = () => {
           </div>
         )}
       </div>
+
+      {/* Cross-Chain Transfer Modal */}
+      {showCrossChainTransfer && transferProductId && (
+        <CrossChainTransfer
+          productTokenId={transferProductId}
+          onClose={() => {
+            setShowCrossChainTransfer(false);
+            setTransferProductId(null);
+            fetchProducts(); // Refresh products after transfer
+          }}
+        />
+      )}
     </div>
   );
 };

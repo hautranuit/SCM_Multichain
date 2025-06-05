@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import blockchainService from '../services/blockchainService';
 import { 
   Users, 
   Building, 
@@ -10,12 +11,43 @@ import {
   Database,
   Globe,
   Zap,
-  Package
+  Package,
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react';
 
 const Dashboard = ({ backendStatus }) => {
   const { user, userRole, l2Blockchain, isAdmin } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [multiChainStats, setMultiChainStats] = useState(null);
+  const [algorithmStats, setAlgorithmStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    loadDashboardData();
+    // Refresh data every 30 seconds
+    const interval = setInterval(loadDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [chainStats, algorithmData] = await Promise.all([
+        blockchainService.getAllChainStats(),
+        blockchainService.getAlgorithmStatus()
+      ]);
+      
+      setMultiChainStats(chainStats);
+      setAlgorithmStats(algorithmData);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getRoleInfo = () => {
     switch (userRole) {
@@ -182,6 +214,11 @@ const Dashboard = ({ backendStatus }) => {
                   <span>Database:</span>
                   <span className="text-green-600">✅ Connected</span>
                 </div>
+                {lastUpdated && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    Updated: {lastUpdated.toLocaleTimeString()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -193,15 +230,17 @@ const Dashboard = ({ backendStatus }) => {
               <Globe className="h-8 w-8 text-blue-600" />
             </div>
             <div className="ml-5">
-              <h3 className="text-lg font-medium text-gray-900">Blockchain Network</h3>
+              <h3 className="text-lg font-medium text-gray-900">Multi-Chain Network</h3>
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span>Polygon PoS:</span>
-                  <span className="text-green-600">✅ Connected</span>
+                  <span>Hub (Polygon):</span>
+                  <span className={multiChainStats?.multichain?.polygon_pos_hub?.connected ? 'text-green-600' : 'text-red-600'}>
+                    {multiChainStats?.multichain?.polygon_pos_hub?.connected ? '✅ Connected' : '❌ Disconnected'}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>L2 CDK:</span>
-                  <span className="text-green-600">✅ Connected</span>
+                  <span>L2 Networks:</span>
+                  <span className="text-green-600">✅ 3 Active</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Smart Contracts:</span>
@@ -215,22 +254,28 @@ const Dashboard = ({ backendStatus }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Database className="h-8 w-8 text-purple-600" />
+              <TrendingUp className="h-8 w-8 text-purple-600" />
             </div>
             <div className="ml-5">
-              <h3 className="text-lg font-medium text-gray-900">IPFS Integration</h3>
+              <h3 className="text-lg font-medium text-gray-900">Algorithm Status</h3>
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span>Web3.Storage:</span>
-                  <span className="text-green-600">✅ Connected</span>
+                  <span>Implemented:</span>
+                  <span className="text-green-600">
+                    {algorithmStats?.implemented_count || 0}/5
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Gateway:</span>
-                  <span className="text-green-600">✅ Available</span>
+                  <span>Active Operations:</span>
+                  <span className="text-green-600">
+                    {(algorithmStats?.algorithms?.algorithm_1_payment_release?.usage_count || 0) + 
+                     (algorithmStats?.algorithms?.algorithm_2_dispute_resolution?.usage_count || 0) + 
+                     (algorithmStats?.algorithms?.algorithm_4_authenticity?.usage_count || 0)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Encryption:</span>
-                  <span className="text-green-600">✅ Active</span>
+                  <span>Cross-Chain:</span>
+                  <span className="text-green-600">✅ Enabled</span>
                 </div>
               </div>
             </div>
