@@ -102,6 +102,11 @@ class ProductMinting(BaseModel):
     manufacturer: str
     metadata: Dict[str, Any]  # Raw metadata that will be uploaded to IPFS
 
+class ProductMintRequest(BaseModel):
+    manufacturer: str
+    metadata: Dict[str, Any]  # Raw metadata that will be uploaded to IPFS
+    target_chains: List[int] = None  # Optional list of target chain IDs
+
 class ProductMintingResponse(BaseModel):
     success: bool
     token_id: str
@@ -467,20 +472,74 @@ async def verify_product_authenticity(
 # ENHANCED PRODUCT MANAGEMENT (NFTCore Integration)
 # ==========================================
 
-@router.post("/products/mint", response_model=ProductMintingResponse)
+@router.post("/products/mint")
 async def mint_product(
-    product_data: ProductMinting,
+    product_data: ProductMintRequest,
     blockchain_service: BlockchainService = Depends(get_blockchain_service)
 ):
-    """Enhanced product minting with complete NFTCore contract integration"""
+    """
+    Real product minting with zkEVM Cardona blockchain integration
+    Uploads metadata to IPFS and creates actual NFT on blockchain
+    """
     try:
+        # Generate comprehensive metadata
+        metadata = {
+            "name": product_data.metadata.get("name", "ChainFLIP Product"),
+            "description": product_data.metadata.get("description", "Supply chain tracked product"),
+            "image": product_data.metadata.get("image", ""),
+            "external_url": product_data.metadata.get("external_url", ""),
+            "attributes": [
+                {"trait_type": "Manufacturer", "value": product_data.manufacturer},
+                {"trait_type": "Product Type", "value": product_data.metadata.get("productType", "General")},
+                {"trait_type": "Batch Number", "value": product_data.metadata.get("batchNumber", "")},
+                {"trait_type": "Manufacturing Date", "value": product_data.metadata.get("manufacturingDate", "")},
+                {"trait_type": "Expiration Date", "value": product_data.metadata.get("expirationDate", "")},
+                {"trait_type": "Location", "value": product_data.metadata.get("location", "")},
+                {"trait_type": "Category", "value": product_data.metadata.get("category", "")},
+                {"trait_type": "Price", "value": product_data.metadata.get("price", "")},
+                {"trait_type": "Unique Product ID", "value": product_data.metadata.get("uniqueProductID", "")}
+            ],
+            # ChainFLIP specific metadata
+            "uniqueProductID": product_data.metadata.get("uniqueProductID", f"PROD-{int(time.time())}"),
+            "batchNumber": product_data.metadata.get("batchNumber", f"BATCH-{int(time.time())}"),
+            "manufacturerID": product_data.manufacturer,
+            "productType": product_data.metadata.get("productType", "General"),
+            "manufacturingDate": product_data.metadata.get("manufacturingDate", ""),
+            "expirationDate": product_data.metadata.get("expirationDate", ""),
+            "location": product_data.metadata.get("location", ""),
+            "category": product_data.metadata.get("category", ""),
+            "price": product_data.metadata.get("price", ""),
+            "chainflip_version": "2.0",
+            "mint_timestamp": int(time.time()),
+            "blockchain": "zkEVM Cardona"
+        }
+        
+        print(f"🏭 Minting product NFT on zkEVM Cardona...")
+        print(f"📄 Metadata: {metadata}")
+        
+        # Mint the product using the real blockchain service
         result = await blockchain_service.mint_product_nft(
-            product_data.manufacturer,
-            product_data.metadata
+            manufacturer=product_data.manufacturer,
+            metadata=metadata
         )
-        return ProductMintingResponse(**result)
+        
+        return {
+            "success": True,
+            "message": "Product minted successfully on zkEVM Cardona blockchain",
+            "token_id": result["token_id"],
+            "transaction_hash": result["transaction_hash"],
+            "metadata_cid": result["metadata_cid"],
+            "qr_hash": result["qr_hash"],
+            "chain_id": result.get("chain_id"),
+            "block_number": result.get("block_number"),
+            "gas_used": result.get("gas_used"),
+            "contract_address": result.get("contract_address"),
+            "token_uri": result.get("token_uri"),
+            "mint_timestamp": metadata["mint_timestamp"]
+        }
     except Exception as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        print(f"❌ Product minting error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/products/{token_id}")
 async def get_product(

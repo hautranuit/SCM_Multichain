@@ -90,6 +90,20 @@ class EncryptionService:
         except Exception as e:
             raise Exception(f"QR decryption failed: {e}")
     
+    def generate_qr_hash(self, data: Dict[str, Any]) -> str:
+        """Generate a hash for QR data without encryption"""
+        try:
+            # Convert data to JSON
+            json_data = json.dumps(data, separators=(',', ':'), sort_keys=True)
+            
+            # Create hash
+            hash_value = hashlib.sha256(json_data.encode()).hexdigest()
+            
+            return hash_value
+            
+        except Exception as e:
+            raise Exception(f"QR hash generation failed: {e}")
+    
     def generate_qr_payload(self, token_id: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate QR code payload with all necessary information"""
         import time
