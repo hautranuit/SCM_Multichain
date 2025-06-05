@@ -100,6 +100,7 @@ const Dashboard = ({ backendStatus }) => {
   const menuItems = [
     { id: 'products', name: 'Products', icon: '📦', path: '/products', description: 'Create, manage and track products on blockchain with QR code generation' },
     { id: 'participants', name: 'Participants', icon: '👥', path: '/participants', description: 'Register supply chain participants and manage roles across networks' },
+    { id: 'consensus', name: 'Consensus (Algorithm 3)', icon: '⚡', path: '/consensus', description: 'Batch processing and consensus voting for supply chain transactions' },
     { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner', description: 'Scan QR codes with camera to verify product authenticity' },
     { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics', description: 'View real-time metrics, charts and system performance data' },
   ];

@@ -16,6 +16,7 @@ import ProductManagement from './components/ProductManagement';
 import ParticipantManagement from './components/ParticipantManagement';
 import QRScanner from './components/QRScanner';
 import Analytics from './components/Analytics';
+import ConsensusManagement from './components/ConsensusManagement';
 
 // Auth Pages
 const LoginPage = () => {
@@ -179,6 +180,16 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/consensus" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <ConsensusManagement />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -197,6 +208,7 @@ const AppLayout = ({ children, backendStatus }) => {
     { id: 'dashboard', name: 'Dashboard', icon: '📊', path: '/dashboard' },
     { id: 'products', name: 'Products', icon: '📦', path: '/products' },
     { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
+    { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
     { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
     { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
   ];
