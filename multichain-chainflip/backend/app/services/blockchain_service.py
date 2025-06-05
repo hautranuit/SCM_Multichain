@@ -150,8 +150,8 @@ class BlockchainService:
                         }
                         
                         # Sign and send transaction
-                        signed_txn = self.manufacturer_web3.eth.account.sign_transaction(transaction, self.account.key)
-                        tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                        signed_txn = self.account.sign_transaction(transaction)
+                        tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
                         tx_hash_hex = tx_hash.hex()
                         
                         print(f"✅ Transaction sent: {tx_hash_hex}")
