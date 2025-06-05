@@ -12,14 +12,10 @@
   },
   "dependencies": {
     "@web3-storage/w3up-client": "^13.0.0",
-    "@web3-storage/w3up-client/stores/memory": "^13.0.0",
-    "@web3-storage/w3up-client/proof": "^13.0.0",
-    "@web3-storage/w3up-client/principal/ed25519": "^13.0.0",
     "@web-std/file": "^3.0.3",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "qrcode": "^1.5.3",
-    "crypto": "^1.0.1",
     "jimp": "^0.22.10",
     "axios": "^1.6.0",
     "cors": "^2.8.5"
