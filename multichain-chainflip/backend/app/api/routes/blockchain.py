@@ -2,9 +2,12 @@
 Comprehensive ChainFLIP Blockchain API Routes
 Implements all 5 algorithms from the 6 smart contracts
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, Form
 from typing import Dict, List, Any
 from pydantic import BaseModel
+import base64
+import tempfile
+import os
 
 from app.services.blockchain_service import BlockchainService
 
@@ -478,67 +481,141 @@ async def mint_product(
     blockchain_service: BlockchainService = Depends(get_blockchain_service)
 ):
     """
-    Real product minting with zkEVM Cardona blockchain integration
-    Uploads metadata to IPFS and creates actual NFT on blockchain
+    Enhanced product minting with image/video upload to IPFS and improved metadata
     """
     try:
-        # Generate comprehensive metadata
+        # Automatically get manufacturer address from product_data or use current user
+        manufacturer_address = product_data.manufacturer
+        if not manufacturer_address or manufacturer_address == "":
+            # Use a default demo address if not provided
+            manufacturer_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        
+        # Convert price from ETH to Wei if provided
+        price_in_wei = 0
+        if product_data.metadata.get("price"):
+            try:
+                price_in_eth = float(product_data.metadata.get("price", 0))
+                price_in_wei = int(price_in_eth * 10**18)  # Convert ETH to Wei
+            except (ValueError, TypeError):
+                price_in_wei = 0
+        
+        # Upload image to IPFS if provided
+        image_cid = ""
+        if product_data.metadata.get("image_data"):
+            try:
+                from app.services.ipfs_service import ipfs_service
+                image_metadata = {
+                    "type": "product_image",
+                    "product_id": product_data.metadata.get("uniqueProductID", f"PROD-{int(time.time())}"),
+                    "image_data": product_data.metadata.get("image_data"),
+                    "uploaded_at": int(time.time())
+                }
+                image_cid = await ipfs_service.upload_to_ipfs(image_metadata)
+                print(f"✅ Image uploaded to IPFS: {image_cid}")
+            except Exception as e:
+                print(f"⚠️ Image upload failed: {e}")
+                # Continue without image CID
+        
+        # Upload video to IPFS if provided
+        video_cid = ""
+        if product_data.metadata.get("video_data"):
+            try:
+                from app.services.ipfs_service import ipfs_service
+                video_metadata = {
+                    "type": "product_video",
+                    "product_id": product_data.metadata.get("uniqueProductID", f"PROD-{int(time.time())}"),
+                    "video_data": product_data.metadata.get("video_data"),
+                    "uploaded_at": int(time.time())
+                }
+                video_cid = await ipfs_service.upload_to_ipfs(video_metadata)
+                print(f"✅ Video uploaded to IPFS: {video_cid}")
+            except Exception as e:
+                print(f"⚠️ Video upload failed: {e}")
+                # Continue without video CID
+
+        # Generate comprehensive metadata with enhanced structure
+        current_timestamp = int(time.time())
+        unique_product_id = product_data.metadata.get("uniqueProductID") or f"PROD-{current_timestamp}"
+        batch_number = product_data.metadata.get("batchNumber") or f"BATCH-{current_timestamp}"
+        
+        # Format dates properly
+        manufacturing_date = product_data.metadata.get("manufacturingDate") or time.strftime("%Y-%m-%d")
+        expiration_date = product_data.metadata.get("expirationDate") or ""
+        
         metadata = {
             "name": product_data.metadata.get("name", "ChainFLIP Product"),
             "description": product_data.metadata.get("description", "Supply chain tracked product"),
-            "image": product_data.metadata.get("image", ""),
+            "image": f"https://w3s.link/ipfs/{image_cid}" if image_cid else "",
+            "video": f"https://w3s.link/ipfs/{video_cid}" if video_cid else "",
             "external_url": product_data.metadata.get("external_url", ""),
             "attributes": [
-                {"trait_type": "Manufacturer", "value": product_data.manufacturer},
+                {"trait_type": "Manufacturer", "value": manufacturer_address},
                 {"trait_type": "Product Type", "value": product_data.metadata.get("productType", "General")},
-                {"trait_type": "Batch Number", "value": product_data.metadata.get("batchNumber", "")},
-                {"trait_type": "Manufacturing Date", "value": product_data.metadata.get("manufacturingDate", "")},
-                {"trait_type": "Expiration Date", "value": product_data.metadata.get("expirationDate", "")},
+                {"trait_type": "Batch Number", "value": batch_number},
+                {"trait_type": "Manufacturing Date", "value": manufacturing_date},
+                {"trait_type": "Expiration Date", "value": expiration_date},
                 {"trait_type": "Location", "value": product_data.metadata.get("location", "")},
                 {"trait_type": "Category", "value": product_data.metadata.get("category", "")},
-                {"trait_type": "Price", "value": product_data.metadata.get("price", "")},
-                {"trait_type": "Unique Product ID", "value": product_data.metadata.get("uniqueProductID", "")}
+                {"trait_type": "Price (ETH)", "value": str(product_data.metadata.get("price", "0"))},
+                {"trait_type": "Price (Wei)", "value": str(price_in_wei)},
+                {"trait_type": "Unique Product ID", "value": unique_product_id},
+                {"trait_type": "Image CID", "value": image_cid},
+                {"trait_type": "Video CID", "value": video_cid}
             ],
             # ChainFLIP specific metadata
-            "uniqueProductID": product_data.metadata.get("uniqueProductID", f"PROD-{int(time.time())}"),
-            "batchNumber": product_data.metadata.get("batchNumber", f"BATCH-{int(time.time())}"),
-            "manufacturerID": product_data.manufacturer,
+            "uniqueProductID": unique_product_id,
+            "batchNumber": batch_number,
+            "manufacturerID": manufacturer_address,
             "productType": product_data.metadata.get("productType", "General"),
-            "manufacturingDate": product_data.metadata.get("manufacturingDate", ""),
-            "expirationDate": product_data.metadata.get("expirationDate", ""),
+            "manufacturingDate": manufacturing_date,
+            "expirationDate": expiration_date,
             "location": product_data.metadata.get("location", ""),
             "category": product_data.metadata.get("category", ""),
-            "price": product_data.metadata.get("price", ""),
+            "price_eth": product_data.metadata.get("price", "0"),
+            "price_wei": price_in_wei,
+            "image_cid": image_cid,
+            "video_cid": video_cid,
             "chainflip_version": "2.0",
-            "mint_timestamp": int(time.time()),
+            "mint_timestamp": current_timestamp,
+            "mint_date_formatted": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_timestamp)),
             "blockchain": "zkEVM Cardona"
         }
         
-        print(f"🏭 Minting product NFT on zkEVM Cardona...")
-        print(f"📄 Metadata: {metadata}")
+        print(f"🏭 Minting enhanced product NFT on zkEVM Cardona...")
+        print(f"📄 Enhanced Metadata with Image/Video CIDs:")
+        print(f"   🖼️ Image CID: {image_cid}")
+        print(f"   🎥 Video CID: {video_cid}")
+        print(f"   💰 Price: {product_data.metadata.get('price', 0)} ETH ({price_in_wei} Wei)")
+        print(f"   📅 Formatted Date: {metadata['mint_date_formatted']}")
         
-        # Mint the product using the real blockchain service
+        # Mint the product using the enhanced blockchain service
         result = await blockchain_service.mint_product_nft(
-            manufacturer=product_data.manufacturer,
+            manufacturer=manufacturer_address,
             metadata=metadata
         )
         
         return {
             "success": True,
-            "message": "Product minted successfully on zkEVM Cardona blockchain",
+            "message": "Enhanced product minted successfully with image/video support",
             "token_id": result["token_id"],
             "transaction_hash": result["transaction_hash"],
             "metadata_cid": result["metadata_cid"],
             "qr_hash": result["qr_hash"],
+            "image_cid": image_cid,
+            "video_cid": video_cid,
+            "price_eth": product_data.metadata.get("price", "0"),
+            "price_wei": price_in_wei,
+            "manufacturer_address": manufacturer_address,
             "chain_id": result.get("chain_id"),
             "block_number": result.get("block_number"),
             "gas_used": result.get("gas_used"),
             "contract_address": result.get("contract_address"),
             "token_uri": result.get("token_uri"),
-            "mint_timestamp": metadata["mint_timestamp"]
+            "mint_timestamp": current_timestamp,
+            "mint_date_formatted": metadata["mint_date_formatted"]
         }
     except Exception as e:
-        print(f"❌ Product minting error: {e}")
+        print(f"❌ Enhanced product minting error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/products/{token_id}")

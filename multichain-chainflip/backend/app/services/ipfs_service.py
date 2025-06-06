@@ -21,7 +21,7 @@ class IPFSService:
         self.ipfs_gateway = settings.ipfs_gateway
         
         # Path to Node.js upload script
-        self.script_path = Path(__file__).parent.parent / "w3storage_upload.mjs"
+        self.script_path = Path(__file__).parent.parent.parent / "w3storage_upload.mjs"
         
         # Initialize and show credential status
         self._initialize_w3storage()
@@ -96,48 +96,57 @@ class IPFSService:
                 env['W3STORAGE_TOKEN'] = self.w3storage_token
                 env['W3STORAGE_PROOF'] = self.w3storage_proof
                 
-                # Run Node.js script
+                # Run Node.js script with proper UTF-8 encoding
                 result = subprocess.run([
                     'node', str(self.script_path), temp_file_path, 'metadata.json'
                 ], 
                 capture_output=True, 
                 text=True, 
+                encoding='utf-8',  # Explicitly use UTF-8 encoding
+                errors='replace',  # Replace any problematic characters
                 env=env,
                 timeout=60  # 60 second timeout
                 )
                 
                 if result.returncode == 0:
-                    # Parse the JSON output
+                    # Parse the JSON output - the script should output clean JSON to stdout
                     try:
-                        output_lines = result.stdout.strip().split('\n')
-                        # Find the JSON output (last line usually)
-                        json_output = None
-                        for line in reversed(output_lines):
-                            if line.strip().startswith('{'):
-                                json_output = line.strip()
-                                break
-                        
-                        if json_output:
-                            response = json.loads(json_output)
+                        stdout_clean = result.stdout.strip()
+                        if stdout_clean:
+                            response = json.loads(stdout_clean)
                             if response.get('success'):
                                 cid = response.get('cid')
                                 print(f"✅ Node.js W3Storage upload success: {cid}")
+                                print(f"Node.js logs: {result.stderr}")  # Show any logs from stderr
                                 return cid
                             else:
                                 error_msg = response.get('error', 'Unknown error')
                                 print(f"❌ Node.js W3Storage upload failed: {error_msg}")
+                                print(f"Node.js logs: {result.stderr}")
                                 return None
                         else:
-                            print(f"❌ Could not parse Node.js output: {result.stdout}")
+                            print(f"❌ Node.js script returned empty output")
+                            print(f"STDERR: {result.stderr}")
                             return None
                             
                     except json.JSONDecodeError as e:
                         print(f"❌ Failed to parse Node.js response: {e}")
-                        print(f"Raw output: {result.stdout}")
+                        print(f"Raw stdout: {result.stdout}")
+                        print(f"Raw stderr: {result.stderr}")
                         return None
                 else:
                     print(f"❌ Node.js script failed with return code {result.returncode}")
-                    print(f"STDOUT: {result.stdout}")
+                    # Try to parse error response from stdout
+                    try:
+                        stdout_clean = result.stdout.strip()
+                        if stdout_clean and stdout_clean.startswith('{'):
+                            error_response = json.loads(stdout_clean)
+                            error_msg = error_response.get('error', 'Unknown error')
+                            print(f"❌ Error from Node.js: {error_msg}")
+                        else:
+                            print(f"STDOUT: {result.stdout}")
+                    except:
+                        print(f"STDOUT: {result.stdout}")
                     print(f"STDERR: {result.stderr}")
                     return None
                     

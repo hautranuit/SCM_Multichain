@@ -25,10 +25,15 @@ contract ManufacturerChain is ERC721URIStorage, AccessControl, ReentrancyGuard, 
         string productType;
         string manufacturerID;
         string metadataCID;
+        string imageCID;          // New: IPFS CID for product image
+        string videoCID;          // New: IPFS CID for product video
         address manufacturer;
         uint256 createdAt;
         bool qualityApproved;
         uint256 manufacturingCost;
+        uint256 priceInWei;       // New: Price in ETH (wei)
+        string location;          // New: Manufacturing location
+        string category;          // New: Product category
         bytes32 crossChainHash;
     }
 
@@ -84,6 +89,11 @@ contract ManufacturerChain is ERC721URIStorage, AccessControl, ReentrancyGuard, 
         string uniqueProductID,
         string batchNumber,
         string metadataCID,
+        string imageCID,
+        string videoCID,
+        uint256 priceInWei,
+        string location,
+        string category,
         uint256 timestamp
     );
     
@@ -137,9 +147,16 @@ contract ManufacturerChain is ERC721URIStorage, AccessControl, ReentrancyGuard, 
         string memory productType,
         string memory manufacturerID,
         string memory metadataCID,
-        uint256 manufacturingCost
+        string memory imageCID,
+        string memory videoCID,
+        uint256 manufacturingCost,
+        uint256 priceInWei,
+        string memory location,
+        string memory category
     ) external onlyRole(MANUFACTURER_ROLE) whenNotPaused returns (uint256) {
         require(productIdMapping[uniqueProductID] == 0, "Product ID already exists");
+        require(bytes(uniqueProductID).length > 0, "Product ID cannot be empty");
+        require(bytes(metadataCID).length > 0, "Metadata CID cannot be empty");
         
         uint256 tokenId = _nextTokenId++;
         
@@ -162,10 +179,15 @@ contract ManufacturerChain is ERC721URIStorage, AccessControl, ReentrancyGuard, 
             productType: productType,
             manufacturerID: manufacturerID,
             metadataCID: metadataCID,
+            imageCID: imageCID,
+            videoCID: videoCID,
             manufacturer: msg.sender,
             createdAt: block.timestamp,
             qualityApproved: false,
             manufacturingCost: manufacturingCost,
+            priceInWei: priceInWei,
+            location: location,
+            category: category,
             crossChainHash: crossChainHash
         });
 
@@ -178,7 +200,19 @@ contract ManufacturerChain is ERC721URIStorage, AccessControl, ReentrancyGuard, 
         incentive.manufacturer = msg.sender;
         incentive.totalProduced++;
 
-        emit ProductMinted(tokenId, msg.sender, uniqueProductID, batchNumber, metadataCID, block.timestamp);
+        emit ProductMinted(
+            tokenId, 
+            msg.sender, 
+            uniqueProductID, 
+            batchNumber, 
+            metadataCID, 
+            imageCID,
+            videoCID,
+            priceInWei,
+            location,
+            category,
+            block.timestamp
+        );
         return tokenId;
     }
 
