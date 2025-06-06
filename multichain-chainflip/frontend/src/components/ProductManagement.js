@@ -32,6 +32,16 @@ const ProductManagement = () => {
     uniqueProductID: ''
   });
 
+  // Auto-populate manufacturer address when wallet connects
+  useEffect(() => {
+    if (user?.wallet_address && !newProduct.manufacturer) {
+      setNewProduct(prev => ({
+        ...prev,
+        manufacturer: user.wallet_address
+      }));
+    }
+  }, [user?.wallet_address]);
+
   useEffect(() => {
     fetchProducts();
     loadMultiChainStats();
