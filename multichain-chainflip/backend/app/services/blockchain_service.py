@@ -118,7 +118,11 @@ class BlockchainService:
             
             # Upload metadata to IPFS first
             print("📦 Uploading metadata to IPFS...")
-            metadata_cid = await ipfs_service.upload_to_ipfs(metadata)
+            try:
+                metadata_cid = await ipfs_service.upload_to_ipfs(metadata)
+            except Exception as ipfs_error:
+                print(f"❌ IPFS upload failed: {ipfs_error}")
+                raise Exception(f"Failed to upload metadata to IPFS: {ipfs_error}")
             
             # Generate unique token ID
             token_id = int(time.time() * 1000)  # Use timestamp as token ID

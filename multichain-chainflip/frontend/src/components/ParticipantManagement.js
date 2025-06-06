@@ -26,7 +26,7 @@ const ParticipantManagement = () => {
   const fetchParticipants = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants`);
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants/`);
       setParticipants(response.data || []);
     } catch (error) {
       console.error('Error fetching participants:', error);

@@ -20,7 +20,7 @@ export const Products = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/products`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/products/`);
       
       if (response.ok) {
         const data = await response.json();

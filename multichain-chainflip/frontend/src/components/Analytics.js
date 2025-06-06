@@ -30,8 +30,8 @@ const Analytics = () => {
     try {
       // Fetch real data from backend
       const [productsRes, participantsRes] = await Promise.all([
-        axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products`),
-        axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants`)
+        axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products/`),
+        axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants/`)
       ]);
 
       const products = productsRes.data || [];

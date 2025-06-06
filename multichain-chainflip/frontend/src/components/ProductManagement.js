@@ -47,7 +47,7 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products`);
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products/`);
       setProducts(response.data || []);
     } catch (error) {
       console.error('Error fetching products:', error);

@@ -182,7 +182,11 @@ class MultiChainService:
             print(f"🏭 Minting product on Manufacturer Chain...")
             
             # Upload metadata to IPFS
-            metadata_cid = await ipfs_service.upload_to_ipfs(product_data)
+            try:
+                metadata_cid = await ipfs_service.upload_to_ipfs(product_data)
+            except Exception as ipfs_error:
+                print(f"❌ IPFS upload failed: {ipfs_error}")
+                raise Exception(f"Failed to upload metadata to IPFS: {ipfs_error}")
             
             # Generate unique product ID
             unique_product_id = f"PROD-{int(time.time())}-{len(product_data.get('uniqueProductID', ''))}"

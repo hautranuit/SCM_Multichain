@@ -1,0 +1,26 @@
+{
+  "name": "chainflip-w3storage-uploader",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "W3Storage uploader for ChainFLIP backend",
+  "main": "w3storage_upload.mjs",
+  "scripts": {
+    "install-deps": "npm install",
+    "test-upload": "node w3storage_upload.mjs"
+  },
+  "dependencies": {
+    "@web3-storage/w3up-client": "^16.0.0",
+    "@web-std/file": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "web3",
+    "ipfs",
+    "w3storage",
+    "chainflip"
+  ],
+  "author": "ChainFLIP Team",
+  "license": "MIT"
+}

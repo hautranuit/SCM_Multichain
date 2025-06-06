@@ -1,128 +1,159 @@
-﻿"""
-Fixed IPFS Service using Infura IPFS API
+"""
+W3Storage IPFS Service - Updated for ChainFLIP Multi-Chain
+Uses Node.js w3up client via subprocess for reliable W3Storage uploads
 """
 import json
 import httpx
-import hashlib
-import base64
 import os
+import subprocess
+import tempfile
 from typing import Dict, Any, Optional
+from pathlib import Path
 from app.core.config import get_settings
 
 settings = get_settings()
 
 class IPFSService:
     def __init__(self):
-        self.ipfs_gateway = "https://ipfs.io/ipfs/"
-        # Use Infura IPFS as reliable alternative
-        self.infura_ipfs_url = "https://ipfs.infura.io:5001/api/v0"
+        # W3Storage configuration
+        self.w3storage_token = settings.w3storage_token
+        self.w3storage_proof = settings.w3storage_proof
+        self.ipfs_gateway = settings.ipfs_gateway
+        
+        # Path to Node.js upload script
+        self.script_path = Path(__file__).parent.parent / "w3storage_upload.mjs"
+        
+        # Initialize and show credential status
+        self._initialize_w3storage()
+        
+    def _initialize_w3storage(self):
+        """Initialize W3Storage service and show credential status"""
+        print(f"🔧 IPFS Service initialized with W3Storage")
+        print(f"   Token present: {'✅' if self.w3storage_token else '❌'}")
+        print(f"   Proof present: {'✅' if self.w3storage_proof else '❌'}")
+        print(f"   Script path: {self.script_path}")
+        
+        if not self.w3storage_token:
+            print(f"⚠️ WARNING: W3STORAGE_TOKEN not found in environment variables")
+        else:
+            print(f"✅ W3Storage token loaded (length: {len(self.w3storage_token)})")
+            
+        if not self.w3storage_proof:
+            print(f"⚠️ WARNING: W3STORAGE_PROOF not found in environment variables")
+        else:
+            print(f"✅ W3Storage proof loaded (length: {len(self.w3storage_proof)})")
+            
+        print(f"🌐 IPFS Gateway: {self.ipfs_gateway}")
+        
+        # Check if Node.js script exists
+        if not self.script_path.exists():
+            print(f"⚠️ WARNING: W3Storage upload script not found at {self.script_path}")
+        else:
+            print(f"✅ W3Storage upload script found")
         
     async def upload_to_ipfs(self, data: Dict[str, Any]) -> str:
-        """Upload data to IPFS using Infura and return real CID"""
+        """Upload data to IPFS using W3Storage via Node.js script"""
         try:
-            print(f"📦 Uploading to IPFS via Infura...")
+            print(f"📦 Uploading to IPFS via W3Storage...")
             
             # Convert data to JSON
             json_data = json.dumps(data, indent=2)
-            json_bytes = json_data.encode('utf-8')
             
-            # Try Infura IPFS upload
+            # Only try W3Storage upload
+            if not self.w3storage_token:
+                raise Exception("W3Storage token not available")
+            
+            if not self.script_path.exists():
+                raise Exception(f"W3Storage upload script not found at {self.script_path}")
+            
+            cid = await self._upload_via_nodejs(data)
+            if cid:
+                print(f"✅ W3Storage Upload Success - CID: {cid}")
+                print(f"🔗 IPFS URL: {self.ipfs_gateway}{cid}")
+                print(f"📄 Content Size: {len(json_data)} bytes")
+                
+                # Test accessibility
+                await self._test_cid_accessibility(cid)
+                return cid
+            else:
+                raise Exception("W3Storage upload failed - no CID returned")
+            
+        except Exception as e:
+            print(f"❌ IPFS Upload Failed: {e}")
+            raise Exception(f"IPFS upload failed: {e}")
+    
+    async def _upload_via_nodejs(self, data: Dict[str, Any]) -> Optional[str]:
+        """Upload to W3Storage using Node.js w3up client"""
+        try:
+            # Create temporary file with JSON data
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
+                json.dump(data, temp_file, indent=2)
+                temp_file_path = temp_file.name
+            
             try:
-                files = {
-                    'file': ('metadata.json', json_bytes, 'application/json')
-                }
+                # Set environment variables for the Node.js script
+                env = os.environ.copy()
+                env['W3STORAGE_TOKEN'] = self.w3storage_token
+                env['W3STORAGE_PROOF'] = self.w3storage_proof
                 
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        f"{self.infura_ipfs_url}/add",
-                        files=files,
-                        params={'pin': 'true'}
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        cid = result.get('Hash')
-                        
-                        if cid:
-                            print(f"✅ IPFS Upload Success - CID: {cid}")
-                            print(f"🔗 IPFS URL: {self.ipfs_gateway}{cid}")
-                            print(f"📄 Content Size: {len(json_bytes)} bytes")
-                            
-                            # Test accessibility
-                            await self._test_cid_accessibility(cid)
-                            return cid
-                    
-                    print(f"⚠️ Infura IPFS response: {response.status_code} - {response.text[:200]}")
-                    
-            except Exception as infura_error:
-                print(f"⚠️ Infura IPFS error: {infura_error}")
-            
-            # Try alternative public IPFS node
-            return await self._try_public_ipfs_upload(data, json_bytes)
-            
-        except Exception as e:
-            print(f"❌ IPFS Upload Error: {e}")
-            return self._generate_accessible_cid(data)
-    
-    async def _try_public_ipfs_upload(self, data: Dict[str, Any], json_bytes: bytes) -> str:
-        """Try uploading to public IPFS nodes"""
-        try:
-            # Try ipfs.io public gateway
-            files = {
-                'file': ('metadata.json', json_bytes, 'application/json')
-            }
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Try different public IPFS APIs
-                public_apis = [
-                    "https://api.web3.storage/upload",  # Alternative endpoint
-                    "https://api.pinata.cloud/pinning/pinJSONToIPFS"  # Backup
-                ]
+                # Run Node.js script
+                result = subprocess.run([
+                    'node', str(self.script_path), temp_file_path, 'metadata.json'
+                ], 
+                capture_output=True, 
+                text=True, 
+                env=env,
+                timeout=60  # 60 second timeout
+                )
                 
-                for api_url in public_apis:
+                if result.returncode == 0:
+                    # Parse the JSON output
                     try:
-                        if "web3.storage" in api_url:
-                            response = await client.post(api_url, content=json_bytes)
-                        else:
-                            # Skip Pinata for now (needs API key)
-                            continue
-                            
-                        if response.status_code in [200, 201]:
-                            result = response.json()
-                            cid = result.get('cid') or result.get('root', {}).get('cid')
-                            if cid:
-                                print(f"✅ Public IPFS Success: {cid}")
+                        output_lines = result.stdout.strip().split('\n')
+                        # Find the JSON output (last line usually)
+                        json_output = None
+                        for line in reversed(output_lines):
+                            if line.strip().startswith('{'):
+                                json_output = line.strip()
+                                break
+                        
+                        if json_output:
+                            response = json.loads(json_output)
+                            if response.get('success'):
+                                cid = response.get('cid')
+                                print(f"✅ Node.js W3Storage upload success: {cid}")
                                 return cid
-                                
-                    except Exception as e:
-                        print(f"⚠️ Public API {api_url} failed: {e}")
-                        continue
-            
-            # If all public APIs fail, generate accessible CID
-            return self._generate_accessible_cid(data)
-            
+                            else:
+                                error_msg = response.get('error', 'Unknown error')
+                                print(f"❌ Node.js W3Storage upload failed: {error_msg}")
+                                return None
+                        else:
+                            print(f"❌ Could not parse Node.js output: {result.stdout}")
+                            return None
+                            
+                    except json.JSONDecodeError as e:
+                        print(f"❌ Failed to parse Node.js response: {e}")
+                        print(f"Raw output: {result.stdout}")
+                        return None
+                else:
+                    print(f"❌ Node.js script failed with return code {result.returncode}")
+                    print(f"STDOUT: {result.stdout}")
+                    print(f"STDERR: {result.stderr}")
+                    return None
+                    
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except OSError:
+                    pass
+                    
+        except subprocess.TimeoutExpired:
+            print(f"❌ Node.js script timed out after 60 seconds")
+            return None
         except Exception as e:
-            print(f"⚠️ Public IPFS upload failed: {e}")
-            return self._generate_accessible_cid(data)
-    
-    def _generate_accessible_cid(self, data: Dict[str, Any]) -> str:
-        """Generate a CID that we can actually serve content for"""
-        content_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        # Create a more realistic CID format
-        accessible_cid = f"bafkreig{content_hash[:52]}"
-        
-        # Store the content locally so it can be retrieved
-        try:
-            os.makedirs("/tmp/ipfs_cache", exist_ok=True)
-            with open(f"/tmp/ipfs_cache/{accessible_cid}.json", "w") as f:
-                json.dump(data, f, indent=2)
-            
-            print(f"✅ Generated accessible CID: {accessible_cid}")
-            print(f"📄 Content cached locally for retrieval")
-        except Exception as e:
-            print(f"⚠️ Local cache error: {e}")
-        
-        return accessible_cid
+            print(f"❌ Error running Node.js script: {e}")
+            return None
     
     async def _test_cid_accessibility(self, cid: str):
         """Test if CID is accessible via IPFS gateways"""
@@ -142,15 +173,6 @@ class IPFSService:
     async def get_from_ipfs(self, cid: str) -> Dict[str, Any]:
         """Retrieve data from IPFS using CID"""
         try:
-            # First try local cache
-            try:
-                with open(f"/tmp/ipfs_cache/{cid}.json", "r") as f:
-                    data = json.load(f)
-                    print(f"✅ Retrieved from local cache: {cid}")
-                    return data
-            except FileNotFoundError:
-                pass
-            
             # Try IPFS gateways
             gateways = [
                 f"https://ipfs.io/ipfs/{cid}",
