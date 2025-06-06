@@ -302,6 +302,21 @@ class BlockchainService {
   }
 
   // ==========================================
+  // ALGORITHM 4: PRODUCT AUTHENTICITY VERIFICATION
+  // ==========================================
+
+  async verifyProductAuthenticity(verificationData) {
+    try {
+      return await this.request('/products/verify', {
+        method: 'POST',
+        body: JSON.stringify(verificationData),
+      });
+    } catch (error) {
+      throw new Error(`Failed to verify product authenticity: ${error.message}`);
+    }
+  }
+
+  // ==========================================
   // ALGORITHM 5: MARKETPLACE (POST SUPPLY CHAIN MANAGEMENT)
   // ==========================================
 

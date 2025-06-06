@@ -100,7 +100,7 @@ async function initW3Storage() {
     return client;
 }
 
-async function uploadToIPFS(jsonData, filename = 'metadata.json') {
+async function uploadToIPFS(data, filename = 'metadata.json') {
     try {
         console.error('📦 Starting uploadToIPFS function...');
         
@@ -110,9 +110,44 @@ async function uploadToIPFS(jsonData, filename = 'metadata.json') {
         console.error('🔧 Getting W3Storage client...');
         const client = await initW3Storage();
         
-        console.error('📄 Creating file blob...');
-        const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
-        const file = new File([blob], filename);
+        console.error('📄 Creating file...');
+        let blob;
+        let file;
+        
+        // Check if data is JSON or binary file path
+        if (typeof data === 'string' && fs.existsSync(data)) {
+            // It's a file path - upload the binary file
+            console.error(`📁 Reading binary file: ${data}`);
+            const fileBuffer = fs.readFileSync(data);
+            
+            // Detect MIME type based on file extension
+            const ext = path.extname(filename).toLowerCase();
+            let mimeType = 'application/octet-stream';
+            
+            const mimeTypes = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp',
+                '.mp4': 'video/mp4',
+                '.webm': 'video/webm',
+                '.avi': 'video/avi',
+                '.mov': 'video/quicktime',
+                '.json': 'application/json'
+            };
+            
+            mimeType = mimeTypes[ext] || 'application/octet-stream';
+            console.error(`📄 File type: ${mimeType}, size: ${fileBuffer.length} bytes`);
+            
+            blob = new Blob([fileBuffer], { type: mimeType });
+            file = new File([blob], filename, { type: mimeType });
+        } else {
+            // It's JSON data
+            console.error('📄 Creating JSON blob...');
+            blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            file = new File([blob], filename);
+        }
         
         console.error('🚀 Uploading file to W3Storage...');
         const cid = await client.uploadFile(file);
@@ -151,15 +186,24 @@ async function main() {
             const inputFile = args[0];
             if (args[1]) filename = args[1];
             
-            console.error(`📁 Reading from file: ${inputFile}`);
+            console.error(`📁 Input: ${inputFile}, Output filename: ${filename}`);
             
             if (!fs.existsSync(inputFile)) {
                 throw new Error(`Input file not found: ${inputFile}`);
             }
             
-            const fileContent = fs.readFileSync(inputFile, 'utf8');
-            jsonData = JSON.parse(fileContent);
-            console.error(`✅ JSON data loaded, size: ${JSON.stringify(jsonData).length} bytes`);
+            // Check if it's a binary file or JSON file
+            const ext = path.extname(inputFile).toLowerCase();
+            if (ext === '.json') {
+                // JSON file - parse and upload
+                const fileContent = fs.readFileSync(inputFile, 'utf8');
+                jsonData = JSON.parse(fileContent);
+                console.error(`✅ JSON data loaded, size: ${JSON.stringify(jsonData).length} bytes`);
+            } else {
+                // Binary file - pass file path to upload function
+                console.error(`✅ Binary file detected: ${ext}`);
+                jsonData = inputFile; // Pass file path instead of parsed content
+            }
         } else {
             console.error('📥 Reading from stdin...');
             // Read from stdin

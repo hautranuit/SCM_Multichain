@@ -1,11 +1,11 @@
 {
   "network": "cardona",
   "chainId": 2442,
-  "contractAddress": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d",
+  "contractAddress": "0x7345824F815bF1C4693D1995224128ed299Fcec0",
   "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
   "hubContract": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8",
-  "transactionHash": "0x8cd58206b14a50e1e3d6548bd8ea96c1035ea33b9d9e9edce4e1ec131f24c02d",
+  "transactionHash": "0x463991089e310d12606cfabbc93f65e6926f8737c84405f665d61294c7456257",
   "blockNumber": "N/A",
-  "timestamp": "2025-06-04T16:35:50.761Z",
+  "timestamp": "2025-06-06T11:08:21.490Z",
   "deploymentType": "simplified"
 }

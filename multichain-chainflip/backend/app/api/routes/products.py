@@ -37,7 +37,7 @@ async def get_products(
     manufacturer: Optional[str] = None,
     owner: Optional[str] = None,
     status: Optional[str] = None,
-    limit: int = 10,
+    limit: int = 100,  # Increased limit to show more products
     offset: int = 0,
     blockchain_service: BlockchainService = Depends(get_blockchain_service)
 ):
@@ -52,11 +52,28 @@ async def get_products(
         if status:
             filters["status"] = status
         
-        # Get products from database
-        cursor = blockchain_service.database.products.find(filters).skip(offset).limit(limit)
+        # Get products from database - sorted by creation time (newest first)
+        cursor = blockchain_service.database.products.find(filters).sort("created_at", -1).skip(offset).limit(limit)
         products = []
         async for product in cursor:
             product["_id"] = str(product["_id"])
+            # Ensure proper field mapping for frontend
+            if "mint_params" in product:
+                mp = product["mint_params"]
+                if "imageCID" in mp:
+                    product["image_cid"] = mp["imageCID"]
+                if "videoCID" in mp:
+                    product["video_cid"] = mp["videoCID"]
+                if "name" in mp:
+                    product["name"] = mp["name"]
+                if "description" in mp:
+                    product["description"] = mp["description"]
+                if "category" in mp:
+                    product["category"] = mp["category"]
+                if "price" in mp:
+                    product["price"] = mp["price"]
+                if "batchNumber" in mp:
+                    product["batchNumber"] = mp["batchNumber"]
             products.append(product)
         
         # Get total count
@@ -69,6 +86,7 @@ async def get_products(
             "offset": offset
         }
     except Exception as e:
+        print(f"Error fetching products: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{token_id}")
@@ -80,6 +98,25 @@ async def get_product_details(
     product = await blockchain_service.get_product_by_token_id(token_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Ensure proper field mapping for frontend
+    if "mint_params" in product:
+        mp = product["mint_params"]
+        if "imageCID" in mp:
+            product["image_cid"] = mp["imageCID"]
+        if "videoCID" in mp:
+            product["video_cid"] = mp["videoCID"]
+        if "name" in mp:
+            product["name"] = mp["name"]
+        if "description" in mp:
+            product["description"] = mp["description"]
+        if "category" in mp:
+            product["category"] = mp["category"]
+        if "price" in mp:
+            product["price"] = mp["price"]
+        if "batchNumber" in mp:
+            product["batchNumber"] = mp["batchNumber"]
+    
     return product
 
 @router.get("/{token_id}/history")
@@ -208,7 +245,8 @@ async def get_recent_anomalies(
         anomalies = []
         async for anomaly in cursor:
             anomaly["_id"] = str(anomaly["_id"])
-            anomaly["detected_at"] = anomaly["detected_at"].isoformat()
+            if "detected_at" in anomaly and hasattr(anomaly["detected_at"], "isoformat"):
+                anomaly["detected_at"] = anomaly["detected_at"].isoformat()
             anomalies.append(anomaly)
         
         return {"recent_anomalies": anomalies}
@@ -226,7 +264,8 @@ async def get_recent_counterfeits(
         counterfeits = []
         async for counterfeit in cursor:
             counterfeit["_id"] = str(counterfeit["_id"])
-            counterfeit["detected_at"] = counterfeit["detected_at"].isoformat()
+            if "detected_at" in counterfeit and hasattr(counterfeit["detected_at"], "isoformat"):
+                counterfeit["detected_at"] = counterfeit["detected_at"].isoformat()
             counterfeits.append(counterfeit)
         
         return {"recent_counterfeits": counterfeits}
