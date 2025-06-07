@@ -56,7 +56,7 @@ const Dashboard = ({ backendStatus }) => {
           icon: Building,
           title: 'Manufacturer Dashboard',
           description: 'Manage product creation and supply chain initiation',
-          l2Chain: '2442 - Manufacturer L2',
+          l2Chain: '2442 - zkEVM Cardona',
           color: 'blue'
         };
       case 'transporter':
@@ -64,7 +64,7 @@ const Dashboard = ({ backendStatus }) => {
           icon: Truck,
           title: 'Transporter Dashboard',
           description: 'Track shipments and manage logistics',
-          l2Chain: '2443 - Transporter L2',
+          l2Chain: '421614 - Arbitrum Sepolia',
           color: 'green'
         };
       case 'buyer':
@@ -72,7 +72,7 @@ const Dashboard = ({ backendStatus }) => {
           icon: ShoppingCart,
           title: 'Buyer Dashboard',
           description: 'Purchase products and verify authenticity',
-          l2Chain: '2444 - Buyer L2',
+          l2Chain: '11155420 - Optimism Sepolia',
           color: 'purple'
         };
       case 'admin':

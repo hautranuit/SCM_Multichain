@@ -19,21 +19,21 @@ const RegisterForm = ({ onRegister, isLoading }) => {
       label: 'Manufacturer',
       icon: Building,
       description: 'Produce and create products in the supply chain',
-      l2Chain: 'Manufacturer L2 (Chain ID: 2442)'
+      l2Chain: 'zkEVM Cardona (Chain ID: 2442)'
     },
     {
       value: 'transporter',
       label: 'Transporter',
       icon: Truck,
       description: 'Transport and logistics for supply chain',
-      l2Chain: 'Transporter L2 (Chain ID: 2443)'
+      l2Chain: 'Arbitrum Sepolia (Chain ID: 421614)'
     },
     {
       value: 'buyer',
       label: 'Buyer',
       icon: ShoppingCart,
       description: 'Purchase and verify products',
-      l2Chain: 'Buyer L2 (Chain ID: 2444)'
+      l2Chain: 'Optimism Sepolia (Chain ID: 11155420)'
     }
   ];
 

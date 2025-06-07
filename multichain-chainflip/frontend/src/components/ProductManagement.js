@@ -69,9 +69,32 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products/`);
+      // Build API URL with role-based filtering
+      let apiUrl = `${process.env.REACT_APP_BACKEND_URL}/api/products/`;
+      
+      // Add role-based filtering parameters if user is authenticated
+      if (userRole && user?.wallet_address) {
+        const params = new URLSearchParams({
+          user_role: userRole,
+          wallet_address: user.wallet_address
+        });
+        apiUrl += `?${params.toString()}`;
+      }
+      
+      console.log(`Fetching products for ${userRole} at ${user?.wallet_address}:`, apiUrl);
+      
+      const response = await axios.get(apiUrl);
       console.log('Fetched products:', response.data);
-      setProducts(response.data.products || response.data || []);
+      
+      // Handle both filtered and unfiltered responses
+      const products = response.data.products || response.data || [];
+      setProducts(products);
+      
+      // Show filtering info to user
+      if (response.data.filtered_by) {
+        console.log(`Products filtered for ${response.data.filtered_by}: ${response.data.count} products`);
+      }
+      
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
@@ -332,8 +355,15 @@ const ProductManagement = () => {
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>📦 Create Product NFT</h2>
-          <p style={{ color: '#6b7280', margin: '5px 0' }}>Product lifecycle management with blockchain verification</p>
+          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>
+            📦 {userRole === 'manufacturer' ? 'Create Product NFT' : 'Product Management'}
+          </h2>
+          <p style={{ color: '#6b7280', margin: '5px 0' }}>
+            {userRole === 'manufacturer' 
+              ? 'Product lifecycle management with blockchain verification' 
+              : `View and manage products as ${userRole}`
+            }
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
@@ -351,21 +381,24 @@ const ProductManagement = () => {
           >
             🔄 Refresh
           </button>
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="btn"
-            style={{ 
-              background: '#3b82f6', 
-              color: 'white', 
-              border: 'none', 
-              padding: '12px 24px', 
-              borderRadius: '8px',
-              fontSize: '16px',
-              cursor: 'pointer'
-            }}
-          >
-            {showCreateForm ? 'Cancel' : '+ Create Product NFT'}
-          </button>
+          {/* Only show Create Product NFT button for manufacturers */}
+          {userRole === 'manufacturer' && (
+            <button
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className="btn"
+              style={{ 
+                background: '#3b82f6', 
+                color: 'white', 
+                border: 'none', 
+                padding: '12px 24px', 
+                borderRadius: '8px',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              {showCreateForm ? 'Cancel' : '+ Create Product NFT'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -403,8 +436,8 @@ const ProductManagement = () => {
         </div>
       )}
 
-      {/* Create Product Form */}
-      {showCreateForm && (
+      {/* Create Product Form - Only for Manufacturers */}
+      {showCreateForm && userRole === 'manufacturer' && (
         <div className="card" style={{ marginBottom: '30px', padding: '20px' }}>
           <h3 style={{ marginBottom: '20px' }}>Create Product NFT (zkEVM Cardona)</h3>
           <form onSubmit={createProduct}>
@@ -644,7 +677,20 @@ const ProductManagement = () => {
       {/* Products List */}
       <div className="card" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Products List</h3>
+          <div>
+            <h3 style={{ margin: 0 }}>
+              {userRole === 'manufacturer' ? 'My Products' : 
+               userRole === 'transporter' ? 'Products I\'m Shipping' : 
+               userRole === 'buyer' ? 'My Purchased Products' : 
+               'Products List'}
+            </h3>
+            <p style={{ fontSize: '14px', color: '#6b7280', margin: '5px 0' }}>
+              {userRole === 'manufacturer' ? 'Products you have created and minted' :
+               userRole === 'transporter' ? 'Products currently in your custody for shipping' :
+               userRole === 'buyer' ? 'Products you have purchased or own' :
+               'All products in the system'}
+            </p>
+          </div>
           <button
             onClick={fetchProducts}
             className="btn"
@@ -669,8 +715,18 @@ const ProductManagement = () => {
 
         {!loading && products.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>No products found</div>
-            <div style={{ fontSize: '14px', color: '#9ca3af' }}>Create your first product to get started</div>
+            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
+              {userRole === 'manufacturer' ? 'No products created yet' :
+               userRole === 'transporter' ? 'No products to ship' :
+               userRole === 'buyer' ? 'No products purchased yet' :
+               'No products found'}
+            </div>
+            <div style={{ fontSize: '14px', color: '#9ca3af' }}>
+              {userRole === 'manufacturer' ? 'Create your first product to get started' :
+               userRole === 'transporter' ? 'Products will appear here when you are assigned for shipping' :
+               userRole === 'buyer' ? 'Products will appear here after you make purchases' :
+               'No products available in the system'}
+            </div>
           </div>
         )}
 

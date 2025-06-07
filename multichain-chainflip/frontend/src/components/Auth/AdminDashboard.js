@@ -247,19 +247,19 @@ const AdminDashboard = ({ authService }) => {
                   title: 'Manufacturers',
                   value: stats.manufacturers,
                   icon: Building,
-                  description: 'L2 Chain ID: 2442'
+                  description: 'L2 Chain ID: 2442 (zkEVM Cardona)'
                 },
                 {
                   title: 'Transporters',
                   value: stats.transporters,
                   icon: Truck,
-                  description: 'L2 Chain ID: 2443'
+                  description: 'L2 Chain ID: 421614 (Arbitrum Sepolia)'
                 },
                 {
                   title: 'Buyers',
                   value: stats.buyers,
                   icon: ShoppingCart,
-                  description: 'L2 Chain ID: 2444'
+                  description: 'L2 Chain ID: 11155420 (Optimism Sepolia)'
                 }
               ].map((role, index) => {
                 const Icon = role.icon;

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict, Optional
 import uuid
 from datetime import datetime
 
@@ -119,6 +119,83 @@ async def health_check():
         "blockchain": blockchain_status,
         "role_verification": os.getenv("ENABLE_ROLE_VERIFICATION", "true").lower() == "true"
     }
+
+@api_router.get("/products/", response_model=List[Dict])
+async def get_products(
+    user_role: Optional[str] = Query(None, description="User role for filtering"),
+    wallet_address: Optional[str] = Query(None, description="User wallet address"),
+    limit: int = Query(50, description="Number of products to return")
+):
+    """Get products with optional role-based filtering"""
+    try:
+        # Initialize blockchain service if needed
+        if not blockchain_service.database:
+            await blockchain_service.initialize()
+        
+        # Get all products
+        all_products = await blockchain_service.get_all_products(limit)
+        
+        # Apply role-based filtering if user_role and wallet_address are provided
+        if user_role and wallet_address:
+            filtered_products = []
+            
+            for product in all_products:
+                include_product = False
+                
+                if user_role == 'manufacturer':
+                    # Manufacturers see products they created
+                    if product.get('manufacturer') == wallet_address:
+                        include_product = True
+                
+                elif user_role == 'transporter':
+                    # Transporters see products they are shipping or have shipped
+                    # Check if they are the current owner or involved in shipping
+                    current_owner = product.get('current_owner', '')
+                    if current_owner == wallet_address:
+                        include_product = True
+                    
+                    # Also check if they have any shipping records for this product
+                    # (In a full implementation, you'd check a shipping/transport collection)
+                    
+                elif user_role == 'buyer':
+                    # Buyers see products they own or have ordered
+                    current_owner = product.get('current_owner', '')
+                    if current_owner == wallet_address:
+                        include_product = True
+                    
+                    # Also check if they have any purchase records for this product
+                    # (In a full implementation, you'd check a purchases collection)
+                
+                elif user_role == 'admin':
+                    # Admins see all products
+                    include_product = True
+                
+                if include_product:
+                    filtered_products.append(product)
+            
+            return {"products": filtered_products, "count": len(filtered_products), "filtered_by": user_role}
+        
+        # Return all products if no filtering
+        return {"products": all_products, "count": len(all_products)}
+        
+    except Exception as e:
+        logger.error(f"Products fetch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch products: {str(e)}")
+
+# Keep the old endpoint for backwards compatibility
+@api_router.get("/products/all")
+async def get_all_products_legacy():
+    """Legacy endpoint - get all products without filtering"""
+    try:
+        if not blockchain_service.database:
+            await blockchain_service.initialize()
+        
+        products = await blockchain_service.get_all_products()
+        return {"products": products, "count": len(products)}
+        
+    except Exception as e:
+        logger.error(f"Products fetch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch products: {str(e)}")
 
 @api_router.get("/network-status", response_model=dict)
 async def get_network_status():

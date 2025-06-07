@@ -50,13 +50,63 @@ class BlockchainService:
             else:
                 print("❌ Failed to connect to zkEVM Cardona")
         
-        # Initialize Polygon PoS connection (Hub chain)
+        # Initialize Polygon PoS connection (Hub chain) with enhanced retry logic
         if settings.polygon_pos_rpc:
-            self.pos_web3 = Web3(Web3.HTTPProvider(settings.polygon_pos_rpc))
-            if self.pos_web3.is_connected():
-                print(f"✅ Connected to Polygon PoS Hub (Chain ID: {settings.polygon_pos_chain_id})")
-            else:
-                print("❌ Failed to connect to Polygon PoS Hub")
+            connection_successful = False
+            
+            # Try primary RPC first
+            try:
+                self.pos_web3 = Web3(Web3.HTTPProvider(settings.polygon_pos_rpc))
+                if self.pos_web3.is_connected():
+                    # Test actual connectivity by fetching block number
+                    latest_block = self.pos_web3.eth.block_number
+                    print(f"✅ Connected to Polygon PoS Hub (Chain ID: {settings.polygon_pos_chain_id})")
+                    print(f"📊 Latest block: {latest_block}")
+                    connection_successful = True
+                else:
+                    raise Exception("Connection test failed")
+            except Exception as primary_error:
+                print(f"⚠️ Primary Polygon RPC failed: {primary_error}")
+                
+                # Try fallback RPC
+                if settings.polygon_pos_rpc_fallback:
+                    try:
+                        print(f"🔄 Trying fallback RPC: {settings.polygon_pos_rpc_fallback}")
+                        self.pos_web3 = Web3(Web3.HTTPProvider(settings.polygon_pos_rpc_fallback))
+                        if self.pos_web3.is_connected():
+                            latest_block = self.pos_web3.eth.block_number
+                            print(f"✅ Connected to Polygon PoS Hub via fallback (Chain ID: {settings.polygon_pos_chain_id})")
+                            print(f"📊 Latest block: {latest_block}")
+                            connection_successful = True
+                        else:
+                            raise Exception("Fallback connection test failed")
+                    except Exception as fallback_error:
+                        print(f"❌ Fallback Polygon RPC also failed: {fallback_error}")
+                
+                # Try additional public RPCs as last resort
+                if not connection_successful:
+                    public_rpcs = [
+                        "https://rpc-amoy.polygon.technology/",
+                        "https://polygon-amoy.drpc.org"
+                    ]
+                    
+                    for rpc_url in public_rpcs:
+                        try:
+                            print(f"🔄 Trying public RPC: {rpc_url}")
+                            test_web3 = Web3(Web3.HTTPProvider(rpc_url))
+                            if test_web3.is_connected():
+                                latest_block = test_web3.eth.block_number
+                                self.pos_web3 = test_web3
+                                print(f"✅ Connected to Polygon PoS Hub via public RPC (Chain ID: {settings.polygon_pos_chain_id})")
+                                print(f"📊 Latest block: {latest_block}")
+                                connection_successful = True
+                                break
+                        except Exception as public_error:
+                            print(f"⚠️ Public RPC {rpc_url} failed: {public_error}")
+                            continue
+            
+            if not connection_successful:
+                print("❌ All Polygon PoS connection attempts failed - using cached mode only")
         
         # Load contract configurations
         await self.load_contract_configurations()
@@ -476,30 +526,49 @@ class BlockchainService:
             total_products = await self.database.products.count_documents({})
             total_verifications = await self.database.verifications.count_documents({})
             
-            # Hub connection status with fallback testing
+            # Enhanced Hub connection status with detailed testing
             hub_connected = False
             hub_error = None
+            hub_rpc_used = None
+            hub_latest_block = None
+            
             if self.pos_web3:
                 try:
                     latest_block = self.pos_web3.eth.block_number
+                    chain_id = self.pos_web3.eth.chain_id
                     hub_connected = True
-                    print(f"✅ Hub connected, latest block: {latest_block}")
+                    hub_latest_block = latest_block
+                    hub_rpc_used = "primary"
+                    print(f"✅ Hub connected, latest block: {latest_block}, chain: {chain_id}")
                 except Exception as e:
                     hub_error = str(e)
                     print(f"❌ Hub connection error: {e}")
-                    # Try fallback RPC
-                    try:
-                        from web3 import Web3
-                        fallback_rpc = settings.polygon_pos_rpc_fallback or "https://polygon-amoy.g.alchemy.com/v2/demo"
-                        fallback_web3 = Web3(Web3.HTTPProvider(fallback_rpc))
-                        if fallback_web3.is_connected():
-                            latest_block = fallback_web3.eth.block_number
-                            hub_connected = True
-                            print(f"✅ Hub connected via fallback, latest block: {latest_block}")
-                        else:
-                            print("❌ Fallback RPC also failed")
-                    except Exception as fallback_error:
-                        print(f"❌ Fallback connection error: {fallback_error}")
+                    
+                    # Try fallback RPC for status check
+                    fallback_rpcs = [
+                        (settings.polygon_pos_rpc_fallback, "fallback"),
+                        ("https://rpc-amoy.polygon.technology/", "public_1"),
+                        ("https://polygon-amoy.drpc.org", "public_2")
+                    ]
+                    
+                    for rpc_url, rpc_type in fallback_rpcs:
+                        if not rpc_url:
+                            continue
+                        try:
+                            from web3 import Web3
+                            test_web3 = Web3(Web3.HTTPProvider(rpc_url))
+                            if test_web3.is_connected():
+                                latest_block = test_web3.eth.block_number
+                                chain_id = test_web3.eth.chain_id
+                                hub_connected = True
+                                hub_latest_block = latest_block
+                                hub_rpc_used = rpc_type
+                                hub_error = None
+                                print(f"✅ Hub connected via {rpc_type}, latest block: {latest_block}")
+                                break
+                        except Exception as fallback_error:
+                            print(f"❌ {rpc_type} RPC failed: {fallback_error}")
+                            continue
             
             # Get participant statistics
             total_participants = 0
@@ -521,13 +590,24 @@ class BlockchainService:
                 "active_manufacturers": manufacturer_count,
                 "blockchain_connected": self.manufacturer_web3.is_connected() if self.manufacturer_web3 else False,
                 "hub_connected": hub_connected,
-                "hub_connection_error": hub_error,
+                "hub_connection_details": {
+                    "status": "connected" if hub_connected else "disconnected",
+                    "rpc_used": hub_rpc_used,
+                    "latest_block": hub_latest_block,
+                    "error": hub_error
+                },
                 "ipfs_gateway": settings.ipfs_gateway,
                 "zkEVM_cardona_chain_id": settings.zkevm_cardona_chain_id,
                 "role_verification_enabled": getattr(settings, 'enable_role_verification', True),
                 "algorithm_usage": {
                     "authenticity_verification": total_verifications,
                     "product_minting": total_products
+                },
+                "network_health": {
+                    "manufacturer_chain": self.manufacturer_web3.is_connected() if self.manufacturer_web3 else False,
+                    "hub_chain": hub_connected,
+                    "database": True,  # If we got here, database is working
+                    "overall": hub_connected and (self.manufacturer_web3.is_connected() if self.manufacturer_web3 else True)
                 }
             }
         except Exception as e:
