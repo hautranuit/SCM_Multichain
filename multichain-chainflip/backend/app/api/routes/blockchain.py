@@ -482,14 +482,17 @@ async def mint_product(
     blockchain_service: BlockchainService = Depends(get_blockchain_service)
 ):
     """
-    Enhanced product minting with image/video upload to IPFS and improved metadata
+    Enhanced product minting with proper IPFS CID handling and manufacturer address auto-population
     """
     try:
-        # Automatically get manufacturer address from product_data or use current user
+        # FIX 1: Properly handle manufacturer address auto-population
         manufacturer_address = product_data.manufacturer
-        if not manufacturer_address or manufacturer_address == "":
-            # Use a default demo address if not provided
+        if not manufacturer_address or manufacturer_address == "" or manufacturer_address == "undefined":
+            # Use a default demo address if not provided (this should be set from frontend wallet)
             manufacturer_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+            print(f"⚠️ Using default manufacturer address: {manufacturer_address}")
+        else:
+            print(f"✅ Using provided manufacturer address: {manufacturer_address}")
         
         # Convert price from ETH to Wei if provided
         price_in_wei = 0
@@ -500,9 +503,17 @@ async def mint_product(
             except (ValueError, TypeError):
                 price_in_wei = 0
         
-        # Upload image to IPFS if provided
-        image_cid = ""
-        if product_data.metadata.get("image_data"):
+        # FIX 2: Use existing IPFS CIDs instead of re-uploading
+        # Check if CIDs are already provided from frontend uploads
+        image_cid = product_data.metadata.get("imageCID", "")
+        video_cid = product_data.metadata.get("videoCID", "")
+        
+        print(f"📦 Processing product minting:")
+        print(f"   🖼️ Image CID from frontend: {image_cid}")
+        print(f"   🎥 Video CID from frontend: {video_cid}")
+        
+        # Only upload if CIDs are not provided (fallback for legacy image_data/video_data)
+        if not image_cid and product_data.metadata.get("image_data"):
             try:
                 from app.services.ipfs_service import ipfs_service
                 image_metadata = {
@@ -512,14 +523,13 @@ async def mint_product(
                     "uploaded_at": int(time.time())
                 }
                 image_cid = await ipfs_service.upload_to_ipfs(image_metadata)
-                print(f"✅ Image uploaded to IPFS: {image_cid}")
+                print(f"✅ Image uploaded to IPFS (fallback): {image_cid}")
             except Exception as e:
                 print(f"⚠️ Image upload failed: {e}")
                 # Continue without image CID
         
-        # Upload video to IPFS if provided
-        video_cid = ""
-        if product_data.metadata.get("video_data"):
+        # Only upload if CIDs are not provided (fallback for legacy video_data)
+        if not video_cid and product_data.metadata.get("video_data"):
             try:
                 from app.services.ipfs_service import ipfs_service
                 video_metadata = {
@@ -529,7 +539,7 @@ async def mint_product(
                     "uploaded_at": int(time.time())
                 }
                 video_cid = await ipfs_service.upload_to_ipfs(video_metadata)
-                print(f"✅ Video uploaded to IPFS: {video_cid}")
+                print(f"✅ Video uploaded to IPFS (fallback): {video_cid}")
             except Exception as e:
                 print(f"⚠️ Video upload failed: {e}")
                 # Continue without video CID

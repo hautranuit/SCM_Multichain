@@ -167,18 +167,19 @@ class BlockchainService:
                         if receipt.status == 1:
                             print(f"✅ Transaction confirmed! Block: {receipt.blockNumber}")
                             
-                            # Generate encrypted QR code
-                            qr_data = {
-                                "token_id": str(token_id),
-                                "product_id": metadata.get("uniqueProductID", f"PROD-{token_id}"),
-                                "manufacturer": manufacturer,
-                                "metadata_cid": metadata_cid,
-                                "blockchain": "zkEVM Cardona",
-                                "chain_id": settings.zkevm_cardona_chain_id
-                            }
+                            # Generate simplified encrypted QR code with CID link
+                            qr_payload = encryption_service.create_qr_payload(
+                                token_id=str(token_id),
+                                metadata_cid=metadata_cid,
+                                product_data=metadata
+                            )
                             
-                            encrypted_qr = encryption_service.encrypt_qr_data(qr_data)
-                            qr_hash = encryption_service.generate_qr_hash(qr_data)
+                            encrypted_qr_code = encryption_service.encrypt_qr_data(qr_payload)
+                            qr_hash = encryption_service.generate_qr_hash(qr_payload)
+                            
+                            print(f"✅ QR Code generated with CID link: {metadata_cid}")
+                            print(f"🔐 QR Hash: {qr_hash}")
+                            print(f"📱 QR Payload contains IPFS URL: https://w3s.link/ipfs/{metadata_cid}")
                             
                             # Store product data in MongoDB (for caching)
                             product_data = {
@@ -193,14 +194,17 @@ class BlockchainService:
                                 "block_number": receipt.blockNumber,
                                 "chain_id": settings.zkevm_cardona_chain_id,
                                 "contract_address": contract_address,
-                                "encrypted_qr_code": encrypted_qr,
+                                "encrypted_qr_code": encrypted_qr_code,
                                 "qr_hash": qr_hash,
-                                "qr_data": qr_data,
+                                "qr_data": qr_payload,
                                 "token_uri": token_uri,
                                 "status": "minted",
                                 "created_at": time.time(),
                                 "gas_used": receipt.gasUsed,
-                                "mint_params": metadata
+                                "mint_params": metadata,
+                                # Add image and video CIDs for display
+                                "image_cid": metadata.get("image_cid", ""),
+                                "video_cid": metadata.get("video_cid", "")
                             }
                             
                             # Cache in MongoDB
@@ -244,17 +248,14 @@ class BlockchainService:
             token_id = str(int(time.time() * 1000))
             mock_tx_hash = f"0x{token_id}{'a' * (64 - len(token_id))}"  # More realistic looking hash
             
-            qr_data = {
-                "token_id": token_id,
-                "product_id": metadata.get("uniqueProductID", f"PROD-{token_id}"),
-                "manufacturer": manufacturer,
-                "metadata_cid": metadata_cid,
-                "blockchain": "zkEVM Cardona (cached)",
-                "chain_id": settings.zkevm_cardona_chain_id
-            }
+            qr_payload = encryption_service.create_qr_payload(
+                token_id=token_id,
+                metadata_cid=metadata_cid,
+                product_data=metadata
+            )
             
-            encrypted_qr = encryption_service.encrypt_qr_data(qr_data)
-            qr_hash = encryption_service.generate_qr_hash(qr_data)
+            encrypted_qr_code = encryption_service.encrypt_qr_data(qr_payload)
+            qr_hash = encryption_service.generate_qr_hash(qr_payload)
             
             product_data = {
                 "token_id": token_id,
@@ -266,9 +267,9 @@ class BlockchainService:
                 "metadata_cid": metadata_cid,
                 "transaction_hash": mock_tx_hash,
                 "chain_id": settings.zkevm_cardona_chain_id,
-                "encrypted_qr_code": encrypted_qr,
+                "encrypted_qr_code": encrypted_qr_code,
                 "qr_hash": qr_hash,
-                "qr_data": qr_data,
+                "qr_data": qr_payload,
                 "status": "cached",
                 "created_at": time.time(),
                 "mint_params": metadata

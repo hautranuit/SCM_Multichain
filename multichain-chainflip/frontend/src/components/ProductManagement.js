@@ -22,7 +22,7 @@ const ProductManagement = () => {
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
-    manufacturer: '',
+    manufacturer: '', // Will be auto-populated by useEffect
     batchNumber: '',
     category: '',
     price: '',
@@ -41,6 +41,16 @@ const ProductManagement = () => {
       }));
     }
   }, [user?.wallet_address]);
+
+  // ADDITIONAL: Ensure manufacturer field is always populated when form is used
+  useEffect(() => {
+    if (!newProduct.manufacturer && user?.wallet_address) {
+      setNewProduct(prev => ({
+        ...prev,
+        manufacturer: user.wallet_address
+      }));
+    }
+  }, [newProduct.manufacturer, user?.wallet_address]);
 
   useEffect(() => {
     fetchProducts();
@@ -141,7 +151,7 @@ const ProductManagement = () => {
         console.log('Video uploaded, CID:', videoCid);
       }
 
-      // Prepare metadata for cross-chain minting
+      // Prepare metadata for cross-chain minting with proper CID mapping
       const metadata = {
         name: newProduct.name,
         description: newProduct.description,
@@ -153,9 +163,15 @@ const ProductManagement = () => {
         expirationDate: newProduct.expirationDate,
         uniqueProductID: newProduct.uniqueProductID || `PROD-${Date.now()}`,
         productType: newProduct.category || 'General',
-        imageCID: imageCid,
-        videoCID: videoCid
+        imageCID: imageCid,  // Use the uploaded image CID
+        videoCID: videoCid   // Use the uploaded video CID
       };
+
+      console.log('Final metadata with CIDs:', {
+        imageCID: metadata.imageCID,
+        videoCID: metadata.videoCID,
+        productName: metadata.name
+      });
 
       console.log('Creating product with enhanced blockchain service:', metadata);
 
@@ -168,7 +184,7 @@ const ProductManagement = () => {
       console.log('Product created successfully with cross-chain integration:', result);
       
       // Show success message with enhanced details
-      alert(`✅ Product created successfully!\n\n🆔 Token ID: ${result.token_id}\n📁 Metadata CID: ${result.metadata_cid}\n🔗 Transaction: ${result.transaction_hash}\n🔐 QR Hash: ${result.qr_hash}${imageCid ? `\n🖼️ Image CID: ${imageCid}` : ''}${videoCid ? `\n🎥 Video CID: ${videoCid}` : ''}`);
+      alert(`✅ Product created successfully!\n\n🆔 Token ID: ${result.token_id}\n📁 Metadata CID: ${result.metadata_cid}\n🔗 Transaction: ${result.transaction_hash}\n🔐 QR Hash: ${result.qr_hash}${imageCid ? `\n🖼️ Image CID: ${imageCid}` : ''}${videoCid ? `\n🎥 Video CID: ${videoCid}` : ''}\n\n🏭 Manufacturer: ${newProduct.manufacturer || user?.wallet_address || "0x032041b4b356fEE1496805DD4749f181bC736FFA"}`);
       
       await fetchProducts();
       await loadMultiChainStats(); // Refresh multi-chain stats
@@ -178,7 +194,7 @@ const ProductManagement = () => {
       setNewProduct({
         name: '',
         description: '',
-        manufacturer: '',
+        manufacturer: user?.wallet_address || '', // Auto-populate manufacturer on reset
         batchNumber: '',
         category: '',
         price: '',
@@ -196,20 +212,20 @@ const ProductManagement = () => {
   };
 
   const generateQRCode = (product) => {
-    // Use encrypted QR code if available, otherwise fallback to basic data
+    // Use the simplified encrypted QR code containing CID link
     if (product.encrypted_qr_code) {
       return product.encrypted_qr_code;
     }
     
-    // Fallback QR data
-    const qrData = {
-      productId: product.token_id || product.id || product._id,
-      name: product.name || product.metadata?.name,
-      manufacturer: product.manufacturer,
-      blockchain: 'polygon',
-      contractAddress: process.env.REACT_APP_CONTRACT_ADDRESS || '0x60C466cF52cb9705974a89b72DeA045c45cb7572'
+    // Fallback: Simple JSON with essential info (should rarely be used)
+    const fallbackData = {
+      error: "Encrypted QR not available",
+      token_id: product.token_id || "N/A",
+      cid: product.metadata_cid || "N/A",
+      verify_url: `https://chainflip.app/verify/${product.token_id || 'unknown'}`
     };
-    return JSON.stringify(qrData);
+    
+    return JSON.stringify(fallbackData);
   };
 
   // Cross-chain operations
@@ -575,7 +591,14 @@ const ProductManagement = () => {
                 )}
               </div>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturer Address</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                  Manufacturer Address 
+                  {!newProduct.manufacturer && (
+                    <span style={{ color: '#ef4444', fontSize: '12px', marginLeft: '5px' }}>
+                      (Will auto-populate from wallet)
+                    </span>
+                  )}
+                </label>
                 <input
                   type="text"
                   value={newProduct.manufacturer}
@@ -584,10 +607,16 @@ const ProductManagement = () => {
                     width: '100%', 
                     padding: '10px', 
                     border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
+                    borderRadius: '4px',
+                    backgroundColor: !newProduct.manufacturer ? '#fef3c7' : 'white'
                   }}
                   placeholder="0x... (auto-populated from wallet if empty)"
                 />
+                {!newProduct.manufacturer && (
+                  <div style={{ fontSize: '12px', color: '#d97706', marginTop: '2px' }}>
+                    ⚠️ Manufacturer address will be auto-populated from your connected wallet
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ marginTop: '20px' }}>
@@ -667,7 +696,7 @@ const ProductManagement = () => {
                 <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
                   <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
                   <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
-                  <div><strong>Price:</strong> {product.price || product.metadata?.price || '0.000'} ETH</div>
+                  <div><strong>Price:</strong> {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH</div>
                   {product.token_id && <div><strong>Token ID:</strong> {product.token_id}</div>}
                   {product.metadata_cid && <div><strong>IPFS CID:</strong> {product.metadata_cid.substring(0, 20)}...</div>}
                   {product.manufacturer && (
@@ -724,7 +753,7 @@ const ProductManagement = () => {
                     />
                   </div>
                   <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px', textAlign: 'center' }}>
-                    {product.encrypted_qr_code ? '🔐 Encrypted QR Code' : '📱 Basic QR Code'}
+                    {product.encrypted_qr_code ? '🔐 Encrypted QR with CID Link' : '📱 Basic QR Code'}
                   </div>
                   
                   {/* Cross-Chain Operations */}

@@ -1,6 +1,7 @@
 """
-Encryption Service for QR Code Data
-Implements AES-256 encryption with HMAC verification
+Simplified QR Code Encryption Service for SCM Multichain
+Implements AES-256-CBC + HMAC + 32-byte random key
+QR contains product's CID link for IPFS metadata access
 """
 import os
 import json
@@ -8,119 +9,162 @@ import hmac
 import hashlib
 import secrets
 from typing import Dict, Any, Tuple
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 import base64
+import time
 
 class EncryptionService:
     def __init__(self):
-        # Get or generate encryption key
-        self.encryption_key = self._get_or_create_key()
+        # Initialize with 32-byte random key for AES-256
+        self.aes_key = self._get_or_create_aes_key()
+        self.hmac_key = self._get_or_create_hmac_key()
         
-    def _get_or_create_key(self) -> bytes:
-        """Get encryption key from environment or generate new one"""
-        key_env = os.environ.get('QR_ENCRYPTION_KEY')
+    def _get_or_create_aes_key(self) -> bytes:
+        """Get or generate 32-byte AES-256 key"""
+        key_env = os.environ.get('QR_AES_KEY')
         if key_env:
-            return base64.urlsafe_b64decode(key_env.encode())
+            return bytes.fromhex(key_env)
         else:
-            # Generate new key for demo
-            key = Fernet.generate_key()
-            print(f"⚠️ Generated new encryption key: {base64.urlsafe_b64encode(key).decode()}")
-            print("📝 Add this to your .env file as QR_ENCRYPTION_KEY")
+            # Generate 32-byte random key for AES-256
+            key = secrets.token_bytes(32)
+            print(f"⚠️ Generated new AES-256 key: {key.hex()}")
+            print("📝 Add this to your .env file as QR_AES_KEY")
             return key
     
-    def encrypt_qr_data(self, data: Dict[str, Any]) -> Tuple[str, str]:
+    def _get_or_create_hmac_key(self) -> bytes:
+        """Get or generate 32-byte HMAC key"""
+        key_env = os.environ.get('QR_HMAC_KEY')
+        if key_env:
+            return bytes.fromhex(key_env)
+        else:
+            # Generate 32-byte random key for HMAC
+            key = secrets.token_bytes(32)
+            print(f"⚠️ Generated new HMAC key: {key.hex()}")
+            print("📝 Add this to your .env file as QR_HMAC_KEY")
+            return key
+    
+    def encrypt_qr_data(self, data: Dict[str, Any]) -> str:
         """
-        Encrypt QR data using AES-256 + HMAC
-        Returns: (encrypted_payload, qr_hash)
+        Encrypt QR data using AES-256-CBC + HMAC
+        Returns: encrypted_payload (base64 encoded)
         """
         try:
             # Convert data to JSON
             json_data = json.dumps(data, separators=(',', ':'))
             
-            # Create Fernet cipher
-            cipher = Fernet(self.encryption_key)
+            # Generate random 16-byte IV for AES-256-CBC
+            iv = secrets.token_bytes(16)
             
-            # Encrypt the data
-            encrypted_data = cipher.encrypt(json_data.encode())
+            # Pad data to 16-byte boundary (PKCS7 padding)
+            plaintext_bytes = json_data.encode('utf-8')
+            padding_length = 16 - (len(plaintext_bytes) % 16)
+            padded_plaintext = plaintext_bytes + bytes([padding_length] * padding_length)
+            
+            # Encrypt using AES-256-CBC
+            cipher = Cipher(algorithms.AES(self.aes_key), modes.CBC(iv), backend=default_backend())
+            encryptor = cipher.encryptor()
+            ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
             
             # Create HMAC for integrity verification
-            hmac_key = self.encryption_key[:32]  # Use first 32 bytes for HMAC
-            qr_hash = hmac.new(
-                hmac_key,
-                encrypted_data,
+            combined_data = iv + ciphertext
+            hmac_signature = hmac.new(
+                self.hmac_key,
+                combined_data,
                 hashlib.sha256
-            ).hexdigest()
+            ).digest()
             
-            # Encode encrypted data as base64 for transport
-            encrypted_payload = base64.urlsafe_b64encode(encrypted_data).decode()
+            # Combine IV + ciphertext + HMAC
+            final_payload = iv + ciphertext + hmac_signature
             
-            return encrypted_payload, qr_hash
+            # Encode as base64 for QR code
+            encrypted_payload = base64.urlsafe_b64encode(final_payload).decode('ascii')
+            
+            print(f"✅ QR data encrypted successfully (length: {len(encrypted_payload)})")
+            return encrypted_payload
             
         except Exception as e:
             raise Exception(f"QR encryption failed: {e}")
     
-    def decrypt_qr_data(self, encrypted_payload: str, qr_hash: str) -> Dict[str, Any]:
+    def decrypt_qr_data(self, encrypted_payload: str) -> Dict[str, Any]:
         """Decrypt and verify QR data"""
         try:
             # Decode from base64
-            encrypted_data = base64.urlsafe_b64decode(encrypted_payload.encode())
+            payload_bytes = base64.urlsafe_b64decode(encrypted_payload.encode('ascii'))
+            
+            # Extract components: IV (16) + ciphertext + HMAC (32)
+            if len(payload_bytes) < 48:  # Minimum: 16 (IV) + 16 (min ciphertext) + 32 (HMAC)
+                raise Exception("Invalid payload length")
+            
+            iv = payload_bytes[:16]
+            hmac_signature = payload_bytes[-32:]
+            ciphertext = payload_bytes[16:-32]
             
             # Verify HMAC
-            hmac_key = self.encryption_key[:32]
-            expected_hash = hmac.new(
-                hmac_key,
-                encrypted_data,
+            combined_data = iv + ciphertext
+            expected_hmac = hmac.new(
+                self.hmac_key,
+                combined_data,
                 hashlib.sha256
-            ).hexdigest()
+            ).digest()
             
-            if not hmac.compare_digest(expected_hash, qr_hash):
+            if not hmac.compare_digest(expected_hmac, hmac_signature):
                 raise Exception("QR code integrity verification failed")
             
-            # Decrypt the data
-            cipher = Fernet(self.encryption_key)
-            decrypted_data = cipher.decrypt(encrypted_data)
+            # Decrypt using AES-256-CBC
+            cipher = Cipher(algorithms.AES(self.aes_key), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+            
+            # Remove PKCS7 padding
+            padding_length = padded_plaintext[-1]
+            plaintext = padded_plaintext[:-padding_length]
             
             # Parse JSON
-            data = json.loads(decrypted_data.decode())
+            data = json.loads(plaintext.decode('utf-8'))
             
+            print(f"✅ QR data decrypted successfully")
             return data
             
         except Exception as e:
             raise Exception(f"QR decryption failed: {e}")
     
     def generate_qr_hash(self, data: Dict[str, Any]) -> str:
-        """Generate a hash for QR data without encryption"""
+        """Generate a simple hash for QR data identification"""
         try:
-            # Convert data to JSON
             json_data = json.dumps(data, separators=(',', ':'), sort_keys=True)
-            
-            # Create hash
             hash_value = hashlib.sha256(json_data.encode()).hexdigest()
-            
-            return hash_value
-            
+            return hash_value[:16]  # First 16 characters for shorter hash
         except Exception as e:
             raise Exception(f"QR hash generation failed: {e}")
     
-    def generate_qr_payload(self, token_id: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate QR code payload with all necessary information"""
-        import time
+    def create_qr_payload(self, token_id: str, metadata_cid: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create simplified QR payload containing product's CID link
+        This is the main QR data structure for the SCM system
+        """
         
         qr_data = {
+            # Core identification
             "token_id": token_id,
+            "cid": metadata_cid,  # Main IPFS CID link for metadata
+            
+            # Product essentials  
             "product_id": product_data.get("uniqueProductID", ""),
-            "batch_number": product_data.get("batchNumber", ""),
+            "name": product_data.get("name", ""),
             "manufacturer": product_data.get("manufacturerID", ""),
-            "product_type": product_data.get("productType", ""),
-            "manufacturing_date": product_data.get("manufacturingDate", ""),
-            "expiration_date": product_data.get("expirationDate", ""),
-            "blockchain": "polygon",
-            "chain_id": "80002",  # Polygon Amoy testnet
-            "verification_url": f"https://chainflip.app/verify/{token_id}",
-            "timestamp": int(time.time()),
-            "version": "1.0"
+            
+            # Blockchain info
+            "blockchain": "zkEVM Cardona",
+            "chain_id": 2442,
+            
+            # Verification
+            "ipfs_url": f"https://w3s.link/ipfs/{metadata_cid}",
+            "verify_url": f"https://chainflip.app/verify/{token_id}",
+            
+            # Metadata
+            "generated_at": int(time.time()),
+            "version": "2.0"
         }
         
         return qr_data
