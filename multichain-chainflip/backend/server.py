@@ -12,7 +12,8 @@ from datetime import datetime
 
 # Import all route modules
 from app.api import participant_routes
-from app.services import blockchain_service, multichain_service
+from app.services.blockchain_service import blockchain_service
+from app.services.multichain_service import multichain_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
