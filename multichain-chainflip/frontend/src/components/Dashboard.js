@@ -192,7 +192,7 @@ const Dashboard = ({ backendStatus }) => {
       </div>
 
       {/* System Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -246,37 +246,6 @@ const Dashboard = ({ backendStatus }) => {
                 <div className="flex justify-between text-sm">
                   <span>Smart Contracts:</span>
                   <span className="text-green-600">✅ Deployed</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <TrendingUp className="h-8 w-8 text-purple-600" />
-            </div>
-            <div className="ml-5">
-              <h3 className="text-lg font-medium text-gray-900">Algorithm Status</h3>
-              <div className="mt-2 space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span>Implemented:</span>
-                  <span className="text-green-600">
-                    {algorithmStats?.implemented_count || 0}/5
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Active Operations:</span>
-                  <span className="text-green-600">
-                    {(algorithmStats?.algorithms?.algorithm_1_payment_release?.usage_count || 0) + 
-                     (algorithmStats?.algorithms?.algorithm_2_dispute_resolution?.usage_count || 0) + 
-                     (algorithmStats?.algorithms?.algorithm_4_authenticity?.usage_count || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Cross-Chain:</span>
-                  <span className="text-green-600">✅ Enabled</span>
                 </div>
               </div>
             </div>

@@ -4,7 +4,7 @@ import axios from 'axios';
 import './App.css';
 
 // Auth Components
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
 import RegisterForm from './components/Auth/RegisterForm';
 import AdminDashboard from './components/Auth/AdminDashboard';
@@ -136,7 +136,9 @@ function App() {
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <Dashboard backendStatus={backendStatus} />
+                  <AppLayout backendStatus={backendStatus}>
+                    <Dashboard backendStatus={backendStatus} />
+                  </AppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -202,16 +204,38 @@ function App() {
 
 // App Layout Component for authenticated pages
 const AppLayout = ({ children, backendStatus }) => {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const { userRole } = useAuth();
   
-  const menuItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: '📊', path: '/dashboard' },
-    { id: 'products', name: 'Products', icon: '📦', path: '/products' },
-    { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
-    { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
-    { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
-    { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
-  ];
+  const getRoleBasedMenuItems = () => {
+    const baseItems = [
+      { id: 'dashboard', name: 'Dashboard', icon: '📊', path: '/dashboard' },
+    ];
+
+    // Role-specific product menu item
+    const productMenuItem = (() => {
+      switch (userRole) {
+        case 'manufacturer':
+          return { id: 'products', name: 'Create Product NFT', icon: '📦', path: '/products' };
+        case 'transporter':
+          return { id: 'products', name: 'Shipping Process', icon: '🚛', path: '/products' };
+        case 'buyer':
+          return { id: 'products', name: 'Market', icon: '🛒', path: '/products' };
+        default:
+          return { id: 'products', name: 'Products', icon: '📦', path: '/products' };
+      }
+    })();
+
+    const otherItems = [
+      { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
+      { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
+      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+      { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
+    ];
+
+    return [...baseItems, productMenuItem, ...otherItems];
+  };
+
+  const menuItems = getRoleBasedMenuItems();
 
   const handleLogout = async () => {
     try {

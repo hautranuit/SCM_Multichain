@@ -96,7 +96,7 @@ async def health_check():
                 blockchain_status["polygon_hub"] = {"connected": True, "latest_block": latest_block}
             except Exception as e:
                 blockchain_status["polygon_hub"] = {"connected": False, "error": str(e)}
-                # Try fallback
+                # Try fallback RPC
                 try:
                     from web3 import Web3
                     fallback_rpc = os.getenv("POLYGON_POS_RPC_FALLBACK", "https://polygon-amoy.g.alchemy.com/v2/demo")
@@ -105,7 +105,8 @@ async def health_check():
                         latest_block = fallback_web3.eth.block_number
                         blockchain_status["polygon_hub"] = {"connected": True, "latest_block": latest_block, "via": "fallback"}
                 except Exception:
-                    pass
+                    # Still failed
+                    blockchain_status["polygon_hub"] = {"connected": False, "error": "Both primary and fallback failed"}
         else:
             blockchain_status["polygon_hub"] = {"connected": False, "error": "Not initialized"}
             
@@ -154,8 +155,16 @@ async def get_products(
                     if current_owner == wallet_address:
                         include_product = True
                     
-                    # Also check if they have any shipping records for this product
-                    # (In a full implementation, you'd check a shipping/transport collection)
+                    # Check if they are assigned as transporter for this product
+                    transporter_address = product.get('transporter', '')
+                    if transporter_address == wallet_address:
+                        include_product = True
+                    
+                    # Check if they have any shipping assignments for this product
+                    # (More restrictive filtering - only products actually assigned)
+                    if not include_product:
+                        # If no explicit assignment found, don't include
+                        include_product = False
                     
                 elif user_role == 'buyer':
                     # Buyers see products they own or have ordered
@@ -223,6 +232,18 @@ async def get_network_status():
                 "blockchain_stats": network_stats,
                 "multichain_stats": multichain_stats,
                 "timestamp": datetime.utcnow().isoformat()
+            },
+            "multichain": {
+                "polygon_pos_hub": {
+                    "connected": network_stats.get("hub_connected", False),
+                    "details": network_stats.get("hub_connection_details", {}),
+                    "bridge_status": network_stats.get("bridge_status", {})
+                },
+                "statistics": {
+                    "total_products": network_stats.get("total_products", 0),
+                    "total_transactions": network_stats.get("total_verifications", 0),
+                    "total_disputes": 0  # Can be added later
+                }
             }
         }
         

@@ -4,7 +4,7 @@ import QRCode from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
-import { Package, Truck, Shield, Store, Eye, ArrowRight } from 'lucide-react';
+import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
@@ -341,6 +341,65 @@ const ProductManagement = () => {
     }
   };
 
+  const handleCompleteShipping = async (productTokenId) => {
+    try {
+      const confirmation = window.confirm('Mark this product as delivered and complete shipping?');
+      if (!confirmation) return;
+
+      setLoading(true);
+
+      // Complete shipping operation (transporter chain operation)
+      const result = await blockchainService.completeShipping({
+        product_id: productTokenId,
+        transporter: user?.wallet_address,
+        delivery_confirmation: true,
+        delivery_timestamp: Date.now()
+      });
+
+      alert(`✅ Shipping Completed!\n\n📦 Product: ${productTokenId}\n🚛 Delivered by: ${user?.wallet_address}\n📅 Completed: ${new Date().toLocaleString()}\n🔗 Transaction: ${result.transaction_hash || 'N/A'}`);
+      
+      await fetchProducts();
+    } catch (error) {
+      console.error('Complete shipping error:', error);
+      alert(`❌ Failed to complete shipping: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBuyProduct = async (productTokenId) => {
+    try {
+      const product = products.find(p => p.token_id === productTokenId);
+      if (!product) {
+        alert('Product not found');
+        return;
+      }
+
+      const price = product.price || product.metadata?.price_eth || '0.001';
+      const confirmation = window.confirm(`Purchase this product for ${price} ETH?`);
+      if (!confirmation) return;
+
+      setLoading(true);
+
+      // Buy product operation (buyer chain operation)  
+      const result = await blockchainService.buyProduct({
+        product_id: productTokenId,
+        buyer: user?.wallet_address,
+        price: parseFloat(price),
+        payment_method: 'ETH'
+      });
+
+      alert(`🛒 Product Purchased!\n\n💰 Paid: ${price} ETH\n👤 Buyer: ${user?.wallet_address}\n📅 Purchased: ${new Date().toLocaleString()}\n🔗 Transaction: ${result.transaction_hash || 'N/A'}`);
+      
+      await fetchProducts();
+    } catch (error) {
+      console.error('Buy product error:', error);
+      alert(`❌ Failed to purchase product: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getCurrentDate = () => {
     return new Date().toISOString().split('T')[0];
   };
@@ -356,11 +415,18 @@ const ProductManagement = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
           <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>
-            📦 {userRole === 'manufacturer' ? 'Create Product NFT' : 'Product Management'}
+            📦 {userRole === 'manufacturer' ? 'Create Product NFT' : 
+                 userRole === 'transporter' ? 'Shipping Process' :
+                 userRole === 'buyer' ? 'Market' : 
+                 'Product Management'}
           </h2>
           <p style={{ color: '#6b7280', margin: '5px 0' }}>
             {userRole === 'manufacturer' 
               ? 'Product lifecycle management with blockchain verification' 
+              : userRole === 'transporter'
+              ? 'Manage shipments and complete delivery processes'
+              : userRole === 'buyer'
+              ? 'Browse and purchase products from the marketplace'
               : `View and manage products as ${userRole}`
             }
           </p>
@@ -812,93 +878,281 @@ const ProductManagement = () => {
                     {product.encrypted_qr_code ? '🔐 Encrypted QR with CID Link' : '📱 Basic QR Code'}
                   </div>
                   
-                  {/* Cross-Chain Operations */}
+                  {/* Role-based Cross-Chain Operations */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
-                    <button
-                      onClick={() => handleCrossChainTransfer(product.token_id)}
-                      className="btn"
-                      style={{ 
-                        background: '#10b981', 
-                        color: 'white', 
-                        border: 'none', 
-                        padding: '6px 8px', 
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Transfer to another chain"
-                    >
-                      <Truck className="w-3 h-3 mr-1" />
-                      Ship
-                    </button>
                     
-                    <button
-                      onClick={() => handleVerifyProduct(product.token_id)}
-                      className="btn"
-                      style={{ 
-                        background: '#8b5cf6', 
-                        color: 'white', 
-                        border: 'none', 
-                        padding: '6px 8px', 
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Verify authenticity using Algorithm 4"
-                    >
-                      <Shield className="w-3 h-3 mr-1" />
-                      Verify
-                    </button>
-                    
-                    {userRole === 'manufacturer' && (
-                      <button
-                        onClick={() => handleQualityCheck(product.token_id)}
-                        className="btn"
-                        style={{ 
-                          background: '#f59e0b', 
-                          color: 'white', 
-                          border: 'none', 
-                          padding: '6px 8px', 
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Perform quality check"
-                      >
-                        <Eye className="w-3 h-3 mr-1" />
-                        QC
-                      </button>
+                    {/* TRANSPORTER BUTTONS: Ship, Complete Shipping, Verify */}
+                    {userRole === 'transporter' && (
+                      <>
+                        <button
+                          onClick={() => handleCrossChainTransfer(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#10b981', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Transfer to another chain"
+                        >
+                          <Truck className="w-3 h-3 mr-1" />
+                          Ship
+                        </button>
+                        
+                        <button
+                          onClick={() => handleCompleteShipping(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#059669', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Complete shipping and mark as delivered"
+                        >
+                          <Package className="w-3 h-3 mr-1" />
+                          Complete Shipping
+                        </button>
+                        
+                        <button
+                          onClick={() => handleVerifyProduct(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#8b5cf6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gridColumn: 'span 1'
+                          }}
+                          title="Verify authenticity using Algorithm 4"
+                        >
+                          <Shield className="w-3 h-3 mr-1" />
+                          Verify
+                        </button>
+                      </>
                     )}
-                    
-                    <button
-                      onClick={() => handleListInMarketplace(product.token_id)}
-                      className="btn"
-                      style={{ 
-                        background: '#ec4899', 
-                        color: 'white', 
-                        border: 'none', 
-                        padding: '6px 8px', 
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="List in marketplace using Algorithm 5"
-                    >
-                      <Store className="w-3 h-3 mr-1" />
-                      Sell
-                    </button>
+
+                    {/* BUYER BUTTONS: Buy, Verify */}
+                    {userRole === 'buyer' && (
+                      <>
+                        <button
+                          onClick={() => handleBuyProduct(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#dc2626', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Purchase this product"
+                        >
+                          <ShoppingCart className="w-3 h-3 mr-1" />
+                          Buy
+                        </button>
+                        
+                        <button
+                          onClick={() => handleVerifyProduct(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#8b5cf6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Verify authenticity using Algorithm 4"
+                        >
+                          <Shield className="w-3 h-3 mr-1" />
+                          Verify
+                        </button>
+                      </>
+                    )}
+
+                    {/* MANUFACTURER BUTTONS: Ship, Verify, QC, Sell */}
+                    {userRole === 'manufacturer' && (
+                      <>
+                        <button
+                          onClick={() => handleCrossChainTransfer(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#10b981', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Transfer to another chain"
+                        >
+                          <Truck className="w-3 h-3 mr-1" />
+                          Ship
+                        </button>
+                        
+                        <button
+                          onClick={() => handleVerifyProduct(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#8b5cf6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Verify authenticity using Algorithm 4"
+                        >
+                          <Shield className="w-3 h-3 mr-1" />
+                          Verify
+                        </button>
+                        
+                        <button
+                          onClick={() => handleQualityCheck(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#f59e0b', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Perform quality check"
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          QC
+                        </button>
+                        
+                        <button
+                          onClick={() => handleListInMarketplace(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#ec4899', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="List in marketplace using Algorithm 5"
+                        >
+                          <Store className="w-3 h-3 mr-1" />
+                          Sell
+                        </button>
+                      </>
+                    )}
+
+                    {/* ADMIN OR OTHER ROLES: Show all buttons */}
+                    {(userRole === 'admin' || (!userRole || (userRole !== 'manufacturer' && userRole !== 'transporter' && userRole !== 'buyer'))) && (
+                      <>
+                        <button
+                          onClick={() => handleCrossChainTransfer(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#10b981', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Transfer to another chain"
+                        >
+                          <Truck className="w-3 h-3 mr-1" />
+                          Ship
+                        </button>
+                        
+                        <button
+                          onClick={() => handleVerifyProduct(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#8b5cf6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Verify authenticity using Algorithm 4"
+                        >
+                          <Shield className="w-3 h-3 mr-1" />
+                          Verify
+                        </button>
+                        
+                        <button
+                          onClick={() => handleListInMarketplace(product.token_id)}
+                          className="btn"
+                          style={{ 
+                            background: '#ec4899', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="List in marketplace using Algorithm 5"
+                        >
+                          <Store className="w-3 h-3 mr-1" />
+                          Sell
+                        </button>
+                      </>
+                    )}
                   </div>
                   
                   <button

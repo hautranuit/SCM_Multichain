@@ -106,6 +106,23 @@ class BlockchainService {
     }
   }
 
+  async getAllProducts(limit = 50) {
+    try {
+      // Use the main backend API endpoint for products
+      const response = await fetch(`${this.baseURL}/api/products/?limit=${limit}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || `HTTP error! status: ${response.status}`);
+      }
+      
+      // Return products array, handling both old and new API response formats
+      return data.products || data || [];
+    } catch (error) {
+      throw new Error(`Failed to get all products: ${error.message}`);
+    }
+  }
+
   async getParticipantProducts(address) {
     try {
       return await this.request(`/participants/${address}/products`);
@@ -700,22 +717,129 @@ class BlockchainService {
   }
 
   // ==========================================
+  // ENHANCED PRODUCT OPERATIONS
+  // ==========================================
+
+  async completeShipping(shippingData) {
+    try {
+      return await this.request('/transporter/complete-shipping', {
+        method: 'POST',
+        body: JSON.stringify(shippingData),
+      });
+    } catch (error) {
+      // Fallback to marking delivery
+      try {
+        return await this.markDelivered(shippingData.product_id, shippingData.transporter);
+      } catch (fallbackError) {
+        throw new Error(`Failed to complete shipping: ${error.message}`);
+      }
+    }
+  }
+
+  async buyProduct(purchaseData) {
+    try {
+      return await this.request('/marketplace/buy', {
+        method: 'POST',
+        body: JSON.stringify(purchaseData),
+      });
+    } catch (error) {
+      // Fallback to purchase initiation
+      try {
+        return await this.initiateProductPurchase(purchaseData);
+      } catch (fallbackError) {
+        throw new Error(`Failed to buy product: ${error.message}`);
+      }
+    }
+  }
+
+  // ==========================================
   // UTILITY METHODS
   // ==========================================
 
   async getAllChainStats() {
     try {
-      // This would integrate with multichain_service.get_chain_stats()
-      const multiChainStatus = await this.getMultiChainServiceStatus();
-      const algorithmStatus = await this.getAlgorithmStatus();
+      // Get enhanced network status from the backend
+      const networkResponse = await fetch(`${this.baseURL}/api/network-status`);
+      const networkData = await networkResponse.json();
       
-      return {
-        multichain: multiChainStatus,
+      // Get algorithm status
+      let algorithmStatus = {};
+      try {
+        algorithmStatus = await this.getAlgorithmStatus();
+      } catch (error) {
+        console.warn('Algorithm status not available:', error);
+      }
+      
+      // Prepare the response structure that the frontend expects
+      const response = {
+        multichain: {
+          polygon_pos_hub: {
+            connected: false
+          },
+          statistics: {
+            total_products: 0,
+            total_transactions: 0,
+            total_disputes: 0
+          }
+        },
         algorithms: algorithmStatus,
         timestamp: new Date().toISOString()
       };
+
+      // Extract enhanced connection data
+      if (networkData?.success && networkData?.data?.blockchain_stats) {
+        const stats = networkData.data.blockchain_stats;
+        
+        // Extract hub connection info
+        response.multichain.polygon_pos_hub = {
+          connected: stats.hub_connected === true,
+          details: stats.hub_connection_details || {},
+          bridge_status: stats.bridge_status || {}
+        };
+        
+        // Extract statistics
+        response.multichain.statistics = {
+          total_products: stats.total_products || 0,
+          total_transactions: stats.total_verifications || 0,
+          total_disputes: stats.total_disputes || 0
+        };
+        
+        // Add bridge connectivity info
+        if (stats.bridge_status) {
+          response.multichain.bridge_connectivity = stats.bridge_status;
+        }
+      }
+
+      // Handle multichain stats if available
+      if (networkData?.multichain) {
+        response.multichain = {
+          ...response.multichain,
+          ...networkData.multichain
+        };
+      }
+      
+      console.log('Chain stats:', response);
+      return response;
     } catch (error) {
-      throw new Error(`Failed to get all chain stats: ${error.message}`);
+      console.error('Failed to get chain stats:', error);
+      
+      // Return fallback structure to prevent UI crashes
+      return {
+        multichain: {
+          polygon_pos_hub: {
+            connected: false,
+            error: error.message
+          },
+          statistics: {
+            total_products: 0,
+            total_transactions: 0,
+            total_disputes: 0
+          }
+        },
+        algorithms: {},
+        timestamp: new Date().toISOString(),
+        error: error.message
+      };
     }
   }
 

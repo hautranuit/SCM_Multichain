@@ -521,17 +521,19 @@ class BlockchainService:
             }
     
     async def get_network_stats(self) -> Dict[str, Any]:
-        """Get network statistics"""
+        """Get network statistics with bridge connectivity testing"""
         try:
             total_products = await self.database.products.count_documents({})
             total_verifications = await self.database.verifications.count_documents({})
             
-            # Enhanced Hub connection status with detailed testing
+            # Enhanced Hub connection status with bridge testing
             hub_connected = False
+            bridge_status = {}
             hub_error = None
             hub_rpc_used = None
             hub_latest_block = None
             
+            # Test Hub connectivity (Polygon Amoy)
             if self.pos_web3:
                 try:
                     latest_block = self.pos_web3.eth.block_number
@@ -540,11 +542,15 @@ class BlockchainService:
                     hub_latest_block = latest_block
                     hub_rpc_used = "primary"
                     print(f"✅ Hub connected, latest block: {latest_block}, chain: {chain_id}")
+                    
+                    # Test bridge contracts on Hub
+                    bridge_status["hub_bridges"] = await self._test_hub_bridge_contracts()
+                    
                 except Exception as e:
                     hub_error = str(e)
                     print(f"❌ Hub connection error: {e}")
                     
-                    # Try fallback RPC for status check
+                    # Try fallback RPCs for status check
                     fallback_rpcs = [
                         (settings.polygon_pos_rpc_fallback, "fallback"),
                         ("https://rpc-amoy.polygon.technology/", "public_1"),
@@ -569,6 +575,10 @@ class BlockchainService:
                         except Exception as fallback_error:
                             print(f"❌ {rpc_type} RPC failed: {fallback_error}")
                             continue
+            
+            # Test L2 bridge connectivity
+            l2_bridge_status = await self._test_l2_bridge_connectivity()
+            bridge_status.update(l2_bridge_status)
             
             # Get participant statistics
             total_participants = 0
@@ -596,6 +606,7 @@ class BlockchainService:
                     "latest_block": hub_latest_block,
                     "error": hub_error
                 },
+                "bridge_status": bridge_status,
                 "ipfs_gateway": settings.ipfs_gateway,
                 "zkEVM_cardona_chain_id": settings.zkevm_cardona_chain_id,
                 "role_verification_enabled": getattr(settings, 'enable_role_verification', True),
@@ -607,11 +618,150 @@ class BlockchainService:
                     "manufacturer_chain": self.manufacturer_web3.is_connected() if self.manufacturer_web3 else False,
                     "hub_chain": hub_connected,
                     "database": True,  # If we got here, database is working
+                    "bridges_operational": bridge_status.get("all_bridges_connected", False),
                     "overall": hub_connected and (self.manufacturer_web3.is_connected() if self.manufacturer_web3 else True)
                 }
             }
         except Exception as e:
             print(f"⚠️ Stats error: {e}")
+            return {"error": str(e)}
+
+    async def _test_hub_bridge_contracts(self) -> Dict[str, Any]:
+        """Test Hub bridge contracts connectivity"""
+        try:
+            # Bridge contract addresses from deployment files
+            bridge_addresses = {
+                "layerZeroConfig": "0x72a336eAAC8186906F1Ee85dF00C7d6b91257A43",
+                "fxPortalBridge": "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476", 
+                "crossChainMessenger": "0x04C881aaE303091Bda3e06731f6fa565A929F983"
+            }
+            
+            hub_bridges = {}
+            
+            for bridge_name, address in bridge_addresses.items():
+                try:
+                    # Simple connectivity test - check if contract exists
+                    code = self.pos_web3.eth.get_code(address)
+                    if code != b'':
+                        hub_bridges[bridge_name] = {
+                            "address": address,
+                            "status": "deployed",
+                            "has_code": True
+                        }
+                        print(f"✅ Hub bridge {bridge_name} deployed at {address}")
+                    else:
+                        hub_bridges[bridge_name] = {
+                            "address": address,
+                            "status": "not_deployed",
+                            "has_code": False
+                        }
+                        print(f"❌ Hub bridge {bridge_name} has no code at {address}")
+                except Exception as e:
+                    hub_bridges[bridge_name] = {
+                        "address": address,
+                        "status": "error",
+                        "error": str(e)
+                    }
+                    print(f"❌ Error checking bridge {bridge_name}: {e}")
+            
+            return {
+                "hub_bridges": hub_bridges,
+                "all_hub_bridges_deployed": all(
+                    bridge.get("has_code", False) for bridge in hub_bridges.values()
+                )
+            }
+        except Exception as e:
+            print(f"❌ Hub bridge test error: {e}")
+            return {"error": str(e)}
+
+    async def _test_l2_bridge_connectivity(self) -> Dict[str, Any]:
+        """Test L2 bridge contracts connectivity"""
+        try:
+            # L2 bridge addresses from deployment files
+            l2_bridges = {
+                "arbitrum_sepolia": {
+                    "chain_id": 421614,
+                    "rpc": settings.arbitrum_sepolia_rpc,
+                    "layerZeroConfig": "0x217e72E43e9375c1121ca36dcAc3fe878901836D"
+                },
+                "optimism_sepolia": {
+                    "chain_id": 11155420, 
+                    "rpc": settings.optimism_sepolia_rpc,
+                    "layerZeroConfig": "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26"
+                },
+                "zkevm_cardona": {
+                    "chain_id": 2442,
+                    "rpc": settings.zkevm_cardona_rpc,
+                    "fxPortalBridge": "TBD"  # Would be deployed separately
+                }
+            }
+            
+            bridge_connectivity = {}
+            
+            for chain_name, chain_info in l2_bridges.items():
+                try:
+                    # Test RPC connectivity
+                    from web3 import Web3
+                    chain_web3 = Web3(Web3.HTTPProvider(chain_info["rpc"]))
+                    
+                    if chain_web3.is_connected():
+                        latest_block = chain_web3.eth.block_number
+                        bridge_connectivity[chain_name] = {
+                            "rpc_connected": True,
+                            "chain_id": chain_info["chain_id"],
+                            "latest_block": latest_block,
+                            "bridge_contracts": {}
+                        }
+                        
+                        # Test bridge contracts if they exist
+                        for contract_name, address in chain_info.items():
+                            if contract_name in ["layerZeroConfig", "fxPortalBridge"] and address != "TBD":
+                                try:
+                                    code = chain_web3.eth.get_code(address)
+                                    bridge_connectivity[chain_name]["bridge_contracts"][contract_name] = {
+                                        "address": address,
+                                        "deployed": code != b'',
+                                        "status": "operational" if code != b'' else "not_deployed"
+                                    }
+                                except Exception as contract_error:
+                                    bridge_connectivity[chain_name]["bridge_contracts"][contract_name] = {
+                                        "address": address,
+                                        "deployed": False,
+                                        "error": str(contract_error)
+                                    }
+                    else:
+                        bridge_connectivity[chain_name] = {
+                            "rpc_connected": False,
+                            "error": "RPC connection failed"
+                        }
+                        
+                except Exception as e:
+                    bridge_connectivity[chain_name] = {
+                        "rpc_connected": False,
+                        "error": str(e)
+                    }
+                    print(f"❌ {chain_name} connectivity test failed: {e}")
+            
+            # Calculate overall bridge status
+            all_bridges_connected = all(
+                chain.get("rpc_connected", False) for chain in bridge_connectivity.values()
+            )
+            
+            return {
+                "l2_bridge_connectivity": bridge_connectivity,
+                "all_bridges_connected": all_bridges_connected,
+                "bridge_summary": {
+                    "total_chains": len(l2_bridges),
+                    "connected_chains": sum(1 for chain in bridge_connectivity.values() if chain.get("rpc_connected", False)),
+                    "operational_bridges": sum(
+                        len([contract for contract in chain.get("bridge_contracts", {}).values() if contract.get("deployed", False)])
+                        for chain in bridge_connectivity.values()
+                    )
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ L2 bridge connectivity test error: {e}")
             return {"error": str(e)}
 
 # Keep all the existing algorithm implementations (payment release, dispute resolution, etc.)
