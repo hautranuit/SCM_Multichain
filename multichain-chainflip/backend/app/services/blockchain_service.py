@@ -111,10 +111,17 @@ class BlockchainService:
     
     async def mint_product_nft(self, manufacturer: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Mint a real NFT on zkEVM Cardona blockchain
+        Mint a real NFT on zkEVM Cardona blockchain with role verification
         """
         try:
             print(f"🏭 Minting NFT on zkEVM Cardona for manufacturer: {manufacturer}")
+            
+            # Verify manufacturer role and permissions
+            verification_result = await self._verify_manufacturer_role(manufacturer)
+            if not verification_result["valid"]:
+                raise Exception(f"Role verification failed: {verification_result['error']}")
+            
+            print(f"✅ Manufacturer role verified for {manufacturer}")
             
             # Upload metadata to IPFS first
             print("📦 Uploading metadata to IPFS...")
@@ -405,17 +412,119 @@ class BlockchainService:
         except Exception as e:
             print(f"⚠️ Verification recording error: {e}")
     
+    async def _verify_manufacturer_role(self, manufacturer_address: str) -> Dict[str, Any]:
+        """
+        Verify that the address has manufacturer role on zkEVM Cardona chain
+        """
+        try:
+            from ..models.participant import ParticipantRole, ParticipantStatus
+            
+            # Find participant in database
+            participant = await self.database.participants.find_one(
+                {"wallet_address": manufacturer_address}
+            )
+            
+            if not participant:
+                return {
+                    "valid": False,
+                    "error": "Manufacturer not registered. Please register as a manufacturer first."
+                }
+            
+            # Check role
+            if participant.get("role") != ParticipantRole.MANUFACTURER.value:
+                return {
+                    "valid": False,
+                    "error": f"Address {manufacturer_address} does not have manufacturer role. Current role: {participant.get('role')}"
+                }
+            
+            # Check status
+            if participant.get("status") != ParticipantStatus.ACTIVE.value:
+                return {
+                    "valid": False,
+                    "error": f"Manufacturer account is not active. Status: {participant.get('status')}"
+                }
+            
+            # Check chain ID (must be zkEVM Cardona)
+            if participant.get("chain_id") != settings.zkevm_cardona_chain_id:
+                return {
+                    "valid": False,
+                    "error": f"Manufacturer must be registered on zkEVM Cardona chain (Chain ID: {settings.zkevm_cardona_chain_id}). Current chain: {participant.get('chain_id')}"
+                }
+            
+            # Check if manufacturer license exists
+            if not participant.get("manufacturer_license"):
+                return {
+                    "valid": False,
+                    "error": "Valid manufacturer license required"
+                }
+            
+            return {
+                "valid": True,
+                "participant": participant
+            }
+            
+        except Exception as e:
+            print(f"❌ Role verification error: {e}")
+            return {
+                "valid": False,
+                "error": f"Role verification failed: {e}"
+            }
+    
     async def get_network_stats(self) -> Dict[str, Any]:
         """Get network statistics"""
         try:
             total_products = await self.database.products.count_documents({})
             total_verifications = await self.database.verifications.count_documents({})
             
+            # Hub connection status with fallback testing
+            hub_connected = False
+            hub_error = None
+            if self.pos_web3:
+                try:
+                    latest_block = self.pos_web3.eth.block_number
+                    hub_connected = True
+                    print(f"✅ Hub connected, latest block: {latest_block}")
+                except Exception as e:
+                    hub_error = str(e)
+                    print(f"❌ Hub connection error: {e}")
+                    # Try fallback RPC
+                    try:
+                        from web3 import Web3
+                        fallback_rpc = settings.polygon_pos_rpc_fallback or "https://polygon-amoy.g.alchemy.com/v2/demo"
+                        fallback_web3 = Web3(Web3.HTTPProvider(fallback_rpc))
+                        if fallback_web3.is_connected():
+                            latest_block = fallback_web3.eth.block_number
+                            hub_connected = True
+                            print(f"✅ Hub connected via fallback, latest block: {latest_block}")
+                        else:
+                            print("❌ Fallback RPC also failed")
+                    except Exception as fallback_error:
+                        print(f"❌ Fallback connection error: {fallback_error}")
+            
+            # Get participant statistics
+            total_participants = 0
+            manufacturer_count = 0
+            try:
+                total_participants = await self.database.participants.count_documents({})
+                manufacturer_count = await self.database.participants.count_documents({
+                    "role": "manufacturer",
+                    "status": "active",
+                    "chain_id": settings.zkevm_cardona_chain_id
+                })
+            except Exception as e:
+                print(f"⚠️ Participant stats error: {e}")
+            
             return {
                 "total_products": total_products,
                 "total_verifications": total_verifications,
+                "total_participants": total_participants,
+                "active_manufacturers": manufacturer_count,
                 "blockchain_connected": self.manufacturer_web3.is_connected() if self.manufacturer_web3 else False,
+                "hub_connected": hub_connected,
+                "hub_connection_error": hub_error,
                 "ipfs_gateway": settings.ipfs_gateway,
+                "zkEVM_cardona_chain_id": settings.zkevm_cardona_chain_id,
+                "role_verification_enabled": getattr(settings, 'enable_role_verification', True),
                 "algorithm_usage": {
                     "authenticity_verification": total_verifications,
                     "product_minting": total_products

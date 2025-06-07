@@ -10,6 +10,9 @@ from typing import List
 import uuid
 from datetime import datetime
 
+# Import all route modules
+from app.api import participant_routes
+from app.services import blockchain_service, multichain_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -21,11 +24,10 @@ db_name = os.environ.get('DB_NAME', 'chainflip_multichain')
 db = client[db_name]
 
 # Create the main app without a prefix
-app = FastAPI()
+app = FastAPI(title="ChainFLIP Multi-Chain Backend", version="2.0.0")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
-
 
 # Define Models
 class StatusCheck(BaseModel):
@@ -36,10 +38,17 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
+class NetworkStatus(BaseModel):
+    """Network status response model"""
+    hub_connected: bool
+    l2_networks: dict
+    participants: dict
+    blockchain_stats: dict
+    
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "ChainFLIP Multi-Chain Backend API", "version": "2.0.0"}
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
@@ -53,8 +62,103 @@ async def get_status_checks():
     status_checks = await db.status_checks.find().to_list(1000)
     return [StatusCheck(**status_check) for status_check in status_checks]
 
-# Include the router in the main app
+@api_router.get("/health")
+async def health_check():
+    """Enhanced health check with connection testing"""
+    try:
+        # Test database connection
+        await db.status_checks.find_one()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    # Test blockchain connections
+    blockchain_status = {}
+    try:
+        # Initialize blockchain service if not already done
+        if not blockchain_service.database:
+            await blockchain_service.initialize()
+        
+        # Test zkEVM Cardona (Manufacturer chain)
+        if blockchain_service.manufacturer_web3:
+            try:
+                latest_block = blockchain_service.manufacturer_web3.eth.block_number
+                blockchain_status["zkevm_cardona"] = {"connected": True, "latest_block": latest_block}
+            except Exception as e:
+                blockchain_status["zkevm_cardona"] = {"connected": False, "error": str(e)}
+        else:
+            blockchain_status["zkevm_cardona"] = {"connected": False, "error": "Not initialized"}
+        
+        # Test Polygon Hub
+        if blockchain_service.pos_web3:
+            try:
+                latest_block = blockchain_service.pos_web3.eth.block_number
+                blockchain_status["polygon_hub"] = {"connected": True, "latest_block": latest_block}
+            except Exception as e:
+                blockchain_status["polygon_hub"] = {"connected": False, "error": str(e)}
+                # Try fallback
+                try:
+                    from web3 import Web3
+                    fallback_rpc = os.getenv("POLYGON_POS_RPC_FALLBACK", "https://polygon-amoy.g.alchemy.com/v2/demo")
+                    fallback_web3 = Web3(Web3.HTTPProvider(fallback_rpc))
+                    if fallback_web3.is_connected():
+                        latest_block = fallback_web3.eth.block_number
+                        blockchain_status["polygon_hub"] = {"connected": True, "latest_block": latest_block, "via": "fallback"}
+                except Exception:
+                    pass
+        else:
+            blockchain_status["polygon_hub"] = {"connected": False, "error": "Not initialized"}
+            
+    except Exception as e:
+        blockchain_status = {"error": str(e)}
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": db_status,
+        "blockchain": blockchain_status,
+        "role_verification": os.getenv("ENABLE_ROLE_VERIFICATION", "true").lower() == "true"
+    }
+
+@api_router.get("/network-status", response_model=dict)
+async def get_network_status():
+    """Get comprehensive network status"""
+    try:
+        # Initialize services if needed
+        if not blockchain_service.database:
+            await blockchain_service.initialize()
+        
+        # Get network stats
+        network_stats = await blockchain_service.get_network_stats()
+        
+        # Get multichain stats if available
+        multichain_stats = {}
+        try:
+            if not multichain_service.database:
+                await multichain_service.initialize()
+            multichain_stats = await multichain_service.get_chain_stats()
+        except Exception as e:
+            print(f"⚠️ Multichain stats error: {e}")
+        
+        return {
+            "success": True,
+            "data": {
+                "blockchain_stats": network_stats,
+                "multichain_stats": multichain_stats,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+# Include all route modules
 app.include_router(api_router)
+app.include_router(participant_routes.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -70,6 +174,26 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    try:
+        logger.info("🚀 Starting ChainFLIP Multi-Chain Backend...")
+        
+        # Initialize blockchain service
+        await blockchain_service.initialize()
+        
+        # Initialize multichain service
+        try:
+            await multichain_service.initialize()
+        except Exception as e:
+            logger.warning(f"Multichain service initialization warning: {e}")
+        
+        logger.info("✅ Backend services initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup error: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

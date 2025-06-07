@@ -13,18 +13,31 @@ class Settings(BaseSettings):
     database_name: str = os.getenv("DATABASE_NAME", "chainflip_multichain")
     
     # Blockchain Networks - Updated Multi-chain Architecture
-    polygon_pos_rpc: str = os.getenv("POLYGON_POS_RPC", "https://polygon-amoy.drpc.org")
+    polygon_pos_rpc: str = os.getenv("POLYGON_POS_RPC", "https://rpc-amoy.polygon.technology")
     polygon_pos_chain_id: int = int(os.getenv("POLYGON_POS_CHAIN_ID", "80002"))
+    polygon_pos_rpc_fallback: str = os.getenv("POLYGON_POS_RPC_FALLBACK", "https://polygon-amoy.g.alchemy.com/v2/demo")
     
-    # Individual L2 Network RPCs
+    # Cross-chain Network Mappings
     zkevm_cardona_rpc: str = os.getenv("ZKEVM_CARDONA_RPC", "https://rpc.cardona.zkevm-rpc.com")
     zkevm_cardona_chain_id: int = int(os.getenv("ZKEVM_CARDONA_CHAIN_ID", "2442"))
+    zkevm_cardona_rpc_fallback: str = os.getenv("ZKEVM_CARDONA_RPC_FALLBACK", "https://polygon-zkevm-cardona.drpc.org")
     
     arbitrum_sepolia_rpc: str = os.getenv("ARBITRUM_SEPOLIA_RPC", "https://sepolia-rollup.arbitrum.io/rpc") 
     arbitrum_sepolia_chain_id: int = int(os.getenv("ARBITRUM_SEPOLIA_CHAIN_ID", "421614"))
+    arbitrum_sepolia_rpc_fallback: str = os.getenv("ARBITRUM_SEPOLIA_RPC_FALLBACK", "https://arbitrum-sepolia.drpc.org")
     
     optimism_sepolia_rpc: str = os.getenv("OPTIMISM_SEPOLIA_RPC", "https://sepolia.optimism.io")
     optimism_sepolia_chain_id: int = int(os.getenv("OPTIMISM_SEPOLIA_CHAIN_ID", "11155420"))
+    optimism_sepolia_rpc_fallback: str = os.getenv("OPTIMISM_SEPOLIA_RPC_FALLBACK", "https://optimism-sepolia.drpc.org")
+    
+    # Role-based Access Control
+    manufacturer_role_required: bool = os.getenv("MANUFACTURER_ROLE_REQUIRED", "true").lower() == "true"
+    manufacturer_chain_id: int = int(os.getenv("MANUFACTURER_CHAIN_ID", "2442"))
+    enable_role_verification: bool = os.getenv("ENABLE_ROLE_VERIFICATION", "true").lower() == "true"
+    
+    # QR Code Encryption Keys
+    qr_aes_key: str = os.getenv("QR_AES_KEY", "")
+    qr_hmac_key: str = os.getenv("QR_HMAC_KEY", "")
     
     # Legacy L2 CDK (for backward compatibility)
     l2_cdk_rpc: str = os.getenv("L2_CDK_RPC", "")
