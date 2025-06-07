@@ -9,6 +9,7 @@ import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart } from 'lu
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
   const [products, setProducts] = useState([]);
+  const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -19,6 +20,7 @@ const ProductManagement = () => {
   const [multiChainStats, setMultiChainStats] = useState(null);
   const [productImage, setProductImage] = useState(null);
   const [productVideo, setProductVideo] = useState(null);
+  const [activeTab, setActiveTab] = useState('marketplace'); // For buyer tabs: marketplace, orders, owned
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
@@ -55,6 +57,14 @@ const ProductManagement = () => {
   useEffect(() => {
     fetchProducts();
     loadMultiChainStats();
+    if (userRole === 'buyer' && activeTab === 'orders') {
+      fetchBuyerPurchases();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchProducts();
+    loadMultiChainStats();
   }, []);
 
   const loadMultiChainStats = async () => {
@@ -69,22 +79,23 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // Build API URL with role-based filtering
+      // Build API URL with role-based filtering following Algorithm 5
       let apiUrl = `${process.env.REACT_APP_BACKEND_URL}/api/products/`;
       
       // Add role-based filtering parameters if user is authenticated
       if (userRole && user?.wallet_address) {
         const params = new URLSearchParams({
           user_role: userRole,
-          wallet_address: user.wallet_address
+          wallet_address: user.wallet_address,
+          view_type: activeTab  // marketplace, owned, created
         });
         apiUrl += `?${params.toString()}`;
       }
       
-      console.log(`Fetching products for ${userRole} at ${user?.wallet_address}:`, apiUrl);
+      console.log(`📦 Fetching products for ${userRole} (${activeTab}):`, apiUrl);
       
       const response = await axios.get(apiUrl);
-      console.log('Fetched products:', response.data);
+      console.log('✅ Fetched products:', response.data);
       
       // Handle both filtered and unfiltered responses
       const products = response.data.products || response.data || [];
@@ -92,12 +103,29 @@ const ProductManagement = () => {
       
       // Show filtering info to user
       if (response.data.filtered_by) {
-        console.log(`Products filtered for ${response.data.filtered_by}: ${response.data.count} products`);
+        console.log(`🔍 Products filtered for ${response.data.filtered_by}: ${response.data.count} products`);
       }
       
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('❌ Error fetching products:', error);
       setProducts([]);
+    }
+    setLoading(false);
+  };
+
+  const fetchBuyerPurchases = async () => {
+    if (userRole !== 'buyer' || !user?.wallet_address) return;
+    
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_BACKEND_URL}/api/products/buyer/${user.wallet_address}/purchases`
+      );
+      console.log('✅ Fetched buyer purchases:', response.data);
+      setPurchases(response.data.purchases || []);
+    } catch (error) {
+      console.error('❌ Error fetching purchases:', error);
+      setPurchases([]);
     }
     setLoading(false);
   };
@@ -375,13 +403,32 @@ const ProductManagement = () => {
         return;
       }
 
+      // Product Authenticity Verification 
+      const qrData = generateQRCode(product);
+      const verification = await blockchainService.verifyProductAuthenticity({
+        product_id: productTokenId,
+        qr_data: qrData,
+        current_owner: user?.wallet_address
+      });
+
+      if (verification.status !== "Product is Authentic") {
+        alert(`❌ Product Verification Failed!\n\nReason: ${verification.status}\n\n🔍 Product authenticity could not be verified. Purchase cancelled.`);
+        return;
+      }
+
+      // Proceed with payment
       const price = product.price || product.metadata?.price_eth || '0.001';
-      const confirmation = window.confirm(`Purchase this product for ${price} ETH?`);
+      const confirmation = window.confirm(
+        `🛒 Secure Product Purchase\n\n` +
+        `✅ Product verified as authentic\n` +
+        `💰 Purchase for ${price} ETH?\n\n` +
+        `Processing: Payment & NFT Transfer`
+      );
       if (!confirmation) return;
 
       setLoading(true);
 
-      // Buy product operation (buyer chain operation)  
+      // Payment & NFT Transfer
       const result = await blockchainService.buyProduct({
         product_id: productTokenId,
         buyer: user?.wallet_address,
@@ -389,12 +436,30 @@ const ProductManagement = () => {
         payment_method: 'ETH'
       });
 
-      alert(`🛒 Product Purchased!\n\n💰 Paid: ${price} ETH\n👤 Buyer: ${user?.wallet_address}\n📅 Purchased: ${new Date().toLocaleString()}\n🔗 Transaction: ${result.transaction_hash || 'N/A'}`);
-      
-      await fetchProducts();
+      // Payment processing complete
+      if (result.success) {
+        alert(
+          `🎉 Purchase Successful!\n\n` +
+          `✅ Transaction Complete\n` +
+          `📦 Product transferred to buyer\n` +
+          `🔗 NFT ownership updated\n` +
+          `💰 Paid: ${price} ETH\n` +
+          `📅 Date: ${new Date().toLocaleString()}\n` +
+          `🔗 Transaction: ${result.transaction_hash || 'N/A'}\n\n` +
+          `🔄 Payment processing completed\n` +
+          `⚡ Cross-chain transfer: ${result.cross_chain_details?.source_chain} → ${result.cross_chain_details?.target_chain}`
+        );
+        
+        // Refresh data
+        await fetchProducts();
+        if (activeTab === 'orders') {
+          await fetchBuyerPurchases();
+        }
+      }
+
     } catch (error) {
-      console.error('Buy product error:', error);
-      alert(`❌ Failed to purchase product: ${error.message}`);
+      console.error('❌ Buy product error:', error);
+      alert(`❌ Purchase Failed!\n\nPayment processing failed\nError: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -498,6 +563,61 @@ const ProductManagement = () => {
               <div>Chain: Optimism Sepolia</div>
               <div>Purchases: {multiChainStats.multichain?.statistics?.total_disputes || 0}</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Buyer Tabs */}
+      {userRole === 'buyer' && (
+        <div className="mb-6">
+          <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+            <button
+              onClick={() => setActiveTab('marketplace')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'marketplace'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              🛒 Market
+            </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'orders'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              📋 Your Orders
+            </button>
+            <button
+              onClick={() => setActiveTab('owned')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'owned'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              👤 My Products
+            </button>
+          </div>
+          <div className="mt-3 text-sm text-gray-600 bg-blue-50 rounded-lg p-3">
+            {activeTab === 'marketplace' && (
+              <div>
+                <strong>🛒 Marketplace:</strong> Browse and purchase products with authenticity verification and secure payments.
+              </div>
+            )}
+            {activeTab === 'orders' && (
+              <div>
+                <strong>📋 Purchase History:</strong> Track your order status and payment processing with NFT ownership transfers and cross-chain transactions.
+              </div>
+            )}
+            {activeTab === 'owned' && (
+              <div>
+                <strong>👤 Owned Products:</strong> Products you currently own after successful purchases transferred to your wallet address.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -740,25 +860,34 @@ const ProductManagement = () => {
         </div>
       )}
 
-      {/* Products List */}
+      {/* Products List / Purchase History */}
       <div className="card" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <h3 style={{ margin: 0 }}>
-              {userRole === 'manufacturer' ? 'My Products' : 
+              {userRole === 'buyer' && activeTab === 'marketplace' ? 'Available Products' :
+               userRole === 'buyer' && activeTab === 'orders' ? 'Your Purchase History' :
+               userRole === 'buyer' && activeTab === 'owned' ? 'Products You Own' :
+               userRole === 'manufacturer' ? 'My Products' : 
                userRole === 'transporter' ? 'Products I\'m Shipping' : 
-               userRole === 'buyer' ? 'My Purchased Products' : 
                'Products List'}
             </h3>
             <p style={{ fontSize: '14px', color: '#6b7280', margin: '5px 0' }}>
-              {userRole === 'manufacturer' ? 'Products you have created and minted' :
+              {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products available for purchase, verified and ready for secure transactions' :
+               userRole === 'buyer' && activeTab === 'orders' ? 'Your order history with payment processing and delivery status' :
+               userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own after successful purchases' :
+               userRole === 'manufacturer' ? 'Products you have created and minted' :
                userRole === 'transporter' ? 'Products currently in your custody for shipping' :
-               userRole === 'buyer' ? 'Products you have purchased or own' :
                'All products in the system'}
             </p>
           </div>
           <button
-            onClick={fetchProducts}
+            onClick={() => {
+              fetchProducts();
+              if (userRole === 'buyer' && activeTab === 'orders') {
+                fetchBuyerPurchases();
+              }
+            }}
             className="btn"
             style={{ 
               background: '#6b7280', 
@@ -773,442 +902,576 @@ const ProductManagement = () => {
           </button>
         </div>
 
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading products...</div>
-          </div>
-        )}
+        {/* Purchase History for Buyers */}
+        {userRole === 'buyer' && activeTab === 'orders' && (
+          <>
+            {loading && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading purchase history...</div>
+              </div>
+            )}
 
-        {!loading && products.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
-              {userRole === 'manufacturer' ? 'No products created yet' :
-               userRole === 'transporter' ? 'No products to ship' :
-               userRole === 'buyer' ? 'No products purchased yet' :
-               'No products found'}
-            </div>
-            <div style={{ fontSize: '14px', color: '#9ca3af' }}>
-              {userRole === 'manufacturer' ? 'Create your first product to get started' :
-               userRole === 'transporter' ? 'Products will appear here when you are assigned for shipping' :
-               userRole === 'buyer' ? 'Products will appear here after you make purchases' :
-               'No products available in the system'}
-            </div>
-          </div>
-        )}
-
-        {!loading && products.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-            {products.map((product, index) => (
-              <div key={product.token_id || product.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
-                    {product.name || product.metadata?.name || `Product ${index + 1}`}
-                  </h4>
-                  <span style={{ 
-                    background: '#dbeafe', 
-                    color: '#1e40af', 
-                    padding: '2px 8px', 
-                    borderRadius: '12px',
-                    fontSize: '12px'
-                  }}>
-                    {product.category || product.metadata?.category || 'General'}
-                  </span>
+            {!loading && purchases.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
+                  No purchases yet
                 </div>
-                
-                <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
-                  <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
-                  <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
-                  <div><strong>Price:</strong> {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH</div>
-                  {product.token_id && <div><strong>Token ID:</strong> {product.token_id}</div>}
-                  {product.metadata_cid && <div><strong>IPFS CID:</strong> {product.metadata_cid.substring(0, 20)}...</div>}
-                  {product.manufacturer && (
-                    <div><strong>Manufacturer:</strong> {product.manufacturer.substring(0, 10)}...</div>
-                  )}
-                  {product.qr_hash && (
-                    <div><strong>QR Hash:</strong> {product.qr_hash.substring(0, 16)}...</div>
-                  )}
+                <div style={{ fontSize: '14px', color: '#9ca3af' }}>
+                  Your purchase history will appear here after making orders
                 </div>
+              </div>
+            )}
 
-                {/* Display IPFS images and videos if available */}
-                {product.image_cid && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <img 
-                      src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
-                      alt="Product"
-                      style={{ 
-                        width: '100%', 
-                        maxHeight: '200px', 
-                        objectFit: 'cover', 
-                        borderRadius: '6px',
-                        border: '1px solid #e5e7eb'
-                      }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-
-                {product.video_cid && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <video 
-                      controls
-                      style={{ 
-                        width: '100%', 
-                        maxHeight: '200px', 
-                        borderRadius: '6px',
-                        border: '1px solid #e5e7eb'
-                      }}
-                    >
-                      <source src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.video_cid}`} type="video/mp4" />
-                      Your browser does not support the video tag.
-                    </video>
-                  </div>
-                )}
-
-                <div style={{ marginTop: '15px' }}>
-                  <div style={{ marginBottom: '10px', textAlign: 'center' }}>
-                    <QRCode 
-                      value={generateQRCode(product)} 
-                      size={100}
-                      style={{ border: '1px solid #e5e7eb', padding: '5px' }}
-                    />
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px', textAlign: 'center' }}>
-                    {product.encrypted_qr_code ? '🔐 Encrypted QR with CID Link' : '📱 Basic QR Code'}
-                  </div>
-                  
-                  {/* Role-based Cross-Chain Operations */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
+            {!loading && purchases.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                {purchases.map((purchase, index) => (
+                  <div key={purchase.purchase_id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                        Order #{purchase.purchase_id?.substring(0, 12)}...
+                      </h4>
+                      <span style={{ 
+                        background: purchase.status === 'completed' ? '#dcfce7' : '#fef3c7', 
+                        color: purchase.status === 'completed' ? '#16a34a' : '#d97706', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
+                        fontSize: '12px'
+                      }}>
+                        {purchase.status}
+                      </span>
+                    </div>
                     
-                    {/* TRANSPORTER BUTTONS: Ship, Complete Shipping, Verify */}
-                    {userRole === 'transporter' && (
-                      <>
-                        <button
-                          onClick={() => handleCrossChainTransfer(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#10b981', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Transfer to another chain"
-                        >
-                          <Truck className="w-3 h-3 mr-1" />
-                          Ship
-                        </button>
-                        
-                        <button
-                          onClick={() => handleCompleteShipping(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#059669', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Complete shipping and mark as delivered"
-                        >
-                          <Package className="w-3 h-3 mr-1" />
-                          Complete Shipping
-                        </button>
-                        
-                        <button
-                          onClick={() => handleVerifyProduct(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#8b5cf6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gridColumn: 'span 1'
-                          }}
-                          title="Verify authenticity using Algorithm 4"
-                        >
-                          <Shield className="w-3 h-3 mr-1" />
-                          Verify
-                        </button>
-                      </>
-                    )}
+                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
+                      <div><strong>Product ID:</strong> {purchase.product_id}</div>
+                      <div><strong>Price Paid:</strong> {purchase.price_eth} ETH</div>
+                      <div><strong>Payment Method:</strong> {purchase.payment_method}</div>
+                      <div><strong>Purchase Date:</strong> {purchase.purchase_date}</div>
+                      {purchase.transaction_hash && (
+                        <div><strong>Transaction:</strong> {purchase.transaction_hash.substring(0, 20)}...</div>
+                      )}
+                      {purchase.cross_chain && (
+                        <div><strong>Cross-Chain:</strong> {purchase.buyer_chain} → {purchase.hub_chain}</div>
+                      )}
+                    </div>
 
-                    {/* BUYER BUTTONS: Buy, Verify */}
-                    {userRole === 'buyer' && (
-                      <>
-                        <button
-                          onClick={() => handleBuyProduct(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#dc2626', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Purchase this product"
-                        >
-                          <ShoppingCart className="w-3 h-3 mr-1" />
-                          Buy
-                        </button>
-                        
-                        <button
-                          onClick={() => handleVerifyProduct(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#8b5cf6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Verify authenticity using Algorithm 4"
-                        >
-                          <Shield className="w-3 h-3 mr-1" />
-                          Verify
-                        </button>
-                      </>
-                    )}
+                    {/* Payment Status */}
+                    <div style={{ 
+                      marginTop: '10px', 
+                      padding: '8px', 
+                      background: '#f0f9ff', 
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }}>
+                      <div><strong>🔄 Payment:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}</div>
+                      <div><strong>🛒 NFT Transfer:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}</div>
+                    </div>
 
-                    {/* MANUFACTURER BUTTONS: Ship, Verify, QC, Sell */}
-                    {userRole === 'manufacturer' && (
-                      <>
-                        <button
-                          onClick={() => handleCrossChainTransfer(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#10b981', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Transfer to another chain"
-                        >
-                          <Truck className="w-3 h-3 mr-1" />
-                          Ship
-                        </button>
-                        
-                        <button
-                          onClick={() => handleVerifyProduct(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#8b5cf6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Verify authenticity using Algorithm 4"
-                        >
-                          <Shield className="w-3 h-3 mr-1" />
-                          Verify
-                        </button>
-                        
-                        <button
-                          onClick={() => handleQualityCheck(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#f59e0b', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Perform quality check"
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          QC
-                        </button>
-                        
-                        <button
-                          onClick={() => handleListInMarketplace(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#ec4899', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="List in marketplace using Algorithm 5"
-                        >
-                          <Store className="w-3 h-3 mr-1" />
-                          Sell
-                        </button>
-                      </>
-                    )}
-
-                    {/* ADMIN OR OTHER ROLES: Show all buttons */}
-                    {(userRole === 'admin' || (!userRole || (userRole !== 'manufacturer' && userRole !== 'transporter' && userRole !== 'buyer'))) && (
-                      <>
-                        <button
-                          onClick={() => handleCrossChainTransfer(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#10b981', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Transfer to another chain"
-                        >
-                          <Truck className="w-3 h-3 mr-1" />
-                          Ship
-                        </button>
-                        
-                        <button
-                          onClick={() => handleVerifyProduct(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#8b5cf6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Verify authenticity using Algorithm 4"
-                        >
-                          <Shield className="w-3 h-3 mr-1" />
-                          Verify
-                        </button>
-                        
-                        <button
-                          onClick={() => handleListInMarketplace(product.token_id)}
-                          className="btn"
-                          style={{ 
-                            background: '#ec4899', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="List in marketplace using Algorithm 5"
-                        >
-                          <Store className="w-3 h-3 mr-1" />
-                          Sell
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={() => setSelectedProduct(selectedProduct?.token_id === product.token_id ? null : product)}
-                    className="btn"
-                    style={{ 
-                      background: '#3b82f6', 
-                      color: 'white', 
-                      border: 'none', 
-                      padding: '8px 12px', 
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      width: '100%'
-                    }}
-                  >
-                    {selectedProduct?.token_id === product.token_id ? 'Hide Details' : 'View Details'}
-                  </button>
-                </div>
-
-                {selectedProduct?.token_id === product.token_id && (
-                  <div style={{ 
-                    marginTop: '15px', 
-                    padding: '10px', 
-                    background: '#f9fafb', 
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }}>
-                    <div><strong>Token ID:</strong> {product.token_id || 'N/A'}</div>
-                    <div><strong>Created:</strong> {product.created_at ? new Date(product.created_at * 1000).toLocaleDateString() : 'N/A'}</div>
-                    <div><strong>Status:</strong> {product.status || 'Active'}</div>
-                    <div><strong>Chain ID:</strong> {product.chain_id || 'N/A'}</div>
-                    {product.transaction_hash && (
-                      <div><strong>Tx Hash:</strong> {product.transaction_hash.substring(0, 20)}...</div>
-                    )}
-                    {product.image_cid && (
-                      <div><strong>Image CID:</strong> {product.image_cid.substring(0, 20)}...</div>
-                    )}
-                    {product.video_cid && (
-                      <div><strong>Video CID:</strong> {product.video_cid.substring(0, 20)}...</div>
-                    )}
-                    {product.mint_params && (
-                      <div style={{ marginTop: '8px' }}>
-                        <strong>NFT Parameters:</strong>
-                        <div style={{ marginLeft: '10px', fontSize: '11px' }}>
-                          <div>Unique ID: {product.mint_params.uniqueProductID}</div>
-                          <div>Manufacturing Date: {product.mint_params.manufacturingDate}</div>
-                          <div>Product Type: {product.mint_params.productType}</div>
-                        </div>
+                    {/* Product Details if available */}
+                    {purchase.product_details && (
+                      <div style={{ 
+                        marginTop: '10px', 
+                        padding: '8px', 
+                        background: '#f9fafb', 
+                        borderRadius: '6px',
+                        fontSize: '12px'
+                      }}>
+                        <div><strong>Product:</strong> {purchase.product_details.name || 'N/A'}</div>
+                        <div><strong>Category:</strong> {purchase.product_details.category || 'N/A'}</div>
+                        <div><strong>Manufacturer:</strong> {purchase.product_details.manufacturer?.substring(0, 10)}... || 'N/A'</div>
                       </div>
                     )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
+        )}
+
+        {/* Products List for other tabs */}
+        {(userRole !== 'buyer' || activeTab !== 'orders') && (
+          <>
+            {loading && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading products...</div>
+              </div>
+            )}
+
+            {!loading && products.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
+                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'No products available for purchase' :
+                   userRole === 'buyer' && activeTab === 'owned' ? 'No products owned yet' :
+                   userRole === 'manufacturer' ? 'No products created yet' :
+                   userRole === 'transporter' ? 'No products to ship' :
+                   'No products found'}
+                </div>
+                <div style={{ fontSize: '14px', color: '#9ca3af' }}>
+                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products will appear here when available for purchase' :
+                   userRole === 'buyer' && activeTab === 'owned' ? 'Products will appear here after successful purchases' :
+                   userRole === 'manufacturer' ? 'Create your first product to get started' :
+                   userRole === 'transporter' ? 'Products will appear here when you are assigned for shipping' :
+                   'No products available in the system'}
+                </div>
+              </div>
+            )}
+
+            {!loading && products.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                {products.map((product, index) => (
+                  <div key={product.token_id || product.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                        {product.name || product.metadata?.name || `Product ${index + 1}`}
+                      </h4>
+                      <span style={{ 
+                        background: '#dbeafe', 
+                        color: '#1e40af', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
+                        fontSize: '12px'
+                      }}>
+                        {product.category || product.metadata?.category || 'General'}
+                      </span>
+                    </div>
+                    
+                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
+                      <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
+                      <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
+                      <div><strong>Price:</strong> {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH</div>
+                      {product.token_id && <div><strong>Token ID:</strong> {product.token_id}</div>}
+                      {product.metadata_cid && <div><strong>IPFS CID:</strong> {product.metadata_cid.substring(0, 20)}...</div>}
+                      {product.manufacturer && (
+                        <div><strong>Manufacturer:</strong> {product.manufacturer.substring(0, 10)}...</div>
+                      )}
+                      {product.qr_hash && (
+                        <div><strong>QR Hash:</strong> {product.qr_hash.substring(0, 16)}...</div>
+                      )}
+                    </div>
+
+                    {/* Trading Status for Buyers */}
+                    {userRole === 'buyer' && activeTab === 'marketplace' && (
+                      <div style={{ 
+                        marginBottom: '10px', 
+                        padding: '8px', 
+                        background: '#ecfdf5', 
+                        borderRadius: '6px',
+                        fontSize: '12px'
+                      }}>
+                        <div><strong>🛒 Status:</strong> Ready for Purchase</div>
+                        <div><strong>🔍 Verification:</strong> QR & NFT metadata available</div>
+                        <div><strong>💰 Payment:</strong> Cross-chain ETH accepted</div>
+                      </div>
+                    )}
+
+                    {/* Display IPFS images and videos if available */}
+                    {product.image_cid && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <img 
+                          src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
+                          alt="Product"
+                          style={{ 
+                            width: '100%', 
+                            maxHeight: '200px', 
+                            objectFit: 'cover', 
+                            borderRadius: '6px',
+                            border: '1px solid #e5e7eb'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {product.video_cid && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <video 
+                          controls
+                          style={{ 
+                            width: '100%', 
+                            maxHeight: '200px', 
+                            borderRadius: '6px',
+                            border: '1px solid #e5e7eb'
+                          }}
+                        >
+                          <source src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.video_cid}`} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: '15px' }}>
+                      <div style={{ marginBottom: '10px', textAlign: 'center' }}>
+                        <QRCode 
+                          value={generateQRCode(product)} 
+                          size={100}
+                          style={{ border: '1px solid #e5e7eb', padding: '5px' }}
+                        />
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px', textAlign: 'center' }}>
+                        {product.encrypted_qr_code ? '🔐 Encrypted QR with CID Link' : '📱 Basic QR Code'}
+                      </div>
+                      
+                      {/* Role-based Cross-Chain Operations */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                        
+                        {/* BUYER BUTTONS: Buy, Verify */}
+                        {userRole === 'buyer' && activeTab === 'marketplace' && (
+                          <>
+                            <button
+                              onClick={() => handleBuyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#dc2626', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Purchase this product"
+                            >
+                              <ShoppingCart className="w-3 h-3 mr-1" />
+                              Buy
+                            </button>
+                            
+                            <button
+                              onClick={() => handleVerifyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Verify authenticity"
+                            >
+                              <Shield className="w-3 h-3 mr-1" />
+                              Verify
+                            </button>
+                          </>
+                        )}
+
+                        {/* BUYER OWNED PRODUCTS */}
+                        {userRole === 'buyer' && activeTab === 'owned' && (
+                          <>
+                            <button
+                              onClick={() => handleVerifyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gridColumn: 'span 2'
+                              }}
+                              title="Verify authenticity"
+                            >
+                              <Shield className="w-3 h-3 mr-1" />
+                              Verify Ownership
+                            </button>
+                          </>
+                        )}
+
+                        {/* TRANSPORTER BUTTONS: Ship, Complete Shipping, Verify */}
+                        {userRole === 'transporter' && (
+                          <>
+                            <button
+                              onClick={() => handleCrossChainTransfer(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#10b981', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Transfer to another chain"
+                            >
+                              <Truck className="w-3 h-3 mr-1" />
+                              Ship
+                            </button>
+                            
+                            <button
+                              onClick={() => handleCompleteShipping(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#059669', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Complete shipping and mark as delivered"
+                            >
+                              <Package className="w-3 h-3 mr-1" />
+                              Complete Shipping
+                            </button>
+                            
+                            <button
+                              onClick={() => handleVerifyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gridColumn: 'span 1'
+                              }}
+                              title="Verify authenticity"
+                            >
+                              <Shield className="w-3 h-3 mr-1" />
+                              Verify
+                            </button>
+                          </>
+                        )}
+
+                        {/* MANUFACTURER BUTTONS: Ship, Verify, QC, Sell */}
+                        {userRole === 'manufacturer' && (
+                          <>
+                            <button
+                              onClick={() => handleCrossChainTransfer(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#10b981', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Transfer to another chain"
+                            >
+                              <Truck className="w-3 h-3 mr-1" />
+                              Ship
+                            </button>
+                            
+                            <button
+                              onClick={() => handleVerifyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Verify authenticity"
+                            >
+                              <Shield className="w-3 h-3 mr-1" />
+                              Verify
+                            </button>
+                            
+                            <button
+                              onClick={() => handleQualityCheck(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#f59e0b', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Perform quality check"
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              QC
+                            </button>
+                            
+                            <button
+                              onClick={() => handleListInMarketplace(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#ec4899', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="List in marketplace"
+                            >
+                              <Store className="w-3 h-3 mr-1" />
+                              Sell
+                            </button>
+                          </>
+                        )}
+
+                        {/* ADMIN OR OTHER ROLES: Show all buttons */}
+                        {(userRole === 'admin' || (!userRole || (userRole !== 'manufacturer' && userRole !== 'transporter' && userRole !== 'buyer'))) && (
+                          <>
+                            <button
+                              onClick={() => handleCrossChainTransfer(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#10b981', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Transfer to another chain"
+                            >
+                              <Truck className="w-3 h-3 mr-1" />
+                              Ship
+                            </button>
+                            
+                            <button
+                              onClick={() => handleVerifyProduct(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#8b5cf6', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Verify authenticity"
+                            >
+                              <Shield className="w-3 h-3 mr-1" />
+                              Verify
+                            </button>
+                            
+                            <button
+                              onClick={() => handleListInMarketplace(product.token_id)}
+                              className="btn"
+                              style={{ 
+                                background: '#ec4899', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="List in marketplace"
+                            >
+                              <Store className="w-3 h-3 mr-1" />
+                              Sell
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={() => setSelectedProduct(selectedProduct?.token_id === product.token_id ? null : product)}
+                        className="btn"
+                        style={{ 
+                          background: '#3b82f6', 
+                          color: 'white', 
+                          border: 'none', 
+                          padding: '8px 12px', 
+                          borderRadius: '4px',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          width: '100%'
+                        }}
+                      >
+                        {selectedProduct?.token_id === product.token_id ? 'Hide Details' : 'View Details'}
+                      </button>
+                    </div>
+
+                    {selectedProduct?.token_id === product.token_id && (
+                      <div style={{ 
+                        marginTop: '15px', 
+                        padding: '10px', 
+                        background: '#f9fafb', 
+                        borderRadius: '6px',
+                        fontSize: '12px'
+                      }}>
+                        <div><strong>Token ID:</strong> {product.token_id || 'N/A'}</div>
+                        <div><strong>Created:</strong> {product.created_at ? new Date(product.created_at * 1000).toLocaleDateString() : 'N/A'}</div>
+                        <div><strong>Status:</strong> {product.status || 'Active'}</div>
+                        <div><strong>Chain ID:</strong> {product.chain_id || 'N/A'}</div>
+                        {product.transaction_hash && (
+                          <div><strong>Tx Hash:</strong> {product.transaction_hash.substring(0, 20)}...</div>
+                        )}
+                        {product.image_cid && (
+                          <div><strong>Image CID:</strong> {product.image_cid.substring(0, 20)}...</div>
+                        )}
+                        {product.video_cid && (
+                          <div><strong>Video CID:</strong> {product.video_cid.substring(0, 20)}...</div>
+                        )}
+                        {product.mint_params && (
+                          <div style={{ marginTop: '8px' }}>
+                            <strong>NFT Parameters:</strong>
+                            <div style={{ marginLeft: '10px', fontSize: '11px' }}>
+                              <div>Unique ID: {product.mint_params.uniqueProductID}</div>
+                              <div>Manufacturing Date: {product.mint_params.manufacturingDate}</div>
+                              <div>Product Type: {product.mint_params.productType}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

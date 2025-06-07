@@ -12,6 +12,12 @@ import time
 
 from app.services.blockchain_service import BlockchainService
 
+# Dependency to get blockchain service - MOVED HERE TO FIX NAMEERROR
+async def get_blockchain_service():
+    service = BlockchainService()
+    await service.initialize()
+    return service
+
 router = APIRouter()
 
 @router.get("/marketplace/products")
@@ -202,11 +208,7 @@ class ParticipantRegistration(BaseModel):
     participant_type: str  # manufacturer, distributor, retailer, transporter, buyer, arbitrator
     chain_id: int
 
-# Dependency to get blockchain service
-async def get_blockchain_service():
-    service = BlockchainService()
-    await service.initialize()
-    return service
+
 
 # ==========================================
 # CORE SYSTEM ENDPOINTS
