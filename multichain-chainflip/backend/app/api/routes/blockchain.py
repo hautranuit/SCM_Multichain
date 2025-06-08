@@ -4,11 +4,12 @@ Implements all 5 algorithms from the 6 smart contracts
 """
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, Form
 from typing import Dict, List, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, Field
 import base64
 import tempfile
 import os
 import time
+import re
 
 from app.services.blockchain_service import BlockchainService
 
@@ -147,15 +148,15 @@ class BatchProcessingRequest(BaseModel):
 
 # Algorithm 4: Product Authenticity Models
 class AuthenticityVerificationRequest(BaseModel):
-    product_id: str
-    qr_data: str
-    current_owner: str
+    product_id: str = Field(..., description="Product token ID to verify", min_length=1)
+    qr_data: Any = Field(..., description="QR code data (replaces RFID in Algorithm 4)")
+    current_owner: str = Field(..., description="Current owner wallet address for ownership verification", min_length=1)
 
 class AuthenticityVerificationResponse(BaseModel):
-    status: str
+    status: str = Field(..., description="Algorithm 4 verification result: 'Product is Authentic', 'Ownership Mismatch', 'Product Data Mismatch', or 'Product Not Registered'")
     product_id: str
     verification_timestamp: float
-    details: Dict[str, Any] = None
+    details: Dict[str, Any] = Field(default_factory=dict, description="Detailed verification results from Algorithm 4")
 
 # Algorithm 5: Post Supply Chain Management Models
 class ProductListingRequest(BaseModel):
@@ -530,27 +531,99 @@ async def verify_product_authenticity(
 ):
     """
     Algorithm 4: Product Authenticity Verification Using QR and NFT
-    Verifies product authenticity by comparing QR data with NFT metadata
+    
+    Input: Product ID, QR data, NFT metadata, current owner
+    Output: Authenticity status
+    
+    1: Retrieve the NFT associated with the given Product ID
+    2: if NFT exists then
+    3:     if QRdata = NFTmetadata then
+    4:         if currentowner = NFTowner then
+    5:             Return "Product is Authentic"
+    6:         else
+    7:             Return "Ownership Mismatch"
+    8:         end if
+    9:     else
+    10:         Return "Product Data Mismatch"
+    11:     end if
+    12: else
+    13:     Return "Product Not Registered"
+    14: end if
+    
+    Enhanced with better error handling and validation
     """
     try:
+        print(f"🔍 Algorithm 4: Product verification request received")
+        print(f"   Product ID: {verification_data.product_id}")
+        print(f"   Current Owner: {verification_data.current_owner}")
+        print(f"   QR Data Type: {type(verification_data.qr_data)}")
+        
+        # Validate input data
+        if not verification_data.product_id.strip():
+            raise HTTPException(
+                status_code=422, 
+                detail="Product ID cannot be empty"
+            )
+        
+        if not verification_data.current_owner.strip():
+            raise HTTPException(
+                status_code=422, 
+                detail="Current owner address cannot be empty"
+            )
+        
+        if not verification_data.qr_data:
+            raise HTTPException(
+                status_code=422, 
+                detail="QR data cannot be empty"
+            )
+        
+        # Validate Ethereum address format for current_owner
+        import re
+        if not re.match(r'^0x[a-fA-F0-9]{40}$', verification_data.current_owner):
+            raise HTTPException(
+                status_code=422, 
+                detail="Invalid Ethereum address format for current_owner"
+            )
+        
+        print(f"✅ Algorithm 4: Input validation passed")
+        
+        # Call Algorithm 4: Product Authenticity Verification Using QR and NFT
         status = await blockchain_service.verify_product_authenticity(
             verification_data.product_id,
             verification_data.qr_data,
             verification_data.current_owner
         )
         
+        print(f"🔍 Algorithm 4: Verification result: {status}")
+        
+        # Determine verification details based on Algorithm 4 outputs
+        verification_details = {
+            "qr_verified": status == "Product is Authentic",
+            "owner_verified": status not in ["Ownership Mismatch"],
+            "nft_exists": status != "Product Not Registered",
+            "data_matches": status not in ["Product Data Mismatch"],
+            "verification_status": status,
+            "algorithm": "Algorithm 4: Product Authenticity Verification Using QR and NFT"
+        }
+        
         return AuthenticityVerificationResponse(
             status=status,
             product_id=verification_data.product_id,
             verification_timestamp=time.time(),
-            details={
-                "qr_verified": status == "Product is Authentic",
-                "owner_verified": status != "Ownership Mismatch",
-                "nft_exists": status != "Product Not Registered"
-            }
+            details=verification_details
         )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 422 validation errors)
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"❌ Algorithm 4: Verification endpoint error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Algorithm 4 verification error: {str(e)}"
+        )
 
 # ==========================================
 # ENHANCED PRODUCT MANAGEMENT (NFTCore Integration)

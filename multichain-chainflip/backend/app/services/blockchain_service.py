@@ -386,64 +386,171 @@ class BlockchainService:
     async def verify_product_authenticity(self, product_id: str, qr_data: str, current_owner: str) -> str:
         """
         Algorithm 4: Product Authenticity Verification Using QR and NFT
-        Now enhanced with real blockchain verification
+        
+        Input: Product ID, QR data, NFT metadata, current owner
+        Output: Authenticity status
+        
+        1: Retrieve the NFT associated with the given Product ID
+        2: if NFT exists then
+        3:     if QRdata = NFTmetadata then
+        4:         if currentowner = NFTowner then
+        5:             Return "Product is Authentic"
+        6:         else
+        7:             Return "Ownership Mismatch"
+        8:         end if
+        9:     else
+        10:         Return "Product Data Mismatch"
+        11:     end if
+        12: else
+        13:     Return "Product Not Registered"
+        14: end if
         """
         try:
-            print(f"🔍 Verifying authenticity for Product {product_id}")
+            print(f"🔍 Algorithm 4: Product Authenticity Verification Using QR and NFT")
+            print(f"📱 Product ID: {product_id}")
+            print(f"👤 Current Owner: {current_owner}")
+            print(f"📊 QR Data received: {qr_data[:100]}..." if len(str(qr_data)) > 100 else f"📊 QR Data: {qr_data}")
             
-            # Get product from cache/blockchain
+            # Step 1: Retrieve the NFT associated with the given Product ID
+            print(f"🔍 Step 1: Retrieving NFT for Product ID: {product_id}")
             product = await self.get_product_by_token_id(product_id)
+            
+            # Step 2: Check if NFT exists
             if not product:
+                print(f"❌ Step 2: NFT does not exist")
                 return "Product Not Registered"
             
-            # Verify QR data
-            try:
-                qr_payload = json.loads(qr_data) if isinstance(qr_data, str) else qr_data
-                
-                if isinstance(qr_payload, dict) and "encrypted_payload" in qr_payload:
-                    decrypted_data = encryption_service.decrypt_qr_data(
-                        qr_payload["encrypted_payload"],
-                        qr_payload["qr_hash"]
-                    )
-                    qr_data_dict = decrypted_data
-                else:
-                    qr_data_dict = qr_payload
-                    
-            except Exception as decrypt_error:
-                print(f"⚠️ QR decryption error: {decrypt_error}")
-                return "Invalid QR Code Format"
+            print(f"✅ Step 2: NFT exists - {product.get('name', 'Unknown Product')}")
             
-            # Compare QR data with product metadata
-            metadata = product.get("metadata", {})
+            # Step 3: Process QR data and compare with NFT metadata
+            print(f"🔍 Step 3: Comparing QR data with NFT metadata")
+            
+            # Process QR data - handle array format [encrypted_data, hash]
+            qr_data_dict = None
+            try:
+                if isinstance(qr_data, list) and len(qr_data) >= 1:
+                    # Handle [encrypted_data, hash] format
+                    encrypted_data = qr_data[0]  # First element is the encrypted payload
+                    reference_hash = qr_data[1] if len(qr_data) > 1 else None  # Second element is reference hash
+                    print(f"📱 Detected QR array format: [encrypted_data, reference_hash]")
+                    print(f"🔓 Attempting to decrypt QR data...")
+                    print(f"   Encrypted data length: {len(encrypted_data)}")
+                    if reference_hash:
+                        print(f"   Reference hash: {reference_hash}")
+                    
+                    # Decrypt the QR data (HMAC verification is built into the decrypt method)
+                    try:
+                        decrypted_data = encryption_service.decrypt_qr_data(encrypted_data)
+                        qr_data_dict = decrypted_data
+                        print(f"✅ QR data decrypted successfully: {qr_data_dict}")
+                    except Exception as decrypt_error:
+                        print(f"❌ QR decryption failed: {decrypt_error}")
+                        return "Product Data Mismatch"
+                        
+                elif isinstance(qr_data, str):
+                    # Handle JSON string format
+                    try:
+                        import json
+                        qr_data_dict = json.loads(qr_data)
+                        print(f"✅ QR data parsed as JSON: {qr_data_dict}")
+                    except json.JSONDecodeError:
+                        print(f"❌ Invalid QR data format - not valid JSON")
+                        return "Product Data Mismatch"
+                        
+                elif isinstance(qr_data, dict):
+                    # Handle dictionary format
+                    qr_data_dict = qr_data
+                    print(f"✅ QR data already in dictionary format")
+                    
+                else:
+                    print(f"❌ Unsupported QR data format: {type(qr_data)}")
+                    return "Product Data Mismatch"
+                    
+            except Exception as qr_process_error:
+                print(f"❌ QR data processing error: {qr_process_error}")
+                return "Product Data Mismatch"
+            
+            # Compare QR data with NFT metadata
+            nft_metadata = product.get("metadata", {})
+            mint_params = product.get("mint_params", {})
+            
+            print(f"🔍 Comparing QR fields with NFT metadata...")
+            print(f"   NFT metadata keys: {list(nft_metadata.keys())}")
+            print(f"   Mint params keys: {list(mint_params.keys())}")
+            print(f"   QR data keys: {list(qr_data_dict.keys()) if isinstance(qr_data_dict, dict) else 'Not a dict'}")
+            
+            # Core verification fields for Algorithm 4
             verification_fields = [
                 "token_id", "product_id", "uniqueProductID", 
                 "batchNumber", "manufacturer", "productType"
             ]
             
-            qr_matches = True
-            for field in verification_fields:
-                qr_value = qr_data_dict.get(field, "")
-                product_value = metadata.get(field, product.get(field, ""))
-                
-                if qr_value and product_value and str(qr_value) != str(product_value):
-                    qr_matches = False
-                    break
+            qr_metadata_match = True
             
-            if not qr_matches:
+            for field in verification_fields:
+                # Get QR value
+                qr_value = qr_data_dict.get(field, "") if isinstance(qr_data_dict, dict) else ""
+                
+                # Get NFT metadata value (check metadata first, then mint_params, then direct product fields)
+                nft_value = (
+                    nft_metadata.get(field, "") or 
+                    mint_params.get(field, "") or 
+                    product.get(field, "")
+                )
+                
+                # Special handling for token_id/product_id mapping
+                if field == "product_id" and not nft_value:
+                    nft_value = product.get("token_id", "")
+                elif field == "token_id" and not nft_value:
+                    nft_value = product_id
+                
+                # Compare values
+                if qr_value and nft_value:
+                    if str(qr_value).lower() == str(nft_value).lower():
+                        print(f"✅ Field match - {field}: '{qr_value}'")
+                    else:
+                        print(f"❌ Field mismatch - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                        qr_metadata_match = False
+                        break
+                elif qr_value or nft_value:
+                    # One has value, other doesn't - this could be normal for optional fields
+                    print(f"⚠️ Field partial data - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+            
+            # Step 3 result: Check if QR data matches NFT metadata
+            if not qr_metadata_match:
+                print(f"❌ Step 3: QR data does not match NFT metadata")
                 return "Product Data Mismatch"
             
-            # Verify ownership
-            if current_owner != product.get("current_owner", ""):
+            print(f"✅ Step 3: QR data matches NFT metadata")
+            
+            # Step 4: Check if current owner matches NFT owner
+            print(f"🔍 Step 4: Verifying ownership")
+            nft_owner = product.get("current_owner", product.get("manufacturer", ""))
+            
+            if current_owner.lower() == nft_owner.lower():
+                print(f"✅ Step 4: Ownership verified - {current_owner}")
+                
+                # Record successful verification
+                await self._record_verification_event(product_id, current_owner, "authentic")
+                
+                # Step 5: Return "Product is Authentic"
+                print(f"✅ Algorithm 4 Result: Product is Authentic")
+                return "Product is Authentic"
+            else:
+                print(f"❌ Step 4: Ownership mismatch - Expected: {nft_owner}, Got: {current_owner}")
+                
+                # Record verification attempt with ownership mismatch
+                await self._record_verification_event(product_id, current_owner, "ownership_mismatch")
+                
+                # Step 6: Return "Ownership Mismatch"
+                print(f"❌ Algorithm 4 Result: Ownership Mismatch")
                 return "Ownership Mismatch"
             
-            # Record verification
-            await self._record_verification_event(product_id, current_owner, "authentic")
-            
-            return "Product is Authentic"
-            
         except Exception as e:
-            print(f"❌ Authenticity verification error: {e}")
-            return f"Verification Failed: {e}"
+            print(f"❌ Algorithm 4 Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Verification Failed: {str(e)}"
     
     async def _record_verification_event(self, product_id: str, verifier: str, result: str):
         """Record verification event"""
@@ -467,7 +574,8 @@ class BlockchainService:
         Verify that the address has manufacturer role on zkEVM Cardona chain
         """
         try:
-            from ..models.participant import ParticipantRole, ParticipantStatus
+            # Import with absolute path to fix import issue
+            from app.models.participant import ParticipantRole, ParticipantStatus
             
             # Find participant in database
             participant = await self.database.participants.find_one(
