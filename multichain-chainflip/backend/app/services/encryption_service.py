@@ -1,14 +1,14 @@
 """
-Simplified QR Code Encryption Service for SCM Multichain
-Implements AES-256-CBC + HMAC + 32-byte random key
-QR contains product's CID link for IPFS metadata access
+Enhanced QR Code Encryption Service for SCM Multichain
+Generates fresh encryption keys on each startup for new products
+Each product stores the session keys used to create it
 """
 import os
 import json
 import hmac
 import hashlib
 import secrets
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import base64
@@ -16,52 +16,72 @@ import time
 
 class EncryptionService:
     def __init__(self):
-        # Initialize with 32-byte random key for AES-256
-        self.aes_key = self._get_or_create_aes_key()
-        self.hmac_key = self._get_or_create_hmac_key()
+        print("🔑 Generating fresh encryption keys for this backend session...")
         
-    def _get_or_create_aes_key(self) -> bytes:
-        """Get or generate 32-byte AES-256 key and auto-update .env file"""
-        key_env = os.environ.get('QR_AES_KEY')
-        if key_env:
-            try:
-                return bytes.fromhex(key_env)
-            except ValueError:
-                print(f"⚠️ Invalid QR_AES_KEY format, generating new key...")
+        # Generate fresh keys for this backend session
+        self.session_aes_key = secrets.token_bytes(32)
+        self.session_hmac_key = secrets.token_bytes(32)
         
-        # Generate 32-byte random key for AES-256
-        key = secrets.token_bytes(32)
-        key_hex = key.hex()
-        print(f"⚠️ Generated new AES-256 key: {key_hex}")
+        # Current active keys (used for new products)
+        self.aes_key = self.session_aes_key
+        self.hmac_key = self.session_hmac_key
         
-        # Auto-update .env file
-        self._update_env_file('QR_AES_KEY', key_hex)
+        # Convert to hex for storage
+        self.session_keys = {
+            "aes_key": self.session_aes_key.hex(),
+            "hmac_key": self.session_hmac_key.hex(),
+            "generated_at": int(time.time()),
+            "session_id": secrets.token_hex(16)
+        }
         
-        return key
+        print(f"✅ Fresh session keys generated:")
+        print(f"   Session ID: {self.session_keys['session_id']}")
+        print(f"   AES Key: {self.session_keys['aes_key'][:32]}...")
+        print(f"   HMAC Key: {self.session_keys['hmac_key'][:32]}...")
+        
+        # Update .env file with current session keys (for reference)
+        self._update_env_file('QR_AES_KEY', self.session_keys['aes_key'])
+        self._update_env_file('QR_HMAC_KEY', self.session_keys['hmac_key'])
+        self._update_env_file('SESSION_ID', self.session_keys['session_id'])
+        
+    def get_current_session_keys(self) -> Dict[str, str]:
+        """Get the current session keys for storing with new products"""
+        return self.session_keys.copy()
     
-    def _get_or_create_hmac_key(self) -> bytes:
-        """Get or generate 32-byte HMAC key and auto-update .env file"""
-        key_env = os.environ.get('QR_HMAC_KEY')
-        if key_env:
-            try:
-                return bytes.fromhex(key_env)
-            except ValueError:
-                print(f"⚠️ Invalid QR_HMAC_KEY format, generating new key...")
-        
-        # Generate 32-byte random key for HMAC
-        key = secrets.token_bytes(32)
-        key_hex = key.hex()
-        print(f"⚠️ Generated new HMAC key: {key_hex}")
-        
-        # Auto-update .env file
-        self._update_env_file('QR_HMAC_KEY', key_hex)
-        
-        return key
+    def set_keys_for_verification(self, product_keys: Dict[str, str]):
+        """Set specific keys for verification of a specific product"""
+        self.aes_key = bytes.fromhex(product_keys["aes_key"])
+        self.hmac_key = bytes.fromhex(product_keys["hmac_key"])
+        print(f"🔑 Using stored keys from session: {product_keys.get('session_id', 'unknown')}")
+    
+    def reset_to_session_keys(self):
+        """Reset to current session keys"""
+        self.aes_key = self.session_aes_key
+        self.hmac_key = self.session_hmac_key
+        print(f"🔑 Reset to current session keys")
     
     def _update_env_file(self, key_name: str, key_value: str):
-        """Auto-update .env file with new key value"""
+        """Update .env file with current session keys for reference"""
         try:
-            env_file_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+            # Try multiple possible .env file locations
+            possible_env_paths = [
+                os.path.join(os.path.dirname(__file__), '..', '..', '.env'),
+                os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'),
+                os.path.join(os.getcwd(), '.env'),
+                os.path.join(os.getcwd(), 'backend', '.env')
+            ]
+            
+            env_file_path = None
+            for path in possible_env_paths:
+                if os.path.exists(path):
+                    env_file_path = path
+                    break
+            
+            if not env_file_path:
+                # Create .env file in the most likely location
+                env_file_path = possible_env_paths[0]
+                os.makedirs(os.path.dirname(env_file_path), exist_ok=True)
+                print(f"📝 Creating new .env file: {env_file_path}")
             
             # Read current .env file
             env_lines = []
@@ -89,11 +109,53 @@ class EncryptionService:
             # Update environment variable for current session
             os.environ[key_name] = key_value
             
-            print(f"✅ Auto-updated .env file: {key_name}={key_value}")
+        except Exception as e:
+            print(f"⚠️ Failed to update .env file: {e}")
+    
+    def encrypt_qr_data_for_product(self, data: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
+        """
+        Encrypt QR data using current session keys and return both encrypted data and keys used
+        """
+        try:
+            # Use current session keys
+            encrypted_payload = self.encrypt_qr_data(data)
+            
+            # Return both encrypted data and the keys used
+            return encrypted_payload, self.get_current_session_keys()
             
         except Exception as e:
-            print(f"⚠️ Failed to auto-update .env file: {e}")
-            print(f"📝 Please manually add to .env file: {key_name}={key_value}")
+            raise Exception(f"QR encryption for product failed: {e}")
+    
+    def decrypt_qr_data_with_stored_keys(self, encrypted_payload: str, stored_keys: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Decrypt QR data using keys stored with the product
+        """
+        try:
+            # Temporarily set the stored keys
+            original_aes = self.aes_key
+            original_hmac = self.hmac_key
+            
+            # Set the stored keys
+            self.aes_key = bytes.fromhex(stored_keys["aes_key"])
+            self.hmac_key = bytes.fromhex(stored_keys["hmac_key"])
+            
+            print(f"🔓 Decrypting with stored session keys (Session: {stored_keys.get('session_id', 'unknown')})")
+            
+            # Decrypt the data
+            decrypted_data = self.decrypt_qr_data(encrypted_payload)
+            
+            # Restore original keys
+            self.aes_key = original_aes
+            self.hmac_key = original_hmac
+            
+            print(f"✅ QR data decrypted successfully with stored keys")
+            return decrypted_data
+            
+        except Exception as e:
+            # Restore original keys in case of error
+            self.aes_key = original_aes
+            self.hmac_key = original_hmac
+            raise Exception(f"QR decryption with stored keys failed: {e}")
     
     def encrypt_qr_data(self, data: Dict[str, Any]) -> str:
         """
@@ -131,7 +193,6 @@ class EncryptionService:
             # Encode as base64 for QR code
             encrypted_payload = base64.urlsafe_b64encode(final_payload).decode('ascii')
             
-            print(f"✅ QR data encrypted successfully (length: {len(encrypted_payload)})")
             return encrypted_payload
             
         except Exception as e:
@@ -174,7 +235,6 @@ class EncryptionService:
             # Parse JSON
             data = json.loads(plaintext.decode('utf-8'))
             
-            print(f"✅ QR data decrypted successfully")
             return data
             
         except Exception as e:
@@ -212,6 +272,9 @@ class EncryptionService:
             # Verification
             "ipfs_url": f"https://w3s.link/ipfs/{metadata_cid}",
             "verify_url": f"https://chainflip.app/verify/{token_id}",
+            
+            # Session info
+            "session_id": self.session_keys["session_id"],
             
             # Metadata
             "generated_at": int(time.time()),
