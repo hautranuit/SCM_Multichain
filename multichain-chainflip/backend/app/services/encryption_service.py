@@ -61,8 +61,11 @@ class EncryptionService:
         print(f"🔑 Reset to current session keys")
     
     def _update_env_file(self, key_name: str, key_value: str):
-        """Update .env file with current session keys for reference"""
+        """Update .env file with current session keys for reference using atomic write"""
         try:
+            import tempfile
+            import shutil
+            
             # Try multiple possible .env file locations
             possible_env_paths = [
                 os.path.join(os.path.dirname(__file__), '..', '..', '.env'),
@@ -88,7 +91,7 @@ class EncryptionService:
             key_found = False
             
             if os.path.exists(env_file_path):
-                with open(env_file_path, 'r') as f:
+                with open(env_file_path, 'r', encoding='utf-8') as f:
                     env_lines = f.readlines()
                 
                 # Update existing key or mark if not found
@@ -102,15 +105,36 @@ class EncryptionService:
             if not key_found:
                 env_lines.append(f'{key_name}={key_value}\n')
             
-            # Write back to .env file
-            with open(env_file_path, 'w') as f:
-                f.writelines(env_lines)
+            # Use atomic write with temporary file to prevent corruption
+            env_dir = os.path.dirname(env_file_path)
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', 
+                                           dir=env_dir, delete=False) as temp_file:
+                temp_file.writelines(env_lines)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())  # Force write to disk
+                temp_file_path = temp_file.name
+            
+            # Atomic move - this is the crucial part that prevents corruption
+            if os.name == 'nt':  # Windows
+                # On Windows, we need to remove the target first
+                if os.path.exists(env_file_path):
+                    os.replace(temp_file_path, env_file_path)
+                else:
+                    shutil.move(temp_file_path, env_file_path)
+            else:  # Unix/Linux
+                os.replace(temp_file_path, env_file_path)
             
             # Update environment variable for current session
             os.environ[key_name] = key_value
             
         except Exception as e:
             print(f"⚠️ Failed to update .env file: {e}")
+            # Clean up temp file if it exists
+            try:
+                if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+            except:
+                pass
     
     def encrypt_qr_data_for_product(self, data: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
         """
