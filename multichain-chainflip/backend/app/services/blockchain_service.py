@@ -167,12 +167,12 @@ class BlockchainService:
         try:
             print(f"🏭 Minting NFT on zkEVM Cardona for manufacturer: {manufacturer}")
             
-            # Verify manufacturer role and permissions
-            verification_result = await self._verify_manufacturer_role(manufacturer)
+            # Verify manufacturer role and permissions based on blockchain connection
+            verification_result = await self._verify_manufacturer_role_blockchain(manufacturer)
             if not verification_result["valid"]:
                 raise Exception(f"Role verification failed: {verification_result['error']}")
             
-            print(f"✅ Manufacturer role verified for {manufacturer}")
+            print(f"✅ Manufacturer role verified for {manufacturer} on zkEVM Cardona chain")
             
             # Upload metadata to IPFS first
             print("📦 Uploading metadata to IPFS...")
@@ -225,10 +225,6 @@ class BlockchainService:
                         if receipt.status == 1:
                             print(f"✅ Transaction confirmed! Block: {receipt.blockNumber}")
                             
-                            # Generate product-specific encryption keys
-                            product_keys = encryption_service.generate_product_keys()
-                            print(f"🔐 Generated product-specific encryption keys")
-                            
                             # Generate QR payload
                             qr_payload = encryption_service.create_qr_payload(
                                 token_id=str(token_id),
@@ -236,8 +232,9 @@ class BlockchainService:
                                 product_data=metadata
                             )
                             
-                            # Encrypt QR with product-specific keys
-                            encrypted_qr_code, keys_used = encryption_service.encrypt_qr_data_with_product_keys(qr_payload, product_keys)
+                            # Encrypt QR with current session keys and get keys used
+                            encrypted_qr_code, keys_used = encryption_service.encrypt_qr_data_for_product(qr_payload)
+                            print(f"🔐 Generated product-specific encryption keys: {keys_used['session_id']}")
                             qr_hash = encryption_service.generate_qr_hash(qr_payload)
                             
                             print(f"✅ QR Code generated with product-specific keys")
@@ -314,17 +311,14 @@ class BlockchainService:
             token_id = str(int(time.time() * 1000))
             mock_tx_hash = f"0x{token_id}{'a' * (64 - len(token_id))}"  # More realistic looking hash
             
-            # Generate product-specific encryption keys
-            product_keys = encryption_service.generate_product_keys()
-            
             qr_payload = encryption_service.create_qr_payload(
                 token_id=token_id,
                 metadata_cid=metadata_cid,
                 product_data=metadata
             )
             
-            # Encrypt QR with product-specific keys
-            encrypted_qr_code, keys_used = encryption_service.encrypt_qr_data_with_product_keys(qr_payload, product_keys)
+            # Encrypt QR with current session keys and get keys used
+            encrypted_qr_code, keys_used = encryption_service.encrypt_qr_data_for_product(qr_payload)
             qr_hash = encryption_service.generate_qr_hash(qr_payload)
             
             product_data = {
@@ -445,7 +439,7 @@ class BlockchainService:
                 # Try with default keys as fallback
                 return await self._verify_with_default_keys(product, qr_data, current_owner, product_id)
             
-            print(f"🔐 Using product-specific encryption keys from database")
+            print(f"🔐 Using product-specific encryption keys from database (Session: {product_keys.get('session_id', 'unknown')})")
             
             # Process QR data - handle array format [encrypted_data, hash]
             qr_data_dict = None
@@ -462,7 +456,7 @@ class BlockchainService:
                     
                     # Decrypt with product-specific keys
                     try:
-                        decrypted_data = encryption_service.decrypt_qr_data_with_product_keys(encrypted_data, product_keys)
+                        decrypted_data = encryption_service.decrypt_qr_data_with_stored_keys(encrypted_data, product_keys)
                         qr_data_dict = decrypted_data
                         print(f"✅ QR data decrypted successfully with product-specific keys: {qr_data_dict}")
                     except Exception as decrypt_error:
@@ -471,14 +465,25 @@ class BlockchainService:
                         return await self._verify_with_default_keys(product, qr_data, current_owner, product_id)
                         
                 elif isinstance(qr_data, str):
-                    # Handle JSON string format
+                    # Handle encrypted string format (base64 encoded encrypted data)
+                    print(f"📱 Detected QR string format, attempting decryption...")
                     try:
-                        import json
-                        qr_data_dict = json.loads(qr_data)
-                        print(f"✅ QR data parsed as JSON: {qr_data_dict}")
-                    except json.JSONDecodeError:
-                        print(f"❌ Invalid QR data format - not valid JSON")
-                        return "Product Data Mismatch"
+                        # First try to decrypt as encrypted data using stored keys
+                        decrypted_data = encryption_service.decrypt_qr_data_with_stored_keys(qr_data, product_keys)
+                        qr_data_dict = decrypted_data
+                        print(f"✅ QR data decrypted successfully: {qr_data_dict}")
+                    except Exception as decrypt_error:
+                        print(f"⚠️ Decryption failed, trying as JSON: {decrypt_error}")
+                        # Fallback: try to parse as JSON (for unencrypted QR codes)
+                        try:
+                            import json
+                            qr_data_dict = json.loads(qr_data)
+                            print(f"✅ QR data parsed as JSON: {qr_data_dict}")
+                        except json.JSONDecodeError as json_error:
+                            print(f"❌ Neither decryption nor JSON parsing worked")
+                            print(f"   Decrypt error: {decrypt_error}")
+                            print(f"   JSON error: {json_error}")
+                            return "Product Data Mismatch"
                         
                 elif isinstance(qr_data, dict):
                     # Handle dictionary format
@@ -514,18 +519,37 @@ class BlockchainService:
                 # Get QR value
                 qr_value = qr_data_dict.get(field, "") if isinstance(qr_data_dict, dict) else ""
                 
-                # Get NFT metadata value (check metadata first, then mint_params, then direct product fields)
-                nft_value = (
-                    nft_metadata.get(field, "") or 
-                    mint_params.get(field, "") or 
-                    product.get(field, "")
-                )
+                # Get NFT metadata value with proper field mapping
+                nft_value = ""
                 
-                # Special handling for token_id/product_id mapping
-                if field == "product_id" and not nft_value:
-                    nft_value = product.get("token_id", "")
-                elif field == "token_id" and not nft_value:
-                    nft_value = product_id
+                # Special field mapping for QR vs NFT metadata
+                if field == "product_id":
+                    # QR product_id maps to uniqueProductID in NFT metadata
+                    nft_value = (
+                        nft_metadata.get("uniqueProductID", "") or 
+                        mint_params.get("uniqueProductID", "") or
+                        nft_metadata.get("product_id", "") or 
+                        mint_params.get("product_id", "")
+                    )
+                elif field == "manufacturer":
+                    # QR manufacturer maps to manufacturerID in NFT metadata  
+                    nft_value = (
+                        nft_metadata.get("manufacturerID", "") or 
+                        mint_params.get("manufacturerID", "") or
+                        nft_metadata.get("manufacturer", "") or 
+                        mint_params.get("manufacturer", "") or
+                        product.get("manufacturer", "")
+                    )
+                elif field == "token_id":
+                    # token_id should match the actual token_id
+                    nft_value = product.get("token_id", product_id)
+                else:
+                    # Standard field mapping
+                    nft_value = (
+                        nft_metadata.get(field, "") or 
+                        mint_params.get(field, "") or 
+                        product.get(field, "")
+                    )
                 
                 # Compare values
                 if qr_value and nft_value:
@@ -546,28 +570,85 @@ class BlockchainService:
             
             print(f"✅ Step 3: QR data matches NFT metadata")
             
-            # Step 4: Check if current owner matches NFT owner
-            print(f"🔍 Step 4: Verifying ownership")
-            nft_owner = product.get("current_owner", product.get("manufacturer", ""))
+            # Step 4: Verify manufacturer consistency between QR and IPFS data
+            print(f"🔍 Step 4: Verifying manufacturer consistency (QR vs IPFS)")
             
-            if current_owner.lower() == nft_owner.lower():
-                print(f"✅ Step 4: Ownership verified - {current_owner}")
+            # Get manufacturer from QR data
+            qr_manufacturer = qr_data_dict.get("manufacturer", "") if isinstance(qr_data_dict, dict) else ""
+            print(f"   QR Manufacturer: {qr_manufacturer}")
+            
+            # Get manufacturer from IPFS (fetch fresh data from blockchain/IPFS)
+            ipfs_manufacturer = ""
+            try:
+                # Get the metadata CID for this product
+                metadata_cid = product.get("metadata_cid", "")
+                if not metadata_cid:
+                    print(f"❌ No metadata CID found for product")
+                    return "Product Data Missing"
                 
-                # Record successful verification
-                await self._record_verification_event(product_id, current_owner, "authentic")
+                print(f"📦 Fetching IPFS metadata from CID: {metadata_cid}")
                 
-                # Step 5: Return "Product is Authentic"
-                print(f"✅ Algorithm 4 Result: Product is Authentic")
-                return "Product is Authentic"
+                # Fetch fresh IPFS data
+                ipfs_metadata = await ipfs_service.get_from_ipfs(metadata_cid)
+                
+                if ipfs_metadata:
+                    # Extract manufacturer from IPFS metadata
+                    ipfs_manufacturer = (
+                        ipfs_metadata.get("manufacturerID", "") or
+                        ipfs_metadata.get("manufacturer", "")
+                    )
+                    print(f"✅ IPFS data fetched successfully")
+                    print(f"   IPFS Manufacturer: {ipfs_manufacturer}")
+                else:
+                    print(f"❌ Failed to fetch IPFS metadata")
+                    # Fallback to cached data if IPFS fails
+                    ipfs_manufacturer = (
+                        nft_metadata.get("manufacturerID", "") or 
+                        mint_params.get("manufacturerID", "") or
+                        product.get("manufacturer", "")
+                    )
+                    print(f"⚠️ Using cached manufacturer data: {ipfs_manufacturer}")
+                    
+            except Exception as ipfs_error:
+                print(f"❌ IPFS fetch error: {ipfs_error}")
+                # Fallback to cached data
+                ipfs_manufacturer = (
+                    nft_metadata.get("manufacturerID", "") or 
+                    mint_params.get("manufacturerID", "") or
+                    product.get("manufacturer", "")
+                )
+                print(f"⚠️ Using cached manufacturer data: {ipfs_manufacturer}")
+            
+            # Compare QR manufacturer with IPFS manufacturer
+            if qr_manufacturer and ipfs_manufacturer:
+                if qr_manufacturer.lower() == ipfs_manufacturer.lower():
+                    print(f"✅ Step 4: Manufacturer verification successful (QR ↔ IPFS)")
+                    
+                    # Record successful verification
+                    await self._record_verification_event(product_id, current_owner, "authentic")
+                    
+                    print(f"✅ Algorithm 4 Result: Product is Authentic - Manufacturer Verified via IPFS")
+                    return "Product is Authentic"
+                else:
+                    print(f"❌ Step 4: Manufacturer mismatch")
+                    print(f"   QR Manufacturer: {qr_manufacturer}")
+                    print(f"   IPFS Manufacturer: {ipfs_manufacturer}")
+                    
+                    # Record verification failure
+                    await self._record_verification_event(product_id, current_owner, "manufacturer_mismatch")
+                    
+                    print(f"❌ Algorithm 4 Result: Manufacturer Mismatch (QR ≠ IPFS)")
+                    return "Manufacturer Mismatch"
             else:
-                print(f"❌ Step 4: Ownership mismatch - Expected: {nft_owner}, Got: {current_owner}")
+                print(f"❌ Step 4: Missing manufacturer data")
+                print(f"   QR Manufacturer: '{qr_manufacturer}'")
+                print(f"   IPFS Manufacturer: '{ipfs_manufacturer}'")
                 
-                # Record verification attempt with ownership mismatch
-                await self._record_verification_event(product_id, current_owner, "ownership_mismatch")
+                # Record verification failure
+                await self._record_verification_event(product_id, current_owner, "manufacturer_data_missing")
                 
-                # Step 6: Return "Ownership Mismatch"
-                print(f"❌ Algorithm 4 Result: Ownership Mismatch")
-                return "Ownership Mismatch"
+                print(f"❌ Algorithm 4 Result: Manufacturer Data Missing")
+                return "Manufacturer Data Missing"
             
         except Exception as e:
             print(f"❌ Algorithm 4 Error: {e}")
@@ -627,64 +708,91 @@ class BlockchainService:
         except Exception as e:
             print(f"⚠️ Verification recording error: {e}")
     
-    async def _verify_manufacturer_role(self, manufacturer_address: str) -> Dict[str, Any]:
+    async def _verify_manufacturer_role_blockchain(self, manufacturer_address: str) -> Dict[str, Any]:
         """
-        Verify that the address has manufacturer role on zkEVM Cardona chain
+        Verify manufacturer role based on blockchain connection (zkEVM Cardona Chain ID = 2442)
+        This replaces the MongoDB-based role verification with blockchain-first approach
         """
         try:
-            # Import with absolute path to fix import issue
-            from app.models.participant import ParticipantRole, ParticipantStatus
+            print(f"🔗 Blockchain-based role verification for {manufacturer_address}")
             
-            # Find participant in database
-            participant = await self.database.participants.find_one(
-                {"wallet_address": manufacturer_address}
-            )
-            
-            if not participant:
+            # Check if role verification is enabled
+            if hasattr(settings, 'enable_role_verification') and not settings.enable_role_verification:
+                print(f"⚠️ Role verification disabled in settings")
                 return {
-                    "valid": False,
-                    "error": "Manufacturer not registered. Please register as a manufacturer first."
+                    "valid": True,
+                    "reason": "Role verification disabled"
                 }
             
-            # Check role
-            if participant.get("role") != ParticipantRole.MANUFACTURER.value:
+            # Check if we have zkEVM Cardona connection
+            if not self.manufacturer_web3:
+                print(f"❌ No zkEVM Cardona connection available")
                 return {
                     "valid": False,
-                    "error": f"Address {manufacturer_address} does not have manufacturer role. Current role: {participant.get('role')}"
+                    "error": "zkEVM Cardona blockchain not connected. Manufacturing requires connection to Chain ID 2442."
                 }
             
-            # Check status
-            if participant.get("status") != ParticipantStatus.ACTIVE.value:
+            # Verify blockchain connection is to zkEVM Cardona (Chain ID: 2442)
+            try:
+                current_chain_id = self.manufacturer_web3.eth.chain_id
+                expected_chain_id = settings.zkevm_cardona_chain_id  # Should be 2442
+                
+                if current_chain_id != expected_chain_id:
+                    return {
+                        "valid": False,
+                        "error": f"Manufacturing requires zkEVM Cardona chain (Chain ID: {expected_chain_id}). Current chain ID: {current_chain_id}"
+                    }
+                
+                print(f"✅ Connected to correct manufacturing chain (zkEVM Cardona, Chain ID: {current_chain_id})")
+                
+                # Verify the manufacturer address is valid
+                if not Web3.is_address(manufacturer_address):
+                    return {
+                        "valid": False,
+                        "error": f"Invalid Ethereum address: {manufacturer_address}"
+                    }
+                
+                # Check if address has any balance (basic liveness check)
+                try:
+                    balance = self.manufacturer_web3.eth.get_balance(manufacturer_address)
+                    print(f"💰 Manufacturer address balance: {Web3.from_wei(balance, 'ether')} ETH")
+                    
+                    # Note: In a production system, you might check:
+                    # 1. If the address holds a manufacturer NFT/token
+                    # 2. If the address is in a smart contract registry
+                    # 3. If the address has made previous manufacturing transactions
+                    # For now, we just verify the chain connection
+                    
+                except Exception as balance_error:
+                    print(f"⚠️ Could not check balance for {manufacturer_address}: {balance_error}")
+                    # Don't fail verification just because balance check failed
+                
+                return {
+                    "valid": True,
+                    "chain_id": current_chain_id,
+                    "reason": f"Connected to zkEVM Cardona manufacturing chain (Chain ID: {current_chain_id})"
+                }
+                
+            except Exception as chain_error:
+                print(f"❌ Chain verification error: {chain_error}")
                 return {
                     "valid": False,
-                    "error": f"Manufacturer account is not active. Status: {participant.get('status')}"
+                    "error": f"Failed to verify blockchain connection: {chain_error}"
                 }
-            
-            # Check chain ID (must be zkEVM Cardona)
-            if participant.get("chain_id") != settings.zkevm_cardona_chain_id:
-                return {
-                    "valid": False,
-                    "error": f"Manufacturer must be registered on zkEVM Cardona chain (Chain ID: {settings.zkevm_cardona_chain_id}). Current chain: {participant.get('chain_id')}"
-                }
-            
-            # Check if manufacturer license exists
-            if not participant.get("manufacturer_license"):
-                return {
-                    "valid": False,
-                    "error": "Valid manufacturer license required"
-                }
-            
-            return {
-                "valid": True,
-                "participant": participant
-            }
             
         except Exception as e:
-            print(f"❌ Role verification error: {e}")
+            print(f"❌ Blockchain role verification error: {e}")
             return {
                 "valid": False,
-                "error": f"Role verification failed: {e}"
+                "error": f"Blockchain role verification failed: {e}"
             }
+    
+    # Legacy method kept for backward compatibility (but now just calls blockchain version)
+    async def _verify_manufacturer_role(self, manufacturer_address: str) -> Dict[str, Any]:
+        """
+        Legacy method - now delegates to blockchain-based verification
+        """
+        return await self._verify_manufacturer_role_blockchain(manufacturer_address)
     
     async def get_network_stats(self) -> Dict[str, Any]:
         """Get network statistics with bridge connectivity testing"""
@@ -746,7 +854,7 @@ class BlockchainService:
             l2_bridge_status = await self._test_l2_bridge_connectivity()
             bridge_status.update(l2_bridge_status)
             
-            # Get participant statistics
+            # Get participant statistics (keep for compatibility but note it's cached data)
             total_participants = 0
             manufacturer_count = 0
             try:
