@@ -7,6 +7,7 @@ ENHANCED DEBUG VERSION - Deep transaction verification to identify blockchain su
 import asyncio
 import json
 import time
+from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from web3 import Web3
 from eth_account import Account
@@ -14,6 +15,21 @@ from app.core.config import get_settings
 from app.core.database import get_database
 
 settings = get_settings()
+
+def convert_decimals_to_float(obj):
+    """
+    Recursively convert all Decimal objects to float for MongoDB compatibility
+    """
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_decimals_to_float(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals_to_float(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_decimals_to_float(item) for item in obj)
+    else:
+        return obj
 
 # Standard WETH Contract ABI (ERC20 + deposit/withdraw)
 WETH_ABI = [
@@ -608,6 +624,140 @@ class RealWETHBridgeService:
         
         return result
     
+    async def _collect_user_eth(self, web3: Web3, chain_name: str, user_address: str, amount_wei: int) -> Dict[str, Any]:
+        """
+        CRITICAL FIX: Actually collect user's ETH and send it to bridge service
+        This fixes the bug where users were getting free transfers
+        """
+        try:
+            print(f"💸 === STEP 1: COLLECT USER ETH ON {chain_name.upper()} ===")
+            print(f"💸 Collecting {Web3.from_wei(amount_wei, 'ether')} ETH from user {user_address}")
+            print(f"   Bridge service will receive ETH from user on {chain_name}")
+            
+            # Get user's account from multi-account manager
+            from app.services.multi_account_manager import address_key_manager
+            user_account_info = address_key_manager.get_account_info_for_address(user_address)
+            if not user_account_info:
+                return {"success": False, "error": f"No private key available for user address {user_address}"}
+            
+            user_account = user_account_info['account']
+            
+            # Check user's ETH balance
+            user_balance = web3.eth.get_balance(user_account.address)
+            required_total = amount_wei + Web3.to_wei(0.01, 'ether')  # Amount + gas buffer
+            
+            if user_balance < required_total:
+                return {
+                    "success": False, 
+                    "error": f"Insufficient user balance. Required: {Web3.from_wei(required_total, 'ether')} ETH, Available: {Web3.from_wei(user_balance, 'ether')} ETH"
+                }
+            
+            # Build transaction to send ETH from user to bridge service
+            nonce = web3.eth.get_transaction_count(user_account.address)
+            chain_id = web3.eth.chain_id
+            
+            # Use dynamic gas price with minimum floor
+            base_gas_price = web3.eth.gas_price
+            min_gas_price = Web3.to_wei(1, 'gwei')
+            gas_price = max(base_gas_price, min_gas_price)
+            
+            transaction = {
+                'to': self.current_account.address,  # Bridge service address
+                'value': amount_wei,  # User's ETH to bridge service
+                'gas': 21000,  # Standard ETH transfer gas
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'chainId': chain_id
+            }
+            
+            print(f"🔍 User ETH collection transaction:")
+            print(f"   From (User): {user_account.address}")
+            print(f"   To (Bridge): {self.current_account.address}")
+            print(f"   Amount: {Web3.from_wei(amount_wei, 'ether')} ETH")
+            print(f"   Gas: {transaction['gas']}")
+            print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} gwei")
+            
+            # Sign transaction with user's private key
+            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
+            
+            # Submit transaction
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            tx_hash_hex = tx_hash.hex()
+            print(f"📡 User ETH collection submitted: {tx_hash_hex}")
+            
+            # Wait for confirmation
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ User ETH collected successfully!")
+                print(f"   User paid: {Web3.from_wei(amount_wei, 'ether')} ETH")
+                print(f"   Bridge received: {Web3.from_wei(amount_wei, 'ether')} ETH")
+                
+                # Verify bridge service balance increased
+                new_bridge_balance = web3.eth.get_balance(self.current_account.address)
+                print(f"   Bridge service balance updated: {Web3.from_wei(new_bridge_balance, 'ether')} ETH")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash_hex,
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber,
+                    "user_paid": Web3.from_wei(amount_wei, 'ether'),
+                    "bridge_received": Web3.from_wei(amount_wei, 'ether')
+                }
+            else:
+                return {"success": False, "error": f"User ETH collection transaction failed with status: {receipt.status}"}
+            
+        except Exception as e:
+            print(f"❌ User ETH collection error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _return_eth_to_user(self, web3: Web3, chain_name: str, user_address: str, amount_wei: int) -> Dict[str, Any]:
+        """
+        Rollback mechanism: Return ETH to user if transfer fails
+        """
+        try:
+            print(f"🔄 === ROLLBACK: RETURNING ETH TO USER ===")
+            print(f"💰 Returning {Web3.from_wei(amount_wei, 'ether')} ETH to user {user_address}")
+            
+            # Build transaction to send ETH from bridge service back to user
+            nonce = web3.eth.get_transaction_count(self.current_account.address)
+            chain_id = web3.eth.chain_id
+            
+            base_gas_price = web3.eth.gas_price
+            min_gas_price = Web3.to_wei(1, 'gwei')
+            gas_price = max(base_gas_price, min_gas_price)
+            
+            transaction = {
+                'to': user_address,  # Back to user
+                'value': amount_wei,  # Return the ETH
+                'gas': 21000,
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'chainId': chain_id
+            }
+            
+            # Sign with bridge service account
+            signed_txn = web3.eth.account.sign_transaction(transaction, self.current_account.key)
+            
+            # Submit transaction
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ ETH returned to user successfully: {tx_hash.hex()}")
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "returned_amount": Web3.from_wei(amount_wei, 'ether')
+                }
+            else:
+                return {"success": False, "error": "Failed to return ETH to user"}
+                
+        except Exception as e:
+            print(f"❌ ETH return error: {e}")
+            return {"success": False, "error": str(e)}
+
     async def transfer_eth_cross_chain(
         self, 
         from_chain: str, 
@@ -619,7 +769,7 @@ class RealWETHBridgeService:
     ) -> Dict[str, Any]:
         """
         Execute real cross-chain ETH transfer using verified WETH contracts
-        FIXED: Now properly handles cross-chain transfers vs same-chain transfers
+        FIXED: Now properly collects user ETH first, then executes transfer
         """
         try:
             print(f"\n🌉 === REAL CROSS-CHAIN ETH TRANSFER ===")
@@ -663,37 +813,42 @@ class RealWETHBridgeService:
             amount_wei = int(amount_eth * 10**18)
             print(f"\n💱 Amount in Wei: {amount_wei}")
             
-            # Step 1: Wrap ETH to WETH on source chain
-            print(f"\n🔄 === STEP 1: WRAP ETH TO WETH ON {from_chain.upper()} ===")
-            wrap_result = await self._wrap_eth_to_weth(source_web3, from_chain, from_address, amount_wei)
-            if not wrap_result["success"]:
-                return {"success": False, "error": f"ETH wrapping failed: {wrap_result['error']}"}
+            # STEP 1: COLLECT USER ETH (CRITICAL FIX)
+            collect_result = await self._collect_user_eth(source_web3, from_chain, from_address, amount_wei)
+            if not collect_result["success"]:
+                return {"success": False, "error": f"Failed to collect user ETH: {collect_result['error']}"}
             
-            # Step 2: Handle transfer based on type
+            # STEP 2: Execute transfer based on type
             if is_cross_chain:
                 print(f"\n🌉 === STEP 2: CROSS-CHAIN BRIDGE FROM {from_chain.upper()} TO {to_chain.upper()} ===")
                 bridge_result = await self._bridge_eth_cross_chain_simplified(
                     source_web3, target_web3, from_chain, to_chain, to_address, amount_wei
                 )
                 if not bridge_result["success"]:
-                    # Attempt to unwrap WETH back to ETH if bridge fails
-                    print(f"\n🔄 === ROLLBACK: UNWRAP WETH ===")
-                    await self._unwrap_weth_to_eth(source_web3, from_chain, from_address, amount_wei)
-                    return {"success": False, "error": f"Cross-chain bridge failed: {bridge_result['error']}"}
+                    # ROLLBACK: Return ETH to user if bridge fails
+                    print(f"\n🔄 === ROLLBACK: BRIDGE FAILED ===")
+                    rollback_result = await self._return_eth_to_user(source_web3, from_chain, from_address, amount_wei)
+                    error_msg = f"Cross-chain bridge failed: {bridge_result['error']}"
+                    if rollback_result["success"]:
+                        error_msg += f" (ETH returned to user: {rollback_result['transaction_hash']})"
+                    return {"success": False, "error": error_msg}
                     
                 transfer_result = bridge_result
             else:
-                print(f"\n💸 === STEP 2: SAME-CHAIN WETH TRANSFER ON {from_chain.upper()} ===")
-                transfer_result = await self._transfer_weth_same_chain(
-                    source_web3, from_chain, from_address, to_address, amount_wei
-                )
+                print(f"\n💸 === STEP 2: SAME-CHAIN ETH TRANSFER ON {from_chain.upper()} ===")
+                # For same-chain, directly send ETH from bridge service to recipient
+                print(f"   Bridge service already has ETH from user, sending directly to recipient")
+                transfer_result = await self._send_eth_to_recipient(source_web3, from_chain, to_address, amount_wei)
                 if not transfer_result["success"]:
-                    # Attempt to unwrap WETH back to ETH if transfer fails
-                    print(f"\n🔄 === ROLLBACK: UNWRAP WETH ===")
-                    await self._unwrap_weth_to_eth(source_web3, from_chain, from_address, amount_wei)
-                    return {"success": False, "error": f"WETH transfer failed: {transfer_result['error']}"}
+                    # ROLLBACK: Return ETH to user if transfer fails
+                    print(f"\n🔄 === ROLLBACK: TRANSFER FAILED ===")
+                    rollback_result = await self._return_eth_to_user(source_web3, from_chain, from_address, amount_wei)
+                    error_msg = f"ETH transfer failed: {transfer_result['error']}"
+                    if rollback_result["success"]:
+                        error_msg += f" (ETH returned to user: {rollback_result['transaction_hash']})"
+                    return {"success": False, "error": error_msg}
             
-            # Step 3: Record transfer in database
+            # STEP 3: Record transfer in database
             print(f"\n📊 === STEP 3: RECORD TRANSFER ===")
             transfer_record = {
                 "transfer_id": f"REAL-TRANSFER-{escrow_id}-{int(time.time())}",
@@ -702,54 +857,65 @@ class RealWETHBridgeService:
                 "to_chain": to_chain,
                 "from_address": from_address,
                 "to_address": to_address,
-                "amount_eth": amount_eth,
+                "amount_eth": float(amount_eth),  # Convert Decimal to float for MongoDB
                 "amount_wei": amount_wei,
                 "is_cross_chain": is_cross_chain,
-                "wrap_tx": wrap_result.get("transaction_hash"),
+                "user_collection_tx": collect_result.get("transaction_hash"),  # NEW: Track user payment
+                "wrap_tx": None,  # No longer needed - simplified flow
                 "transfer_tx": transfer_result.get("transaction_hash"),
                 "bridge_tx": transfer_result.get("bridge_transaction_hash") if is_cross_chain else None,
-                "status": "completed",  # Real transfers are immediately confirmed
+                "status": "completed",
                 "timestamp": time.time(),
                 "real_transfer": True,
-                "bridge_type": "cross_chain_eth" if is_cross_chain else "same_chain_weth",
-                "gas_used_total": (wrap_result.get("gas_used", 0) + transfer_result.get("gas_used", 0)),
+                "user_eth_collected": True,  # NEW: Confirm user paid
+                "bridge_type": "cross_chain_eth" if is_cross_chain else "same_chain_eth",  # Updated
+                "gas_used_total": (collect_result.get("gas_used", 0) + transfer_result.get("gas_used", 0)),
                 "confirmation_times": {
-                    "wrap_time": wrap_result.get("confirmation_time", 0),
+                    "collection_time": collect_result.get("confirmation_time", 0),
                     "transfer_time": transfer_result.get("confirmation_time", 0)
                 },
                 "deep_debug": {
-                    "wrap_debug": wrap_result.get("deep_debug", {}),
+                    "collection_debug": collect_result,
                     "transfer_debug": transfer_result.get("deep_debug", {})
                 }
             }
+            
+            # Convert all Decimal objects to float for MongoDB compatibility
+            transfer_record = convert_decimals_to_float(transfer_record)
             
             await self.database.token_transfers.insert_one(transfer_record)
             
             print(f"\n✅ === TRANSFER COMPLETED SUCCESSFULLY ===")
             print(f"🆔 Transfer ID: {transfer_record['transfer_id']}")
-            print(f"🔗 Wrap TX: {wrap_result.get('transaction_hash')}")
+            print(f"💸 User Payment TX: {collect_result.get('transaction_hash')}")
             print(f"🔗 Transfer TX: {transfer_result.get('transaction_hash')}")
             if is_cross_chain and transfer_result.get("bridge_transaction_hash"):
                 print(f"🌉 Bridge TX: {transfer_result.get('bridge_transaction_hash')}")
             print(f"⛽ Total Gas: {transfer_record['gas_used_total']}")
+            print(f"💰 User Paid: {float(amount_eth)} ETH (CONFIRMED)")
+            print(f"🎯 Simplified Flow: User → Bridge → Recipient (No WETH needed!)")
             
-            return {
+            response_data = {
                 "success": True,
                 "transfer_id": transfer_record["transfer_id"],
-                "wrap_transaction_hash": wrap_result.get("transaction_hash"),
+                "user_payment_hash": collect_result.get("transaction_hash"),  # NEW
                 "transfer_transaction_hash": transfer_result.get("transaction_hash"),
                 "bridge_transaction_hash": transfer_result.get("bridge_transaction_hash") if is_cross_chain else None,
-                "amount_transferred": amount_eth,
+                "amount_transferred": float(amount_eth),  # Convert Decimal to float
                 "actual_token_movement": True,
+                "user_eth_collected": True,  # NEW: Confirm user actually paid
                 "is_cross_chain": is_cross_chain,
                 "gas_used": {
-                    "wrap_gas": wrap_result.get("gas_used", 0),
+                    "collection_gas": collect_result.get("gas_used", 0),
                     "transfer_gas": transfer_result.get("gas_used", 0)
                 },
                 "confirmation_times": transfer_record["confirmation_times"],
                 "blockchain_verified": True,
                 "deep_debug_info": transfer_record["deep_debug"]
             }
+            
+            # Convert all Decimal objects to float for API response
+            return convert_decimals_to_float(response_data)
             
         except Exception as e:
             print(f"❌ Real cross-chain transfer error: {e}")
@@ -766,44 +932,32 @@ class RealWETHBridgeService:
     ) -> Dict[str, Any]:
         """
         Simplified cross-chain bridge: Send ETH directly to recipient on target chain
-        This bypasses WETH issues and ensures the recipient gets ETH on the destination chain
+        FIXED: Bridge service already has ETH from user, just send it to recipient
         """
         try:
             print(f"🌉 Bridging {Web3.from_wei(amount_wei, 'ether')} ETH from {from_chain} to {to_chain}")
             print(f"   Direct ETH transfer to recipient: {to_address}")
+            print(f"   Bridge service already has ETH from user collection step")
             
-            # STEP 1: Unwrap WETH back to ETH on source chain (to prepare for bridge)
-            print(f"\n🔥 Step 1: Unwrap WETH to ETH on source chain ({from_chain})")
-            unwrap_result = await self._unwrap_weth_to_eth(source_web3, from_chain, "bridge_prep", amount_wei)
-            if not unwrap_result["success"]:
-                return {"success": False, "error": f"Failed to unwrap WETH on source chain: {unwrap_result['error']}"}
-            
-            # STEP 2: Send ETH directly to recipient on target chain
-            print(f"\n💸 Step 2: Send ETH directly to recipient on target chain ({to_chain})")
+            # Send ETH directly from bridge service to recipient on target chain
+            print(f"\n💸 Sending ETH from bridge service to recipient on target chain ({to_chain})")
             eth_transfer_result = await self._send_eth_to_recipient(target_web3, to_chain, to_address, amount_wei)
             if not eth_transfer_result["success"]:
                 return {"success": False, "error": f"Failed to send ETH to recipient: {eth_transfer_result['error']}"}
             
             print(f"✅ Cross-chain bridge completed successfully!")
-            print(f"   Source unwrap TX: {unwrap_result.get('transaction_hash')}")
-            print(f"   Target ETH transfer TX: {eth_transfer_result.get('transaction_hash')}")
+            print(f"   Bridge service sent ETH to recipient: {eth_transfer_result.get('transaction_hash')}")
             print(f"   Recipient {to_address} received {Web3.from_wei(amount_wei, 'ether')} ETH on {to_chain}")
             
             return {
                 "success": True,
                 "transaction_hash": eth_transfer_result.get("transaction_hash"),  # Main transaction on target chain
-                "bridge_transaction_hash": unwrap_result.get("transaction_hash"),  # Source chain transaction
-                "gas_used": eth_transfer_result.get("gas_used", 0) + unwrap_result.get("gas_used", 0),
-                "confirmation_time": max(
-                    eth_transfer_result.get("confirmation_time", 0),
-                    unwrap_result.get("confirmation_time", 0)
-                ),
-                "deep_debug": {
-                    "source_unwrap": unwrap_result.get("deep_debug", {}),
-                    "target_eth_transfer": eth_transfer_result.get("deep_debug", {})
-                }
+                "bridge_transaction_hash": eth_transfer_result.get("transaction_hash"),  # Same transaction
+                "gas_used": eth_transfer_result.get("gas_used", 0),
+                "confirmation_time": eth_transfer_result.get("confirmation_time", 0),
+                "deep_debug": eth_transfer_result.get("deep_debug", {})
             }
-                
+            
         except Exception as e:
             print(f"❌ Cross-chain bridge error: {e}")
             return {"success": False, "error": str(e)}
