@@ -738,6 +738,9 @@ class BlockchainService {
 
   async buyProduct(purchaseData) {
     try {
+      console.log('🛒 Cross-chain purchase request:', purchaseData);
+      console.log('🔗 Flow: Optimism Sepolia → Polygon Hub → zkEVM Cardona');
+      
       return await this.request('/marketplace/buy', {
         method: 'POST',
         body: JSON.stringify(purchaseData),
@@ -749,6 +752,105 @@ class BlockchainService {
       } catch (fallbackError) {
         throw new Error(`Failed to buy product: ${error.message}`);
       }
+    }
+  }
+
+  // ==========================================
+  // CROSS-CHAIN PURCHASE MANAGEMENT
+  // ==========================================
+
+  async confirmDeliveryAndProcessPayment(deliveryData) {
+    try {
+      console.log('📦 Confirming delivery and processing payment release:', deliveryData);
+      
+      return await this.request('/delivery/confirm', {
+        method: 'POST',
+        body: JSON.stringify(deliveryData),
+      });
+    } catch (error) {
+      throw new Error(`Failed to confirm delivery: ${error.message}`);
+    }
+  }
+
+  async getCrossChainPurchaseStatus(purchaseId) {
+    try {
+      return await this.request(`/purchase/${purchaseId}/status`);
+    } catch (error) {
+      throw new Error(`Failed to get purchase status: ${error.message}`);
+    }
+  }
+
+  async getCrossChainStatistics() {
+    try {
+      return await this.request('/cross-chain/stats');
+    } catch (error) {
+      throw new Error(`Failed to get cross-chain statistics: ${error.message}`);
+    }
+  }
+
+  // ==========================================
+  // CROSS-CHAIN PURCHASE MANAGEMENT
+  // ==========================================
+
+  async confirmDeliveryAndProcessPayment(deliveryData) {
+    try {
+      console.log('📦 Confirming delivery and processing payment release:', deliveryData);
+      
+      return await this.request('/delivery/confirm', {
+        method: 'POST',
+        body: JSON.stringify(deliveryData),
+      });
+    } catch (error) {
+      throw new Error(`Failed to confirm delivery: ${error.message}`);
+    }
+  }
+
+  async getCrossChainPurchaseStatus(purchaseId) {
+    try {
+      return await this.request(`/purchase/${purchaseId}/status`);
+    } catch (error) {
+      throw new Error(`Failed to get purchase status: ${error.message}`);
+    }
+  }
+
+  async getCrossChainStatistics() {
+    try {
+      return await this.request('/cross-chain/stats');
+    } catch (error) {
+      throw new Error(`Failed to get cross-chain statistics: ${error.message}`);
+    }
+  }
+
+  // ==========================================
+  // CROSS-CHAIN PURCHASE MANAGEMENT
+  // ==========================================
+
+  async confirmDeliveryAndProcessPayment(deliveryData) {
+    try {
+      console.log('📦 Confirming delivery and processing payment release:', deliveryData);
+      
+      return await this.request('/delivery/confirm', {
+        method: 'POST',
+        body: JSON.stringify(deliveryData),
+      });
+    } catch (error) {
+      throw new Error(`Failed to confirm delivery: ${error.message}`);
+    }
+  }
+
+  async getCrossChainPurchaseStatus(purchaseId) {
+    try {
+      return await this.request(`/purchase/${purchaseId}/status`);
+    } catch (error) {
+      throw new Error(`Failed to get purchase status: ${error.message}`);
+    }
+  }
+
+  async getCrossChainStatistics() {
+    try {
+      return await this.request('/cross-chain/stats');
+    } catch (error) {
+      throw new Error(`Failed to get cross-chain statistics: ${error.message}`);
     }
   }
 

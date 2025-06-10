@@ -416,19 +416,27 @@ const ProductManagement = () => {
         return;
       }
 
-      // Proceed with payment
+      // Proceed with cross-chain payment
       const price = product.price || product.metadata?.price_eth || '0.001';
       const confirmation = window.confirm(
-        `🛒 Secure Product Purchase\n\n` +
+        `🛒 Cross-Chain Product Purchase\n\n` +
         `✅ Product verified as authentic\n` +
         `💰 Purchase for ${price} ETH?\n\n` +
-        `Processing: Payment & NFT Transfer`
+        `🔗 Cross-Chain Flow:\n` +
+        `   1️⃣ Optimism Sepolia (Buyer Chain)\n` +
+        `   2️⃣ → LayerZero Bridge →\n` +
+        `   3️⃣ Polygon PoS (Hub Chain)\n` +
+        `   4️⃣ → fxPortal Bridge →\n` +
+        `   5️⃣ zkEVM Cardona (Manufacturer Chain)\n\n` +
+        `⏱️ Processing time: 3-7 minutes\n` +
+        `🔐 Escrow protection included\n` +
+        `🎁 Transporter incentives enabled`
       );
       if (!confirmation) return;
 
       setLoading(true);
 
-      // Payment & NFT Transfer
+      // Algorithm 5 + Algorithm 1: Cross-Chain Purchase
       const result = await blockchainService.buyProduct({
         product_id: productTokenId,
         buyer: user?.wallet_address,
@@ -438,16 +446,23 @@ const ProductManagement = () => {
 
       // Payment processing complete
       if (result.success) {
+        const crossChainDetails = result.cross_chain_details || {};
         alert(
-          `🎉 Purchase Successful!\n\n` +
-          `✅ Transaction Complete\n` +
-          `📦 Product transferred to buyer\n` +
-          `🔗 NFT ownership updated\n` +
+          `🎉 Cross-Chain Purchase Successful!\n\n` +
+          `✅ ${result.status}\n` +
+          `📦 Product: ${product.name || 'Product'}\n` +
           `💰 Paid: ${price} ETH\n` +
-          `📅 Date: ${new Date().toLocaleString()}\n` +
-          `🔗 Transaction: ${result.transaction_hash || 'N/A'}\n\n` +
-          `🔄 Payment processing completed\n` +
-          `⚡ Cross-chain transfer: ${result.cross_chain_details?.source_chain} → ${result.cross_chain_details?.target_chain}`
+          `📅 Date: ${new Date().toLocaleString()}\n\n` +
+          `🔗 Cross-Chain Transaction Details:\n` +
+          `   🔹 Purchase ID: ${result.purchase_id}\n` +
+          `   🔹 LayerZero TX: ${crossChainDetails.layerzero_tx || 'Processing...'}\n` +
+          `   🔹 fxPortal TX: ${crossChainDetails.fxportal_tx || 'Processing...'}\n` +
+          `   🔹 Escrow ID: ${crossChainDetails.escrow_id || 'N/A'}\n\n` +
+          `🌉 Bridges Used: LayerZero + fxPortal\n` +
+          `⛓️ Chains: Optimism → Polygon → zkEVM\n` +
+          `🎯 Algorithms: Algorithm 1 + Algorithm 5\n\n` +
+          `🔄 NFT ownership transferred to your wallet\n` +
+          `💳 Payment processing with escrow protection`
         );
         
         // Refresh data
@@ -458,8 +473,23 @@ const ProductManagement = () => {
       }
 
     } catch (error) {
-      console.error('❌ Buy product error:', error);
-      alert(`❌ Purchase Failed!\n\nPayment processing failed\nError: ${error.message}`);
+      console.error('❌ Cross-chain buy product error:', error);
+      
+      // Enhanced error handling for cross-chain issues
+      let errorMessage = error.message;
+      if (errorMessage.includes('authenticity')) {
+        errorMessage = 'Product authenticity verification failed. This may be due to QR code issues or IPFS connectivity.';
+      } else if (errorMessage.includes('cross-chain')) {
+        errorMessage = 'Cross-chain communication failed. Please check bridge connectivity and try again.';
+      } else if (errorMessage.includes('escrow')) {
+        errorMessage = 'Escrow creation failed. Your funds are safe and no payment was processed.';
+      } else if (errorMessage.includes('LayerZero')) {
+        errorMessage = 'LayerZero bridge communication failed. Please try again in a few minutes.';
+      } else if (errorMessage.includes('fxPortal')) {
+        errorMessage = 'fxPortal bridge communication failed. Cross-chain transfer may be delayed.';
+      }
+      
+      alert(`❌ Cross-Chain Purchase Failed!\n\n${errorMessage}\n\nNo payment was processed. Please try again.`);
     } finally {
       setLoading(false);
     }

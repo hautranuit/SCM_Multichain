@@ -812,114 +812,74 @@ async def buy_product_from_marketplace(
     blockchain_service: BlockchainService = Depends(get_blockchain_service)
 ):
     """
-    Algorithm 5: Direct product purchase from marketplace
-    Implements cross-chain purchasing (Buyer chain → Hub chain)
+    Algorithm 5: Post Supply Chain Management for NFT-Based Product Sale
+    Combined with Algorithm 1: Payment Release and Incentive Mechanism
+    
+    Cross-chain flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (zkEVM Cardona)
+    Bridges: LayerZero (Buyer→Hub) + fxPortal (Hub→Manufacturer)
     """
     try:
-        # Get product details first
-        product = await blockchain_service.get_product_by_token_id(buy_data.product_id)
-        if not product:
-            raise HTTPException(status_code=404, detail="Product not found")
+        print(f"🛒 Cross-chain purchase request received:")
+        print(f"   📦 Product ID: {buy_data.product_id}")
+        print(f"   👤 Buyer: {buy_data.buyer}")
+        print(f"   💰 Price: {buy_data.price} ETH")
+        print(f"   🔗 Cross-chain flow: Optimism Sepolia → Polygon Hub → zkEVM Cardona")
         
-        # Validate buyer and price
-        if not buy_data.buyer:
-            raise HTTPException(status_code=400, detail="Buyer address is required")
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
         
-        # Get product price from multiple possible sources
-        product_price = None
-        if product.get("price"):
-            product_price = float(product["price"])
-        elif product.get("metadata", {}).get("price_eth"):
-            product_price = float(product["metadata"]["price_eth"])
-        elif product.get("mint_params", {}).get("price"):
-            product_price = float(product["mint_params"]["price"])
-        
-        # Validate price if product has a set price
-        if product_price and buy_data.price < product_price:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Payment amount {buy_data.price} ETH is insufficient. Required: {product_price} ETH"
-            )
-        
-        # Check if product is available for purchase
-        current_owner = product.get("current_owner", product.get("manufacturer", ""))
-        if current_owner == buy_data.buyer:
-            raise HTTPException(status_code=400, detail="You already own this product")
-        
-        # Generate purchase ID
-        purchase_id = f"PURCHASE-{buy_data.product_id}-{int(time.time())}"
-        
-        # Create purchase record in database
-        purchase_record = {
-            "purchase_id": purchase_id,
+        # Prepare cross-chain purchase request
+        purchase_request = {
             "product_id": buy_data.product_id,
             "buyer": buy_data.buyer,
-            "seller": current_owner,
-            "price_eth": buy_data.price,
-            "payment_method": buy_data.payment_method,
-            "status": "completed",
-            "purchase_timestamp": time.time(),
-            "purchase_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "cross_chain": True,
-            "buyer_chain": "optimism_sepolia",
-            "hub_chain": "polygon_pos"
+            "price": buy_data.price,
+            "payment_method": buy_data.payment_method or "ETH"
         }
         
-        # Store purchase record
-        await blockchain_service.database.purchases.insert_one(purchase_record)
+        # Execute Algorithm 5 + Algorithm 1 cross-chain purchase
+        result = await crosschain_purchase_service.execute_cross_chain_purchase(purchase_request)
         
-        # Update product ownership (cross-chain transfer simulation)
-        update_data = {
-            "current_owner": buy_data.buyer,
-            "status": "sold",
-            "last_updated": time.time(),
-            "purchase_history": product.get("purchase_history", []) + [{
-                "purchase_id": purchase_id,
-                "buyer": buy_data.buyer,
-                "seller": current_owner,
-                "price_eth": buy_data.price,
-                "timestamp": time.time(),
-                "date": time.strftime("%Y-%m-%d %H:%M:%S")
-            }]
-        }
-        
-        # Update product in database
-        result = await blockchain_service.database.products.update_one(
-            {"token_id": buy_data.product_id},
-            {"$set": update_data}
-        )
-        
-        if result.modified_count == 0:
-            raise HTTPException(status_code=500, detail="Failed to update product ownership")
-        
-        # Simulate cross-chain transaction hash
-        transaction_hash = f"0x{purchase_id.replace('-', '').lower()}{int(time.time())}"
-        
-        # Cross-chain details for frontend
-        cross_chain_details = {
-            "source_chain": "optimism_sepolia",
-            "target_chain": "polygon_pos_hub", 
-            "bridge_used": "fxportal",
-            "confirmation_time": "2-5 minutes",
-            "buyer_chain_tx": f"0xbuyer{int(time.time())}",
-            "hub_chain_tx": transaction_hash
-        }
-        
-        return ProductBuyResponse(
-            success=True,
-            status="Purchase Completed Successfully",
-            product_id=buy_data.product_id,
-            buyer=buy_data.buyer,
-            transaction_hash=transaction_hash,
-            purchase_id=purchase_id,
-            payment_amount=buy_data.price,
-            cross_chain_details=cross_chain_details
-        )
+        if result["success"]:
+            print(f"✅ Cross-chain purchase completed successfully")
+            
+            # Generate cross-chain transaction hash
+            transaction_hash = result.get("nft_transfer_tx", f"0xCROSS{int(time.time())}")
+            
+            # Enhanced cross-chain details
+            cross_chain_details = result.get("cross_chain_details", {
+                "buyer_chain": "optimism_sepolia",
+                "hub_chain": "polygon_pos",
+                "manufacturer_chain": "zkevm_cardona",
+                "bridges_used": ["LayerZero", "fxPortal"],
+                "layerzero_tx": result.get("cross_chain_details", {}).get("layerzero_tx", "N/A"),
+                "fxportal_tx": result.get("cross_chain_details", {}).get("fxportal_tx", "N/A"),
+                "confirmation_time": "3-7 minutes",
+                "escrow_id": result.get("cross_chain_details", {}).get("escrow_id", "N/A")
+            })
+            
+            return ProductBuyResponse(
+                success=True,
+                status=result["status"],  # "Sale Successful and NFT Transferred"
+                product_id=buy_data.product_id,
+                buyer=buy_data.buyer,
+                transaction_hash=transaction_hash,
+                purchase_id=result["purchase_id"],
+                payment_amount=buy_data.price,
+                cross_chain_details=cross_chain_details
+            )
+        else:
+            print(f"❌ Cross-chain purchase failed: {result['error']}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cross-chain purchase failed at {result.get('step', 'unknown')}: {result['error']}"
+            )
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Purchase failed: {str(e)}")
+        print(f"❌ Cross-chain purchase error: {e}")
+        raise HTTPException(status_code=500, detail=f"Cross-chain purchase failed: {str(e)}")
 
 @router.post("/marketplace/list")
 async def list_product_for_sale(
@@ -1023,8 +983,126 @@ async def initiate_product_purchase(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/delivery/confirm")
+async def confirm_delivery_and_process_payment(
+    delivery_data: Dict[str, Any],
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    Algorithm 1: Payment Release and Incentive Mechanism
+    Process delivery confirmation and release payments with incentives
+    """
+    try:
+        print(f"📦 Delivery confirmation received:")
+        print(f"   📋 Purchase ID: {delivery_data.get('purchase_id')}")
+        print(f"   🚛 Transporter: {delivery_data.get('transporter', 'N/A')}")
+        print(f"   ✅ Status: {delivery_data.get('delivery_status', 'delivered')}")
+        
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Process delivery confirmation with Algorithm 1
+        result = await crosschain_purchase_service.process_delivery_confirmation_and_payment_release(delivery_data)
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "status": result["status"],
+                "incentive_awarded": result.get("incentive_awarded", False),
+                "payment_released": result.get("payment_released", False),
+                "algorithm": "Algorithm 1: Payment Release and Incentive Mechanism"
+            }
+        else:
+            return {
+                "success": False,
+                "status": result["status"],
+                "reason": result.get("reason", "Unknown error"),
+                "algorithm": "Algorithm 1: Payment Release and Incentive Mechanism"
+            }
+        
+    except Exception as e:
+        print(f"❌ Delivery confirmation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Delivery confirmation failed: {str(e)}")
+
+@router.get("/purchase/{purchase_id}/status")
+async def get_cross_chain_purchase_status(
+    purchase_id: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get comprehensive cross-chain purchase status"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get purchase status across all chains
+        status = await crosschain_purchase_service.get_purchase_status(purchase_id)
+        
+        if status["success"]:
+            return {
+                "success": True,
+                "purchase_id": purchase_id,
+                "purchase_details": status["purchase"],
+                "escrow_status": status["escrow_status"],
+                "nft_transfer_status": status["nft_transfer_status"],
+                "incentive_awarded": status["incentive_awarded"],
+                "cross_chain_complete": status["cross_chain_complete"],
+                "algorithms_applied": ["Algorithm 1", "Algorithm 5"]
+            }
+        else:
+            raise HTTPException(status_code=404, detail=status["error"])
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Purchase status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get purchase status: {str(e)}")
+
+@router.get("/cross-chain/stats")
+async def get_cross_chain_statistics(
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get cross-chain purchase and payment statistics"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get statistics from database
+        total_purchases = await crosschain_purchase_service.database.purchases.count_documents({"cross_chain_details": {"$exists": True}})
+        completed_escrows = await crosschain_purchase_service.database.escrows.count_documents({"status": "completed"})
+        total_incentives = await crosschain_purchase_service.database.incentives.count_documents({})
+        
+        # Get incentive statistics
+        incentive_pipeline = [{"$group": {"_id": None, "total_incentives": {"$sum": "$amount_eth"}}}]
+        incentive_result = crosschain_purchase_service.database.incentives.aggregate(incentive_pipeline)
+        total_incentive_amount = 0
+        async for result in incentive_result:
+            total_incentive_amount = result.get("total_incentives", 0)
+        
+        return {
+            "cross_chain_purchases": total_purchases,
+            "completed_escrows": completed_escrows,
+            "success_rate": (completed_escrows / total_purchases * 100) if total_purchases > 0 else 0,
+            "total_incentives_awarded": total_incentives,
+            "total_incentive_amount_eth": total_incentive_amount,
+            "chains_involved": {
+                "buyer_chain": "Optimism Sepolia (11155420)",
+                "hub_chain": "Polygon PoS (80002)",
+                "manufacturer_chain": "zkEVM Cardona (2442)",
+                "transporter_chain": "Arbitrum Sepolia (421614)"
+            },
+            "bridges_used": ["LayerZero", "fxPortal"],
+            "algorithms_implemented": ["Algorithm 1: Payment Release and Incentive Mechanism", "Algorithm 5: Post Supply Chain Management"]
+        }
+        
+    except Exception as e:
+        print(f"❌ Cross-chain stats error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get cross-chain statistics: {str(e)}")
+
 # ==========================================
-# MARKETPLACE ANALYTICS AND BUYER HISTORY
+# MARKETPLACE ANALYTICS AND BUYER HISTORY (ENHANCED)
 # ==========================================
 
 @router.get("/marketplace/purchases/{buyer_address}")

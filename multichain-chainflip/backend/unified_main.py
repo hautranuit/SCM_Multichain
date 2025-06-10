@@ -28,6 +28,7 @@ from app.services.fl_service import FederatedLearningService
 from app.services.auth_service import AuthService
 from app.services.blockchain_service import blockchain_service
 from app.services.multichain_service import multichain_service
+from app.services.crosschain_purchase_service import crosschain_purchase_service
 
 # Import additional routes from server.py
 from app.api import participant_routes
@@ -361,6 +362,13 @@ async def unified_startup_event():
             await multichain_service.initialize()
         except Exception as e:
             logger.warning(f"Multichain service initialization warning: {e}")
+        
+        # Initialize cross-chain purchase service
+        try:
+            await crosschain_purchase_service.initialize()
+            logger.info("✅ Cross-chain purchase service initialized")
+        except Exception as e:
+            logger.warning(f"Cross-chain purchase service initialization warning: {e}")
         
         # Initialize FL service (from app/main.py)
         try:
