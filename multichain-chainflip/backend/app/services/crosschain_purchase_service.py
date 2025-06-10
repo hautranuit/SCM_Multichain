@@ -505,6 +505,9 @@ class CrossChainPurchaseService:
             # Get transaction count for nonce
             nonce = self.polygon_web3.eth.get_transaction_count(self.current_account.address)
             
+            # Get chain ID for EIP-155 compliance
+            chain_id = self.polygon_web3.eth.chain_id
+            
             # Build fxPortal sendMessageToChild transaction
             transaction = self.fxportal_hub_contract.functions.sendMessageToChild(
                 MessageType.PRODUCT_REGISTRATION,  # uint8 - using product registration for NFT transfer
@@ -514,7 +517,8 @@ class CrossChainPurchaseService:
                 'from': self.current_account.address,
                 'gas': 300000,  # Sufficient gas for fxPortal
                 'gasPrice': self.polygon_web3.eth.gas_price,
-                'nonce': nonce
+                'nonce': nonce,
+                'chainId': chain_id
             })
             
             # Sign and send transaction
@@ -522,7 +526,7 @@ class CrossChainPurchaseService:
             signed_txn = self.polygon_web3.eth.account.sign_transaction(transaction, self.current_account.key)
             
             # Send transaction
-            tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             fxportal_tx = tx_hash.hex()
             
             print(f"⏳ Waiting for fxPortal transaction confirmation...")
@@ -541,6 +545,9 @@ class CrossChainPurchaseService:
                 hub_nonce = self.polygon_web3.eth.get_transaction_count(self.current_account.address)
                 verification_hash = Web3.keccak(text=f"{token_id}-{to_owner}-{int(time.time())}").hex()
                 
+                # Get chain ID for EIP-155 compliance
+                chain_id = self.polygon_web3.eth.chain_id
+                
                 hub_transaction = self.hub_contract.functions.updateProductStatus(
                     int(token_id),
                     ProductStatus.SOLD,  # enum value
@@ -549,12 +556,13 @@ class CrossChainPurchaseService:
                     'from': self.current_account.address,
                     'gas': 200000,
                     'gasPrice': self.polygon_web3.eth.gas_price,
-                    'nonce': hub_nonce
+                    'nonce': hub_nonce,
+                    'chainId': chain_id
                 })
                 
                 # Sign and send hub update transaction
                 signed_hub_txn = self.polygon_web3.eth.account.sign_transaction(hub_transaction, self.current_account.key)
-                hub_tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_hub_txn.rawTransaction)
+                hub_tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_hub_txn.raw_transaction)
                 hub_tx_receipt = self.polygon_web3.eth.wait_for_transaction_receipt(hub_tx_hash, timeout=120)
                 
                 if hub_tx_receipt.status == 1:

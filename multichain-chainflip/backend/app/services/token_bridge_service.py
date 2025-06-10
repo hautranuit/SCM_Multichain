@@ -14,10 +14,51 @@ from app.core.database import get_database
 
 settings = get_settings()
 
+# WETH Contract ABI (for deposit/withdraw functions)
+WETH_ABI = [
+    {
+        "constant": False,
+        "inputs": [],
+        "name": "deposit",
+        "outputs": [],
+        "payable": True,
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [{"name": "wad", "type": "uint256"}],
+        "name": "withdraw",
+        "outputs": [],
+        "payable": False,
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [{"name": "owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "payable": False,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [{"name": "to", "type": "address"}, {"name": "value", "type": "uint256"}],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "payable": False,
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
+
 # LayerZero OFT (Omnichain Fungible Token) Contract ABI
 LAYERZERO_OFT_ABI = [
     {
         "inputs": [
+            {"internalType": "address", "name": "_from", "type": "address"},
             {"internalType": "uint16", "name": "_dstChainId", "type": "uint16"},
             {"internalType": "bytes32", "name": "_toAddress", "type": "bytes32"},
             {"internalType": "uint256", "name": "_amount", "type": "uint256"},
@@ -158,16 +199,39 @@ class TokenBridgeService:
         """Initialize WETH OFT contract instances with REAL deployed contracts"""
         
         print("✅ Initializing REAL WETH OFT contracts...")
-        print("🔧 Real contract addresses loaded from deployment")
         
-        # Contract instances can now be created with real addresses
-        # In production, you would create Web3 contract instances here:
-        # 
-        # if self.optimism_web3:
-        #     self.weth_oft_optimism = self.optimism_web3.eth.contract(
-        #         address=self.weth_oft_contracts["optimism_sepolia"],
-        #         abi=LAYERZERO_OFT_ABI
-        #     )
+        # Initialize contract instances with real addresses
+        try:
+            if self.optimism_web3:
+                self.weth_oft_optimism = self.optimism_web3.eth.contract(
+                    address=self.weth_oft_contracts["optimism_sepolia"],
+                    abi=LAYERZERO_OFT_ABI
+                )
+                print(f"✅ Optimism WETH OFT contract initialized")
+                
+            if self.polygon_web3:
+                self.weth_oft_polygon = self.polygon_web3.eth.contract(
+                    address=self.weth_oft_contracts["polygon_pos"],
+                    abi=LAYERZERO_OFT_ABI
+                )
+                print(f"✅ Polygon WETH OFT contract initialized")
+                
+            if self.zkevm_web3:
+                self.weth_oft_zkevm = self.zkevm_web3.eth.contract(
+                    address=self.weth_oft_contracts["zkevm_cardona"],
+                    abi=LAYERZERO_OFT_ABI
+                )
+                print(f"✅ zkEVM WETH OFT contract initialized")
+                
+            if self.arbitrum_web3:
+                self.weth_oft_arbitrum = self.arbitrum_web3.eth.contract(
+                    address=self.weth_oft_contracts["arbitrum_sepolia"],
+                    abi=LAYERZERO_OFT_ABI
+                )
+                print(f"✅ Arbitrum WETH OFT contract initialized")
+                
+        except Exception as e:
+            print(f"⚠️ Contract initialization warning: {e}")
         
         print("🎉 WETH OFT contracts ready for real token transfers")
         
@@ -184,6 +248,16 @@ class TokenBridgeService:
             "arbitrum_sepolia": self.arbitrum_web3
         }
         return chain_map.get(chain_name)
+    
+    def get_oft_contract_for_chain(self, chain_name: str):
+        """Get OFT contract instance for a given chain"""
+        contract_map = {
+            "optimism_sepolia": self.weth_oft_optimism,
+            "polygon_pos": self.weth_oft_polygon,
+            "zkevm_cardona": self.weth_oft_zkevm,
+            "arbitrum_sepolia": self.weth_oft_arbitrum
+        }
+        return contract_map.get(chain_name)
     
     async def transfer_eth_cross_chain(
         self, 
@@ -225,22 +299,27 @@ class TokenBridgeService:
             if not source_lz_chain_id or not target_lz_chain_id:
                 return {"success": False, "error": "LayerZero chain ID not configured"}
             
+            # Get OFT contract for source chain
+            oft_contract = self.get_oft_contract_for_chain(from_chain)
+            if not oft_contract:
+                return {"success": False, "error": f"OFT contract not available for {from_chain}"}
+            
             # Convert amount to Wei
             amount_wei = int(amount_eth * 10**18)
             
-            # Step 1: Wrap ETH to WETH on source chain
-            wrap_result = await self._wrap_eth_on_chain(source_web3, from_address, amount_wei, from_chain)
+            # Step 1: Wrap ETH to WETH on source chain (using OFT contract deposit)
+            wrap_result = await self._wrap_eth_on_chain(source_web3, oft_contract, from_address, amount_wei, from_chain)
             if not wrap_result["success"]:
                 return {"success": False, "error": f"ETH wrapping failed: {wrap_result['error']}"}
             
             # Step 2: Transfer WETH using LayerZero OFT
             transfer_result = await self._transfer_weth_via_layerzero(
-                source_web3, target_lz_chain_id, from_address, to_address, amount_wei, from_chain
+                source_web3, oft_contract, target_lz_chain_id, from_address, to_address, amount_wei, from_chain
             )
             if not transfer_result["success"]:
                 return {"success": False, "error": f"LayerZero transfer failed: {transfer_result['error']}"}
             
-            # Step 3: Record transfer in database
+            # Step 3: Record transfer in database with pending status initially
             transfer_record = {
                 "transfer_id": f"TRANSFER-{escrow_id}-{int(time.time())}",
                 "escrow_id": escrow_id,
@@ -252,14 +331,19 @@ class TokenBridgeService:
                 "amount_wei": amount_wei,
                 "wrap_tx": wrap_result.get("transaction_hash"),
                 "layerzero_tx": transfer_result.get("transaction_hash"),
-                "status": "completed",
+                "status": "pending",  # Start as pending, will be updated when confirmed
                 "timestamp": time.time(),
-                "real_transfer": True
+                "real_transfer": True,
+                "confirmation_block": None,
+                "gas_used_total": (wrap_result.get("gas_used", 0) + transfer_result.get("gas_used", 0))
             }
             
             await self.database.token_transfers.insert_one(transfer_record)
             
-            print(f"✅ Cross-chain ETH transfer completed successfully")
+            # Start background task to monitor transaction status
+            asyncio.create_task(self._monitor_transfer_status(transfer_record["transfer_id"], transfer_result.get("transaction_hash"), source_web3))
+            
+            print(f"✅ Cross-chain ETH transfer initiated successfully")
             print(f"   🔗 Wrap TX: {wrap_result.get('transaction_hash')}")
             print(f"   🔗 LayerZero TX: {transfer_result.get('transaction_hash')}")
             
@@ -279,27 +363,26 @@ class TokenBridgeService:
             print(f"❌ Cross-chain transfer error: {e}")
             return {"success": False, "error": str(e)}
     
-    async def _wrap_eth_on_chain(self, web3: Web3, user_address: str, amount_wei: int, chain_name: str) -> Dict[str, Any]:
-        """Wrap ETH to WETH on a specific chain"""
+    async def _wrap_eth_on_chain(self, web3: Web3, oft_contract, user_address: str, amount_wei: int, chain_name: str) -> Dict[str, Any]:
+        """Wrap ETH to WETH using the OFT contract deposit function"""
         try:
             print(f"🔄 Wrapping {Web3.from_wei(amount_wei, 'ether')} ETH on {chain_name}")
             
-            # For simulation, we'll create a transaction that represents WETH wrapping
-            # In real implementation, this would call WETH.deposit() function
-            
-            # Build WETH deposit transaction
+            # Build WETH deposit transaction using OFT contract
             nonce = web3.eth.get_transaction_count(self.current_account.address)
             
-            # Simulated WETH deposit transaction
-            transaction = {
+            # Get chain ID for EIP-155 compliance
+            chain_id = web3.eth.chain_id
+            
+            # Call the deposit function on the OFT contract
+            transaction = oft_contract.functions.deposit().build_transaction({
                 'from': self.current_account.address,
-                'to': '0x0000000000000000000000000000000000000001',  # Placeholder WETH address
                 'value': amount_wei,
-                'gas': 100000,
+                'gas': 100000,  # Sufficient gas for WETH deposit
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
-                'data': '0xd0e30db0'  # WETH deposit() function selector
-            }
+                'chainId': chain_id
+            })
             
             # Sign and send transaction
             signed_txn = web3.eth.account.sign_transaction(transaction, self.current_account.key)
@@ -326,6 +409,7 @@ class TokenBridgeService:
     async def _transfer_weth_via_layerzero(
         self, 
         source_web3: Web3, 
+        oft_contract,
         target_lz_chain_id: int, 
         from_address: str, 
         to_address: str, 
@@ -338,27 +422,48 @@ class TokenBridgeService:
             print(f"   🎯 Target Chain ID: {target_lz_chain_id}")
             
             # Convert address to bytes32 for LayerZero
-            to_address_bytes32 = Web3.to_bytes(hexstr=to_address).rjust(32, b'\0')
+            to_address_bytes32 = Web3.to_bytes(hexstr=to_address).rjust(32, b'\x00')
             
             # Estimate LayerZero fees
             adapter_params = b''  # Default adapter params
             
-            # For simulation, use estimated fee
-            estimated_fee = Web3.to_wei(0.01, 'ether')  # Typical LayerZero fee
+            try:
+                # Get estimated fee from the contract
+                estimated_fees = oft_contract.functions.estimateSendFee(
+                    target_lz_chain_id,
+                    to_address_bytes32,
+                    amount_wei,
+                    False,  # useZro
+                    adapter_params
+                ).call()
+                estimated_fee = estimated_fees[0]  # nativeFee
+                print(f"   💰 Estimated LayerZero fee: {Web3.from_wei(estimated_fee, 'ether')} ETH")
+            except Exception as e:
+                print(f"⚠️ Fee estimation failed, using default: {e}")
+                estimated_fee = Web3.to_wei(0.01, 'ether')  # Fallback fee
             
             # Build LayerZero OFT sendFrom transaction
             nonce = source_web3.eth.get_transaction_count(self.current_account.address)
             
-            # Simulated LayerZero OFT sendFrom transaction
-            transaction = {
+            # Get chain ID for EIP-155 compliance
+            chain_id = source_web3.eth.chain_id
+            
+            transaction = oft_contract.functions.sendFrom(
+                self.current_account.address,  # _from
+                target_lz_chain_id,           # _dstChainId
+                to_address_bytes32,           # _toAddress
+                amount_wei,                   # _amount
+                self.current_account.address, # _refundAddress
+                "0x0000000000000000000000000000000000000000",  # _zroPaymentAddress (none)
+                adapter_params                # _adapterParams
+            ).build_transaction({
                 'from': self.current_account.address,
-                'to': '0x0000000000000000000000000000000000000002',  # Placeholder OFT address
                 'value': estimated_fee,  # LayerZero fee
-                'gas': 500000,
+                'gas': 500000,          # Sufficient gas for LayerZero transfer
                 'gasPrice': source_web3.eth.gas_price,
                 'nonce': nonce,
-                'data': Web3.keccak(text="sendFrom")[:4].hex()  # Function selector placeholder
-            }
+                'chainId': chain_id
+            })
             
             # Sign and send transaction
             signed_txn = source_web3.eth.account.sign_transaction(transaction, self.current_account.key)
@@ -386,6 +491,63 @@ class TokenBridgeService:
             print(f"❌ LayerZero transfer error: {e}")
             return {"success": False, "error": str(e)}
     
+    async def _monitor_transfer_status(self, transfer_id: str, tx_hash: str, web3: Web3):
+        """Monitor transaction status and update database when confirmed"""
+        try:
+            print(f"🔍 Monitoring transfer {transfer_id[:16]}... status")
+            
+            # Wait for multiple confirmations
+            confirmation_blocks = 3
+            tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if tx_receipt.status == 1:
+                # Wait for additional confirmations
+                current_block = web3.eth.block_number
+                target_block = tx_receipt.blockNumber + confirmation_blocks
+                
+                while current_block < target_block:
+                    await asyncio.sleep(10)  # Wait 10 seconds
+                    current_block = web3.eth.block_number
+                
+                # Update transfer status to completed
+                await self.database.token_transfers.update_one(
+                    {"transfer_id": transfer_id},
+                    {
+                        "$set": {
+                            "status": "completed",
+                            "confirmation_block": current_block,
+                            "confirmed_at": time.time()
+                        }
+                    }
+                )
+                
+                print(f"✅ Transfer {transfer_id[:16]}... confirmed and completed")
+            else:
+                # Mark as failed
+                await self.database.token_transfers.update_one(
+                    {"transfer_id": transfer_id},
+                    {
+                        "$set": {
+                            "status": "failed",
+                            "failure_reason": "Transaction failed on-chain"
+                        }
+                    }
+                )
+                print(f"❌ Transfer {transfer_id[:16]}... failed")
+                
+        except Exception as e:
+            print(f"⚠️ Transfer monitoring error for {transfer_id[:16]}...: {e}")
+            # Mark as failed due to monitoring error
+            await self.database.token_transfers.update_one(
+                {"transfer_id": transfer_id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "failure_reason": f"Monitoring error: {str(e)}"
+                    }
+                }
+            )
+    
     async def get_transfer_status(self, transfer_id: str) -> Dict[str, Any]:
         """Get status of a cross-chain transfer"""
         try:
@@ -397,7 +559,7 @@ class TokenBridgeService:
                 "success": True,
                 "transfer": transfer,
                 "status": transfer.get("status", "unknown"),
-                "completion_time": transfer.get("timestamp")
+                "completion_time": transfer.get("confirmed_at") or transfer.get("timestamp")
             }
             
         except Exception as e:
@@ -414,9 +576,15 @@ class TokenBridgeService:
             eth_balance_wei = web3.eth.get_balance(address)
             eth_balance = float(Web3.from_wei(eth_balance_wei, 'ether'))
             
-            # For simulation, assume WETH balance equals ETH balance
-            # In real implementation, call WETH.balanceOf(address)
-            weth_balance = eth_balance
+            # Get WETH balance from OFT contract
+            weth_balance = 0.0
+            try:
+                oft_contract = self.get_oft_contract_for_chain(chain_name)
+                if oft_contract:
+                    weth_balance_wei = oft_contract.functions.balanceOf(address).call()
+                    weth_balance = float(Web3.from_wei(weth_balance_wei, 'ether'))
+            except Exception as e:
+                print(f"⚠️ WETH balance check failed for {chain_name}: {e}")
             
             return {
                 "success": True,
