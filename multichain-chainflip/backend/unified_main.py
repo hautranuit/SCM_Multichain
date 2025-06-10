@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -88,6 +88,7 @@ app.include_router(fl_system.router, prefix="/api/federated-learning", tags=["fe
 app.include_router(ipfs_service.router, prefix="/api/ipfs", tags=["ipfs"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(qr_routes.router, prefix="/api/qr", tags=["qr-codes"])
+app.include_router(token_bridge.router, prefix="/api/token-bridge", tags=["token-bridge"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)

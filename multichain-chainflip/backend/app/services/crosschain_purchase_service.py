@@ -53,18 +53,18 @@ class CrossChainPurchaseService:
         
         # Account for signing transactions - Multi-account support
         self.current_account = None
-        self.multi_account_manager = None
+        self.address_key_manager = None
         
     async def initialize(self):
         """Initialize cross-chain connections, contracts, and database"""
         self.database = await get_database()
         
-        # Initialize multi-account manager
-        from app.services.multi_account_manager import multi_account_manager
-        self.multi_account_manager = multi_account_manager
+        # Initialize address key manager
+        from app.services.multi_account_manager import address_key_manager
+        self.address_key_manager = address_key_manager
         
-        # Use deployer account as default for contract operations
-        deployer_account_info = self.multi_account_manager.get_primary_account_for_role('deployer')
+        # Use the deployer account (0x032041b4b356fEE1496805DD4749f181bC736FFA)
+        deployer_account_info = self.address_key_manager.get_account_info_for_address('0x032041b4b356fEE1496805DD4749f181bC736FFA')
         if deployer_account_info:
             self.current_account = deployer_account_info['account']
             print(f"🔑 Using deployer account: {self.current_account.address}")
@@ -137,14 +137,13 @@ class CrossChainPurchaseService:
 
     def switch_account_for_operation(self, operation_type: str, preferred_address: Optional[str] = None) -> Dict[str, Any]:
         """Switch to appropriate account for specific operation"""
-        account_info = self.multi_account_manager.get_account_for_operation(operation_type, preferred_address)
+        account_info = self.address_key_manager.get_account_info_for_address(preferred_address or '0x032041b4b356fEE1496805DD4749f181bC736FFA')
         if account_info:
             self.current_account = account_info['account']
-            print(f"🔄 Switched to {operation_type} account: {self.current_account.address} (roles: {account_info['roles']})")
+            print(f"🔄 Switched to {operation_type} account: {self.current_account.address}")
             return {
                 "success": True,
                 "address": self.current_account.address,
-                "roles": account_info['roles'],
                 "operation": operation_type
             }
         else:
@@ -156,49 +155,51 @@ class CrossChainPurchaseService:
         all_balances = {}
         
         # Get all accounts
-        all_accounts = self.multi_account_manager.get_all_accounts()
+        all_addresses = self.address_key_manager.get_all_available_addresses()
         
-        for address, account_info in all_accounts.items():
-            account_balances = {"address": account_info["address"], "roles": account_info["roles"], "balances": {}}
+        for address in all_addresses:
+            account_info = self.address_key_manager.get_account_info_for_address(address)
+            if account_info:
+                account_balances = {"address": account_info["address"], "balances": {}}
             
-            if self.optimism_web3 and self.optimism_web3.is_connected():
-                balance_wei = self.optimism_web3.eth.get_balance(account_info["address"])
-                account_balances["balances"]["optimism_sepolia"] = {
-                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
-                    "balance_wei": balance_wei,
-                    "chain_id": settings.optimism_sepolia_chain_id
-                }
+                if self.optimism_web3 and self.optimism_web3.is_connected():
+                    balance_wei = self.optimism_web3.eth.get_balance(account_info["address"])
+                    account_balances["balances"]["optimism_sepolia"] = {
+                        "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                        "balance_wei": balance_wei,
+                        "chain_id": settings.optimism_sepolia_chain_id
+                    }
+                    
+                if self.polygon_web3 and self.polygon_web3.is_connected():
+                    balance_wei = self.polygon_web3.eth.get_balance(account_info["address"])
+                    account_balances["balances"]["polygon_pos"] = {
+                        "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                        "balance_wei": balance_wei,
+                        "chain_id": settings.polygon_pos_chain_id
+                    }
+                    
+                if self.zkevm_web3 and self.zkevm_web3.is_connected():
+                    balance_wei = self.zkevm_web3.eth.get_balance(account_info["address"])
+                    account_balances["balances"]["zkevm_cardona"] = {
+                        "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                        "balance_wei": balance_wei,
+                        "chain_id": settings.zkevm_cardona_chain_id
+                    }
+                    
+                if self.arbitrum_web3 and self.arbitrum_web3.is_connected():
+                    balance_wei = self.arbitrum_web3.eth.get_balance(account_info["address"])
+                    account_balances["balances"]["arbitrum_sepolia"] = {
+                        "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                        "balance_wei": balance_wei,
+                        "chain_id": settings.arbitrum_sepolia_chain_id
+                    }
                 
-            if self.polygon_web3 and self.polygon_web3.is_connected():
-                balance_wei = self.polygon_web3.eth.get_balance(account_info["address"])
-                account_balances["balances"]["polygon_pos"] = {
-                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
-                    "balance_wei": balance_wei,
-                    "chain_id": settings.polygon_pos_chain_id
-                }
-                
-            if self.zkevm_web3 and self.zkevm_web3.is_connected():
-                balance_wei = self.zkevm_web3.eth.get_balance(account_info["address"])
-                account_balances["balances"]["zkevm_cardona"] = {
-                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
-                    "balance_wei": balance_wei,
-                    "chain_id": settings.zkevm_cardona_chain_id
-                }
-                
-            if self.arbitrum_web3 and self.arbitrum_web3.is_connected():
-                balance_wei = self.arbitrum_web3.eth.get_balance(account_info["address"])
-                account_balances["balances"]["arbitrum_sepolia"] = {
-                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
-                    "balance_wei": balance_wei,
-                    "chain_id": settings.arbitrum_sepolia_chain_id
-                }
-            
-            all_balances[account_info["address"]] = account_balances
+                all_balances[account_info["address"]] = account_balances
             
         return {
             "timestamp": time.time(),
-            "total_accounts": len(all_accounts),
-            "account_summary": self.multi_account_manager.get_account_summary(),
+            "total_accounts": len(all_addresses),
+            "account_summary": {"available_addresses": len(self.address_key_manager.get_all_available_addresses())},
             "balances": all_balances
         }
 
@@ -366,99 +367,45 @@ class CrossChainPurchaseService:
 
     async def _process_cross_chain_payment(self, buyer: str, seller: str, amount: float, product_id: str) -> Dict[str, Any]:
         """
-        Algorithm 1: Payment Release and Incentive Mechanism - REAL CONTRACT VERSION
-        Step 6-7: Process payment with cross-chain escrow using LayerZero
+        Algorithm 1: Payment Release and Incentive Mechanism - REAL TOKEN TRANSFER VERSION
+        Step 6-7: Process payment with real cross-chain ETH transfer using LayerZero OFT
         """
         try:
             purchase_id = f"PURCHASE-{product_id}-{int(time.time())}"
             escrow_id = f"ESCROW-{purchase_id}"
             
-            print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism (REAL)")
+            print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism (REAL TOKENS)")
             print(f"   🔐 Escrow ID: {escrow_id}")
             print(f"   💸 Amount: {amount} ETH")
-            print(f"   🔗 Cross-chain flow: Optimism → Polygon Hub (LayerZero)")
+            print(f"   🔗 Real token flow: Optimism ETH → zkEVM ETH via LayerZero OFT")
             
             # Step 1: If NFT ownership of Product ID = buyer (will be checked after transfer)
             # Step 2: Collect collateral amount to seller and transporter
             collateral_amount = amount * 0.1  # 10% collateral for security
             
-            # Step 3: Transfer payment from buyer to seller (via escrow)
-            print(f"🔐 Creating real escrow via LayerZero cross-chain message...")
+            # Step 3: Real cross-chain ETH transfer using Token Bridge Service
+            print(f"💸 Executing REAL cross-chain ETH transfer...")
             
-            # Switch to buyer account for payment operations
-            buyer_account_switch = self.switch_account_for_operation('buy', buyer)
-            if not buyer_account_switch["success"]:
-                print(f"⚠️ Could not switch to buyer account, using current account: {self.current_account.address}")
+            # Initialize token bridge service
+            from app.services.token_bridge_service import token_bridge_service
+            await token_bridge_service.initialize()
             
-            # Prepare cross-chain message payload
-            message_data = {
-                "escrow_id": escrow_id,
-                "purchase_id": purchase_id,
-                "product_id": product_id,
-                "buyer": buyer,
-                "seller": seller,
-                "amount_wei": int(amount * 10**18),  # Convert ETH to wei
-                "collateral_wei": int(collateral_amount * 10**18),
-                "timestamp": int(time.time())
-            }
+            # Execute real ETH transfer from buyer chain to manufacturer chain
+            transfer_result = await token_bridge_service.transfer_eth_cross_chain(
+                from_chain="optimism_sepolia",  # Buyer chain
+                to_chain="zkevm_cardona",       # Manufacturer chain
+                from_address=buyer,
+                to_address=seller,
+                amount_eth=amount,
+                escrow_id=escrow_id
+            )
             
-            # Encode message payload
-            payload = json.dumps(message_data).encode('utf-8')
-            data_hash = Web3.keccak(text=json.dumps(message_data)).hex()
-            
-            # Get LayerZero chain ID for Polygon Hub (80002 → 10267)
-            target_chain_id = settings.polygon_pos_chain_id  # 80002
-            
-            # Estimate gas fees for LayerZero message
-            try:
-                print(f"🔍 Estimating LayerZero fees...")
-                native_fee, zro_fee = self.layerzero_optimism_contract.functions.estimateFee(
-                    target_chain_id,
-                    payload,
-                    False,  # useZro
-                    b""     # adapterParams
-                ).call()
-                print(f"   💸 Native Fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+            if transfer_result["success"]:
+                print(f"✅ Real ETH transfer completed successfully")
+                print(f"   🔗 Wrap TX: {transfer_result['wrap_transaction_hash']}")
+                print(f"   🔗 LayerZero TX: {transfer_result['layerzero_transaction_hash']}")
                 
-            except Exception as fee_error:
-                print(f"⚠️ Fee estimation failed, using default: {fee_error}")
-                native_fee = Web3.to_wei(0.01, 'ether')  # Default 0.01 ETH
-            
-            # Build transaction for LayerZero sendMessage
-            nonce = self.optimism_web3.eth.get_transaction_count(self.current_account.address)
-            
-            # Build transaction
-            transaction = self.layerzero_optimism_contract.functions.sendMessage(
-                target_chain_id,
-                MessageType.PURCHASE_UPDATE,  # uint8
-                data_hash,
-                payload
-            ).build_transaction({
-                'from': self.current_account.address,
-                'value': native_fee,
-                'gas': 500000,  # Sufficient gas for LayerZero
-                'gasPrice': self.optimism_web3.eth.gas_price,
-                'nonce': nonce
-            })
-            
-            # Sign and send transaction
-            print(f"📝 Signing and sending LayerZero transaction...")
-            signed_txn = self.optimism_web3.eth.account.sign_transaction(transaction, self.current_account.key)
-            
-            # Send transaction
-            tx_hash = self.optimism_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-            layerzero_tx = tx_hash.hex()
-            
-            print(f"⏳ Waiting for LayerZero transaction confirmation...")
-            # Wait for transaction receipt
-            tx_receipt = self.optimism_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            
-            if tx_receipt.status == 1:
-                print(f"✅ LayerZero transaction confirmed!")
-                print(f"   🔗 TX Hash: {layerzero_tx}")
-                print(f"   ⛽ Gas Used: {tx_receipt.gasUsed}")
-                
-                # Create escrow record in database
+                # Create escrow record with real transfer details
                 escrow_record = {
                     "escrow_id": escrow_id,
                     "purchase_id": purchase_id,
@@ -469,35 +416,36 @@ class CrossChainPurchaseService:
                     "collateral_amount": collateral_amount,
                     "status": "active",
                     "created_at": time.time(),
-                    "layerzero_tx": layerzero_tx,
-                    "layerzero_tx_receipt": {
-                        "block_number": tx_receipt.blockNumber,
-                        "gas_used": tx_receipt.gasUsed,
-                        "status": tx_receipt.status
-                    },
+                    "transfer_id": transfer_result["transfer_id"],
+                    "wrap_tx": transfer_result["wrap_transaction_hash"],
+                    "layerzero_tx": transfer_result["layerzero_transaction_hash"],
+                    "gas_costs": transfer_result["gas_used"],
                     "source_chain": "optimism_sepolia",
-                    "target_chain": "polygon_pos",
-                    "real_contract_call": True
+                    "target_chain": "zkevm_cardona",
+                    "real_token_transfer": True,
+                    "transfer_method": "LayerZero_OFT"
                 }
                 
                 await self.database.escrows.insert_one(escrow_record)
                 
-                print(f"✅ Escrow created successfully with REAL LayerZero transaction")
+                print(f"✅ Escrow created with REAL cross-chain ETH transfer")
                 
                 return {
                     "success": True,
                     "purchase_id": purchase_id,
                     "escrow_id": escrow_id,
-                    "layerzero_tx": layerzero_tx,
+                    "transfer_id": transfer_result["transfer_id"],
+                    "wrap_tx": transfer_result["wrap_transaction_hash"],
+                    "layerzero_tx": transfer_result["layerzero_transaction_hash"],
                     "collateral_amount": collateral_amount,
-                    "real_transaction": True,
-                    "gas_used": tx_receipt.gasUsed,
-                    "block_number": tx_receipt.blockNumber
+                    "real_token_transfer": True,
+                    "amount_transferred": amount,
+                    "gas_used": transfer_result["gas_used"]
                 }
                 
             else:
-                print(f"❌ LayerZero transaction failed!")
-                return {"success": False, "error": f"LayerZero transaction failed: {layerzero_tx}"}
+                print(f"❌ Real ETH transfer failed: {transfer_result['error']}")
+                return {"success": False, "error": f"Token transfer failed: {transfer_result['error']}"}
                 
         except Exception as e:
             print(f"❌ Payment processing error: {e}")

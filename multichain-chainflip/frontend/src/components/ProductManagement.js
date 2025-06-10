@@ -403,24 +403,12 @@ const ProductManagement = () => {
         return;
       }
 
-      // Product Authenticity Verification 
-      const qrData = generateQRCode(product);
-      const verification = await blockchainService.verifyProductAuthenticity({
-        product_id: productTokenId,
-        qr_data: qrData,
-        current_owner: user?.wallet_address
-      });
-
-      if (verification.status !== "Product is Authentic") {
-        alert(`❌ Product Verification Failed!\n\nReason: ${verification.status}\n\n🔍 Product authenticity could not be verified. Purchase cancelled.`);
-        return;
-      }
-
-      // Proceed with cross-chain payment
+      // Direct purchase without mandatory verification
+      // (Verification is available separately via the "Verify" button)
       const price = product.price || product.metadata?.price_eth || '0.001';
       const confirmation = window.confirm(
         `🛒 Cross-Chain Product Purchase\n\n` +
-        `✅ Product verified as authentic\n` +
+        `📦 Product: ${product.name || 'Product'}\n` +
         `💰 Purchase for ${price} ETH?\n\n` +
         `🔗 Cross-Chain Flow:\n` +
         `   1️⃣ Optimism Sepolia (Buyer Chain)\n` +
@@ -430,7 +418,8 @@ const ProductManagement = () => {
         `   5️⃣ zkEVM Cardona (Manufacturer Chain)\n\n` +
         `⏱️ Processing time: 3-7 minutes\n` +
         `🔐 Escrow protection included\n` +
-        `🎁 Transporter incentives enabled`
+        `🎁 Transporter incentives enabled\n\n` +
+        `ℹ️ Use the "Verify" button to check authenticity separately`
       );
       if (!confirmation) return;
 
