@@ -303,7 +303,7 @@ class TokenBridgeService:
             
             # Sign and send transaction
             signed_txn = web3.eth.account.sign_transaction(transaction, self.current_account.key)
-            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             
             print(f"⏳ Waiting for WETH wrap confirmation...")
             tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -362,7 +362,7 @@ class TokenBridgeService:
             
             # Sign and send transaction
             signed_txn = source_web3.eth.account.sign_transaction(transaction, self.current_account.key)
-            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             
             print(f"⏳ Waiting for LayerZero transfer confirmation...")
             tx_receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)

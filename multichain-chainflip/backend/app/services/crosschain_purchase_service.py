@@ -203,6 +203,21 @@ class CrossChainPurchaseService:
             "balances": all_balances
         }
 
+    async def process_cross_chain_purchase(self, product_id: str, buyer: str, seller: str, amount: float, payment_method: str = "ETH") -> Dict[str, Any]:
+        """
+        Wrapper method for cross-chain purchase processing
+        Maps test parameters to the main purchase execution method
+        """
+        purchase_request = {
+            "product_id": product_id,
+            "buyer": buyer,
+            "seller": seller,
+            "price": amount,  # Map 'amount' to 'price' for compatibility
+            "payment_method": payment_method
+        }
+        
+        return await self.execute_cross_chain_purchase(purchase_request)
+
     async def execute_cross_chain_purchase(self, purchase_request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Algorithm 5: Post Supply Chain Management for NFT-Based Product Sale

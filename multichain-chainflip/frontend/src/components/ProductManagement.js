@@ -484,6 +484,44 @@ const ProductManagement = () => {
     }
   };
 
+  const handleBridgePay = async (product) => {
+    try {
+      const price = product.price || product.metadata?.price_eth || '0.001';
+      const manufacturer = product.manufacturer || product.metadata?.manufacturer || 'Unknown';
+      
+      const confirmation = window.confirm(
+        `🌉 Token Bridge Payment\n\n` +
+        `📦 Product: ${product.name || 'Product'}\n` +
+        `💰 Amount: ${price} ETH\n` +
+        `🏭 Manufacturer: ${manufacturer.substring(0, 10)}...\n\n` +
+        `🔗 This will open the Token Bridge to transfer:\n` +
+        `   📤 From: Your selected chain\n` +
+        `   📥 To: Manufacturer's chain (zkEVM Cardona)\n` +
+        `   💰 Amount: ${price} ETH\n\n` +
+        `ℹ️ After successful transfer, you'll need to confirm the purchase.`
+      );
+      
+      if (!confirmation) return;
+
+      // Navigate to token bridge with prefilled data
+      const bridgeUrl = `/token-bridge?` + new URLSearchParams({
+        to_chain: 'zkevm_cardona',
+        to_address: manufacturer,
+        amount_eth: price,
+        escrow_id: `PURCHASE-${product.token_id}-${Date.now()}`,
+        purpose: `Payment for ${product.name || 'Product'}`
+      }).toString();
+      
+      // Open in current window
+      window.location.href = bridgeUrl;
+      
+    } catch (error) {
+      console.error('Bridge pay error:', error);
+      alert(`❌ Bridge Payment Setup Failed!\n\n${error.message}`);
+    }
+  };
+
+
   const getCurrentDate = () => {
     return new Date().toISOString().split('T')[0];
   };
@@ -1134,7 +1172,7 @@ const ProductManagement = () => {
                       {/* Role-based Cross-Chain Operations */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
                         
-                        {/* BUYER BUTTONS: Buy, Verify */}
+                        {/* BUYER BUTTONS: Buy, Bridge Pay, Verify */}
                         {userRole === 'buyer' && activeTab === 'marketplace' && (
                           <>
                             <button
@@ -1152,10 +1190,31 @@ const ProductManagement = () => {
                                 alignItems: 'center',
                                 justifyContent: 'center'
                               }}
-                              title="Purchase this product"
+                              title="Purchase this product via cross-chain"
                             >
                               <ShoppingCart className="w-3 h-3 mr-1" />
                               Buy
+                            </button>
+                            
+                            <button
+                              onClick={() => handleBridgePay(product)}
+                              className="btn"
+                              style={{ 
+                                background: '#059669', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '6px 8px', 
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title="Pay via Token Bridge"
+                            >
+                              🌉
+                              Bridge Pay
                             </button>
                             
                             <button
@@ -1171,7 +1230,8 @@ const ProductManagement = () => {
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                gridColumn: 'span 1'
                               }}
                               title="Verify authenticity"
                             >

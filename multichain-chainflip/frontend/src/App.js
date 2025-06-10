@@ -17,6 +17,7 @@ import ParticipantManagement from './components/ParticipantManagement';
 import QRScanner from './components/QRScanner';
 import Analytics from './components/Analytics';
 import ConsensusManagement from './components/ConsensusManagement';
+import TokenBridge from './components/TokenBridge';
 
 // Auth Pages
 const LoginPage = () => {
@@ -192,6 +193,16 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/token-bridge" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <TokenBridge />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -227,6 +238,7 @@ const AppLayout = ({ children, backendStatus }) => {
 
     const otherItems = [
       { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
+      { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
       { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
       { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
       { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
