@@ -1,10 +1,12 @@
 """
-Cross-Chain Purchase Service for ChainFLIP Multi-Chain Architecture
+Cross-Chain Purchase Service for ChainFLIP Multi-Chain Architecture - REAL CONTRACTS VERSION
 Implements Algorithm 1 (Payment Release and Incentive Mechanism) and 
 Algorithm 5 (Post Supply Chain Management for NFT-Based Product Sale)
 
 Flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (zkEVM Cardona)
 Bridges: LayerZero (Buyer→Hub) + fxPortal (Hub→Manufacturer)
+
+⚠️ IMPORTANT: This version uses REAL deployed contracts on testnets
 """
 import asyncio
 import json
@@ -15,6 +17,10 @@ from web3 import Web3
 from eth_account import Account
 from app.core.config import get_settings
 from app.core.database import get_database
+from app.services.contract_abis import (
+    LAYERZERO_CONFIG_ABI, FXPORTAL_BRIDGE_ABI, ENHANCED_HUB_ABI, BUYER_CHAIN_ABI,
+    MessageType, TransactionType, ProductStatus, PurchaseStatus, MarketplaceCategory
+)
 
 settings = get_settings()
 
@@ -27,25 +33,93 @@ class CrossChainPurchaseService:
         self.zkevm_web3: Optional[Web3] = None     # Manufacturer chain
         self.arbitrum_web3: Optional[Web3] = None  # Transporter chain
         
+        # Real deployed contract addresses from .env
+        self.hub_contract_address = settings.hub_contract
+        self.buyer_contract_address = settings.buyer_contract_address
+        self.manufacturer_contract_address = settings.manufacturer_contract_address
+        self.transporter_contract_address = settings.transporter_contract_address
+        
         # Bridge contract addresses
-        self.layerzero_bridge = settings.bridge_layerzero_hub if hasattr(settings, 'bridge_layerzero_hub') else "0x72a336eAAC8186906F1Ee85dF00C7d6b91257A43"
-        self.fxportal_bridge = settings.bridge_fxportal_hub if hasattr(settings, 'bridge_fxportal_hub') else "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476"
+        self.layerzero_optimism_address = "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26"  # Optimism Sepolia
+        self.layerzero_hub_address = "0x72a336eAAC8186906F1Ee85dF00C7d6b91257A43"      # Polygon Hub
+        self.fxportal_hub_address = "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476"       # Polygon Hub
+        
+        # Contract instances (will be initialized)
+        self.hub_contract = None
+        self.buyer_contract = None
+        self.layerzero_optimism_contract = None
+        self.layerzero_hub_contract = None
+        self.fxportal_hub_contract = None
+        
+        # Account for signing transactions - Multi-account support
+        self.current_account = None
+        self.multi_account_manager = None
         
     async def initialize(self):
-        """Initialize cross-chain connections and database"""
+        """Initialize cross-chain connections, contracts, and database"""
         self.database = await get_database()
+        
+        # Initialize multi-account manager
+        from app.services.multi_account_manager import multi_account_manager
+        self.multi_account_manager = multi_account_manager
+        
+        # Use deployer account as default for contract operations
+        deployer_account_info = self.multi_account_manager.get_primary_account_for_role('deployer')
+        if deployer_account_info:
+            self.current_account = deployer_account_info['account']
+            print(f"🔑 Using deployer account: {self.current_account.address}")
+        else:
+            # Fallback to direct private key
+            if settings.deployer_private_key:
+                self.current_account = Account.from_key(settings.deployer_private_key)
+                print(f"🔑 Using fallback account: {self.current_account.address}")
+            else:
+                raise ValueError("No account available for signing transactions")
         
         # Initialize Optimism Sepolia (Buyer Chain)
         if settings.optimism_sepolia_rpc:
             self.optimism_web3 = Web3(Web3.HTTPProvider(settings.optimism_sepolia_rpc))
             if self.optimism_web3.is_connected():
                 print(f"✅ Connected to Optimism Sepolia (Buyer Chain) - Chain ID: {settings.optimism_sepolia_chain_id}")
+                
+                # Initialize LayerZero contract on Optimism
+                self.layerzero_optimism_contract = self.optimism_web3.eth.contract(
+                    address=self.layerzero_optimism_address,
+                    abi=LAYERZERO_CONFIG_ABI
+                )
+                
+                # Initialize Buyer contract on Optimism
+                self.buyer_contract = self.optimism_web3.eth.contract(
+                    address=self.buyer_contract_address,
+                    abi=BUYER_CHAIN_ABI
+                )
+                print(f"🏪 Buyer contract initialized: {self.buyer_contract_address}")
             
         # Initialize Polygon PoS (Hub Chain)  
         if settings.polygon_pos_rpc:
             self.polygon_web3 = Web3(Web3.HTTPProvider(settings.polygon_pos_rpc))
             if self.polygon_web3.is_connected():
                 print(f"✅ Connected to Polygon PoS (Hub Chain) - Chain ID: {settings.polygon_pos_chain_id}")
+                
+                # Initialize Hub contract
+                self.hub_contract = self.polygon_web3.eth.contract(
+                    address=self.hub_contract_address,
+                    abi=ENHANCED_HUB_ABI
+                )
+                
+                # Initialize LayerZero contract on Hub
+                self.layerzero_hub_contract = self.polygon_web3.eth.contract(
+                    address=self.layerzero_hub_address,
+                    abi=LAYERZERO_CONFIG_ABI
+                )
+                
+                # Initialize FxPortal contract on Hub
+                self.fxportal_hub_contract = self.polygon_web3.eth.contract(
+                    address=self.fxportal_hub_address,
+                    abi=FXPORTAL_BRIDGE_ABI
+                )
+                print(f"🌐 Hub contract initialized: {self.hub_contract_address}")
+                print(f"🌉 Bridge contracts initialized - LayerZero: {self.layerzero_hub_address}, FxPortal: {self.fxportal_hub_address}")
                 
         # Initialize zkEVM Cardona (Manufacturer Chain)
         if settings.zkevm_cardona_rpc:
@@ -59,7 +133,74 @@ class CrossChainPurchaseService:
             if self.arbitrum_web3.is_connected():
                 print(f"✅ Connected to Arbitrum Sepolia (Transporter Chain) - Chain ID: {settings.arbitrum_sepolia_chain_id}")
         
-        print("🌐 Cross-chain purchase service initialized")
+        print("🌐 Cross-chain purchase service initialized with REAL CONTRACTS")
+
+    def switch_account_for_operation(self, operation_type: str, preferred_address: Optional[str] = None) -> Dict[str, Any]:
+        """Switch to appropriate account for specific operation"""
+        account_info = self.multi_account_manager.get_account_for_operation(operation_type, preferred_address)
+        if account_info:
+            self.current_account = account_info['account']
+            print(f"🔄 Switched to {operation_type} account: {self.current_account.address} (roles: {account_info['roles']})")
+            return {
+                "success": True,
+                "address": self.current_account.address,
+                "roles": account_info['roles'],
+                "operation": operation_type
+            }
+        else:
+            print(f"❌ No account found for operation: {operation_type}")
+            return {"success": False, "error": f"No account available for {operation_type}"}
+
+    async def get_account_balances(self) -> Dict[str, Any]:
+        """Get account balances across all chains for all accounts"""
+        all_balances = {}
+        
+        # Get all accounts
+        all_accounts = self.multi_account_manager.get_all_accounts()
+        
+        for address, account_info in all_accounts.items():
+            account_balances = {"address": account_info["address"], "roles": account_info["roles"], "balances": {}}
+            
+            if self.optimism_web3 and self.optimism_web3.is_connected():
+                balance_wei = self.optimism_web3.eth.get_balance(account_info["address"])
+                account_balances["balances"]["optimism_sepolia"] = {
+                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                    "balance_wei": balance_wei,
+                    "chain_id": settings.optimism_sepolia_chain_id
+                }
+                
+            if self.polygon_web3 and self.polygon_web3.is_connected():
+                balance_wei = self.polygon_web3.eth.get_balance(account_info["address"])
+                account_balances["balances"]["polygon_pos"] = {
+                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                    "balance_wei": balance_wei,
+                    "chain_id": settings.polygon_pos_chain_id
+                }
+                
+            if self.zkevm_web3 and self.zkevm_web3.is_connected():
+                balance_wei = self.zkevm_web3.eth.get_balance(account_info["address"])
+                account_balances["balances"]["zkevm_cardona"] = {
+                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                    "balance_wei": balance_wei,
+                    "chain_id": settings.zkevm_cardona_chain_id
+                }
+                
+            if self.arbitrum_web3 and self.arbitrum_web3.is_connected():
+                balance_wei = self.arbitrum_web3.eth.get_balance(account_info["address"])
+                account_balances["balances"]["arbitrum_sepolia"] = {
+                    "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
+                    "balance_wei": balance_wei,
+                    "chain_id": settings.arbitrum_sepolia_chain_id
+                }
+            
+            all_balances[account_info["address"]] = account_balances
+            
+        return {
+            "timestamp": time.time(),
+            "total_accounts": len(all_accounts),
+            "account_summary": self.multi_account_manager.get_account_summary(),
+            "balances": all_balances
+        }
 
     async def execute_cross_chain_purchase(self, purchase_request: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -225,108 +366,289 @@ class CrossChainPurchaseService:
 
     async def _process_cross_chain_payment(self, buyer: str, seller: str, amount: float, product_id: str) -> Dict[str, Any]:
         """
-        Algorithm 1: Payment Release and Incentive Mechanism
-        Step 6-7: Process payment with cross-chain escrow
+        Algorithm 1: Payment Release and Incentive Mechanism - REAL CONTRACT VERSION
+        Step 6-7: Process payment with cross-chain escrow using LayerZero
         """
         try:
             purchase_id = f"PURCHASE-{product_id}-{int(time.time())}"
             escrow_id = f"ESCROW-{purchase_id}"
             
-            print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism")
+            print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism (REAL)")
             print(f"   🔐 Escrow ID: {escrow_id}")
             print(f"   💸 Amount: {amount} ETH")
-            print(f"   🔗 Cross-chain flow: Optimism → Polygon Hub")
+            print(f"   🔗 Cross-chain flow: Optimism → Polygon Hub (LayerZero)")
             
             # Step 1: If NFT ownership of Product ID = buyer (will be checked after transfer)
             # Step 2: Collect collateral amount to seller and transporter
             collateral_amount = amount * 0.1  # 10% collateral for security
             
             # Step 3: Transfer payment from buyer to seller (via escrow)
-            print(f"🔐 Creating escrow contract...")
+            print(f"🔐 Creating real escrow via LayerZero cross-chain message...")
             
-            # Simulate LayerZero cross-chain message from Optimism to Polygon Hub
-            layerzero_tx = f"0xLZ{int(time.time())}{buyer[:8]}"
+            # Switch to buyer account for payment operations
+            buyer_account_switch = self.switch_account_for_operation('buy', buyer)
+            if not buyer_account_switch["success"]:
+                print(f"⚠️ Could not switch to buyer account, using current account: {self.current_account.address}")
             
-            # Create escrow record in database
-            escrow_record = {
+            # Prepare cross-chain message payload
+            message_data = {
                 "escrow_id": escrow_id,
                 "purchase_id": purchase_id,
                 "product_id": product_id,
                 "buyer": buyer,
                 "seller": seller,
-                "amount_eth": amount,
-                "collateral_amount": collateral_amount,
-                "status": "active",
-                "created_at": time.time(),
-                "layerzero_tx": layerzero_tx,
-                "source_chain": "optimism_sepolia",
-                "target_chain": "polygon_pos"
+                "amount_wei": int(amount * 10**18),  # Convert ETH to wei
+                "collateral_wei": int(collateral_amount * 10**18),
+                "timestamp": int(time.time())
             }
             
-            await self.database.escrows.insert_one(escrow_record)
+            # Encode message payload
+            payload = json.dumps(message_data).encode('utf-8')
+            data_hash = Web3.keccak(text=json.dumps(message_data)).hex()
             
-            print(f"✅ Escrow created successfully")
-            print(f"   🔗 LayerZero TX: {layerzero_tx}")
+            # Get LayerZero chain ID for Polygon Hub (80002 → 10267)
+            target_chain_id = settings.polygon_pos_chain_id  # 80002
             
-            return {
-                "success": True,
-                "purchase_id": purchase_id,
-                "escrow_id": escrow_id,
-                "layerzero_tx": layerzero_tx,
-                "collateral_amount": collateral_amount
-            }
+            # Estimate gas fees for LayerZero message
+            try:
+                print(f"🔍 Estimating LayerZero fees...")
+                native_fee, zro_fee = self.layerzero_optimism_contract.functions.estimateFee(
+                    target_chain_id,
+                    payload,
+                    False,  # useZro
+                    b""     # adapterParams
+                ).call()
+                print(f"   💸 Native Fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+            except Exception as fee_error:
+                print(f"⚠️ Fee estimation failed, using default: {fee_error}")
+                native_fee = Web3.to_wei(0.01, 'ether')  # Default 0.01 ETH
             
+            # Build transaction for LayerZero sendMessage
+            nonce = self.optimism_web3.eth.get_transaction_count(self.current_account.address)
+            
+            # Build transaction
+            transaction = self.layerzero_optimism_contract.functions.sendMessage(
+                target_chain_id,
+                MessageType.PURCHASE_UPDATE,  # uint8
+                data_hash,
+                payload
+            ).build_transaction({
+                'from': self.current_account.address,
+                'value': native_fee,
+                'gas': 500000,  # Sufficient gas for LayerZero
+                'gasPrice': self.optimism_web3.eth.gas_price,
+                'nonce': nonce
+            })
+            
+            # Sign and send transaction
+            print(f"📝 Signing and sending LayerZero transaction...")
+            signed_txn = self.optimism_web3.eth.account.sign_transaction(transaction, self.current_account.key)
+            
+            # Send transaction
+            tx_hash = self.optimism_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            layerzero_tx = tx_hash.hex()
+            
+            print(f"⏳ Waiting for LayerZero transaction confirmation...")
+            # Wait for transaction receipt
+            tx_receipt = self.optimism_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            
+            if tx_receipt.status == 1:
+                print(f"✅ LayerZero transaction confirmed!")
+                print(f"   🔗 TX Hash: {layerzero_tx}")
+                print(f"   ⛽ Gas Used: {tx_receipt.gasUsed}")
+                
+                # Create escrow record in database
+                escrow_record = {
+                    "escrow_id": escrow_id,
+                    "purchase_id": purchase_id,
+                    "product_id": product_id,
+                    "buyer": buyer,
+                    "seller": seller,
+                    "amount_eth": amount,
+                    "collateral_amount": collateral_amount,
+                    "status": "active",
+                    "created_at": time.time(),
+                    "layerzero_tx": layerzero_tx,
+                    "layerzero_tx_receipt": {
+                        "block_number": tx_receipt.blockNumber,
+                        "gas_used": tx_receipt.gasUsed,
+                        "status": tx_receipt.status
+                    },
+                    "source_chain": "optimism_sepolia",
+                    "target_chain": "polygon_pos",
+                    "real_contract_call": True
+                }
+                
+                await self.database.escrows.insert_one(escrow_record)
+                
+                print(f"✅ Escrow created successfully with REAL LayerZero transaction")
+                
+                return {
+                    "success": True,
+                    "purchase_id": purchase_id,
+                    "escrow_id": escrow_id,
+                    "layerzero_tx": layerzero_tx,
+                    "collateral_amount": collateral_amount,
+                    "real_transaction": True,
+                    "gas_used": tx_receipt.gasUsed,
+                    "block_number": tx_receipt.blockNumber
+                }
+                
+            else:
+                print(f"❌ LayerZero transaction failed!")
+                return {"success": False, "error": f"LayerZero transaction failed: {layerzero_tx}"}
+                
         except Exception as e:
             print(f"❌ Payment processing error: {e}")
             return {"success": False, "error": str(e)}
 
     async def _execute_cross_chain_nft_transfer(self, product: Dict[str, Any], from_owner: str, to_owner: str, escrow_id: str) -> Dict[str, Any]:
         """
-        Step 8-10: Execute cross-chain NFT ownership transfer
+        Step 8-10: Execute cross-chain NFT ownership transfer - REAL CONTRACT VERSION
         Hub (Polygon) → Manufacturer Chain (zkEVM Cardona) via fxPortal
         """
         try:
             token_id = product["token_id"]
             
-            print(f"🔄 Cross-chain NFT transfer initiated")
+            print(f"🔄 Cross-chain NFT transfer initiated (REAL)")
             print(f"   🎯 Token ID: {token_id}")  
             print(f"   📤 From: {from_owner}")
             print(f"   📥 To: {to_owner}")
             print(f"   🌉 Bridge: fxPortal (Hub → Manufacturer Chain)")
             
-            # Simulate fxPortal bridge communication from Hub to Manufacturer chain
-            fxportal_tx = f"0xFX{int(time.time())}{to_owner[:8]}"
-            
-            # Simulate NFT transfer transaction on manufacturer chain
-            nft_transfer_tx = f"0xNFT{int(time.time())}{token_id}"
-            
-            # Update NFT ownership record
-            nft_transfer_record = {
-                "transfer_id": str(uuid.uuid4()),
-                "product_id": token_id,
+            # Prepare cross-chain NFT transfer message
+            nft_transfer_data = {
+                "token_id": token_id,
                 "from_owner": from_owner,
                 "to_owner": to_owner,
                 "escrow_id": escrow_id,
-                "fxportal_tx": fxportal_tx,
-                "nft_transfer_tx": nft_transfer_tx,
-                "source_chain": "polygon_pos",
-                "target_chain": "zkevm_cardona",
-                "status": "completed",
-                "timestamp": time.time()
+                "product_hash": product.get("qr_hash", ""),
+                "timestamp": int(time.time()),
+                "transfer_type": "purchase_ownership"
             }
             
-            await self.database.nft_transfers.insert_one(nft_transfer_record)
+            # Encode message payload for fxPortal
+            payload = json.dumps(nft_transfer_data).encode('utf-8')
+            data_hash = Web3.keccak(text=json.dumps(nft_transfer_data)).hex()
             
-            print(f"✅ NFT transfer completed")
-            print(f"   🔗 fxPortal TX: {fxportal_tx}")
-            print(f"   🔗 NFT Transfer TX: {nft_transfer_tx}")
+            print(f"📝 Preparing fxPortal transaction...")
             
-            return {
-                "success": True,
-                "transaction_hash": nft_transfer_tx,
-                "fxportal_tx": fxportal_tx,
-                "transfer_id": nft_transfer_record["transfer_id"]
-            }
+            # Switch to admin account for hub operations
+            admin_account_switch = self.switch_account_for_operation('admin')
+            if not admin_account_switch["success"]:
+                print(f"⚠️ Could not switch to admin account, using current account: {self.current_account.address}")
+            
+            # Get transaction count for nonce
+            nonce = self.polygon_web3.eth.get_transaction_count(self.current_account.address)
+            
+            # Build fxPortal sendMessageToChild transaction
+            transaction = self.fxportal_hub_contract.functions.sendMessageToChild(
+                MessageType.PRODUCT_REGISTRATION,  # uint8 - using product registration for NFT transfer
+                data_hash,
+                payload
+            ).build_transaction({
+                'from': self.current_account.address,
+                'gas': 300000,  # Sufficient gas for fxPortal
+                'gasPrice': self.polygon_web3.eth.gas_price,
+                'nonce': nonce
+            })
+            
+            # Sign and send transaction
+            print(f"📝 Signing and sending fxPortal transaction...")
+            signed_txn = self.polygon_web3.eth.account.sign_transaction(transaction, self.current_account.key)
+            
+            # Send transaction
+            tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            fxportal_tx = tx_hash.hex()
+            
+            print(f"⏳ Waiting for fxPortal transaction confirmation...")
+            # Wait for transaction receipt
+            tx_receipt = self.polygon_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            
+            if tx_receipt.status == 1:
+                print(f"✅ fxPortal transaction confirmed!")
+                print(f"   🔗 TX Hash: {fxportal_tx}")
+                print(f"   ⛽ Gas Used: {tx_receipt.gasUsed}")
+                
+                # Now update product ownership on Hub contract
+                print(f"📝 Updating product status on Hub contract...")
+                
+                # Update product status to SOLD
+                hub_nonce = self.polygon_web3.eth.get_transaction_count(self.current_account.address)
+                verification_hash = Web3.keccak(text=f"{token_id}-{to_owner}-{int(time.time())}").hex()
+                
+                hub_transaction = self.hub_contract.functions.updateProductStatus(
+                    int(token_id),
+                    ProductStatus.SOLD,  # enum value
+                    verification_hash
+                ).build_transaction({
+                    'from': self.current_account.address,
+                    'gas': 200000,
+                    'gasPrice': self.polygon_web3.eth.gas_price,
+                    'nonce': hub_nonce
+                })
+                
+                # Sign and send hub update transaction
+                signed_hub_txn = self.polygon_web3.eth.account.sign_transaction(hub_transaction, self.current_account.key)
+                hub_tx_hash = self.polygon_web3.eth.send_raw_transaction(signed_hub_txn.rawTransaction)
+                hub_tx_receipt = self.polygon_web3.eth.wait_for_transaction_receipt(hub_tx_hash, timeout=120)
+                
+                if hub_tx_receipt.status == 1:
+                    print(f"✅ Hub product status updated!")
+                    print(f"   🔗 Hub TX: {hub_tx_hash.hex()}")
+                    
+                    # Create detailed NFT transfer record
+                    nft_transfer_record = {
+                        "transfer_id": str(uuid.uuid4()),
+                        "product_id": token_id,
+                        "from_owner": from_owner,
+                        "to_owner": to_owner,
+                        "escrow_id": escrow_id,
+                        "fxportal_tx": fxportal_tx,
+                        "fxportal_tx_receipt": {
+                            "block_number": tx_receipt.blockNumber,
+                            "gas_used": tx_receipt.gasUsed,
+                            "status": tx_receipt.status
+                        },
+                        "hub_update_tx": hub_tx_hash.hex(),
+                        "hub_update_receipt": {
+                            "block_number": hub_tx_receipt.blockNumber,
+                            "gas_used": hub_tx_receipt.gasUsed,
+                            "status": hub_tx_receipt.status
+                        },
+                        "verification_hash": verification_hash,
+                        "source_chain": "polygon_pos",
+                        "target_chain": "zkevm_cardona",
+                        "status": "completed",
+                        "timestamp": time.time(),
+                        "real_contract_call": True
+                    }
+                    
+                    await self.database.nft_transfers.insert_one(nft_transfer_record)
+                    
+                    print(f"✅ NFT transfer completed with REAL contract calls")
+                    print(f"   🔗 fxPortal TX: {fxportal_tx}")
+                    print(f"   🔗 Hub Update TX: {hub_tx_hash.hex()}")
+                    
+                    return {
+                        "success": True,
+                        "transaction_hash": fxportal_tx,
+                        "fxportal_tx": fxportal_tx,
+                        "hub_update_tx": hub_tx_hash.hex(),
+                        "transfer_id": nft_transfer_record["transfer_id"],
+                        "real_transaction": True,
+                        "fxportal_gas_used": tx_receipt.gasUsed,
+                        "hub_gas_used": hub_tx_receipt.gasUsed,
+                        "total_gas_used": tx_receipt.gasUsed + hub_tx_receipt.gasUsed
+                    }
+                else:
+                    print(f"❌ Hub product status update failed!")
+                    return {"success": False, "error": f"Hub update failed: {hub_tx_hash.hex()}"}
+                    
+            else:
+                print(f"❌ fxPortal transaction failed!")
+                return {"success": False, "error": f"fxPortal transaction failed: {fxportal_tx}"}
             
         except Exception as e:
             print(f"❌ NFT transfer error: {e}")

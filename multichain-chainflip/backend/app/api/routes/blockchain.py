@@ -10,6 +10,8 @@ import tempfile
 import os
 import time
 import re
+import json
+from web3 import Web3
 
 from app.services.blockchain_service import BlockchainService
 
@@ -1243,7 +1245,286 @@ async def get_contracts_info(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
-# CROSS-CHAIN OPERATIONS
+# REAL CONTRACT INTEGRATION TESTING
+# ==========================================
+
+@router.get("/contracts/accounts")
+async def get_multi_account_info():
+    """Get information about all 11 accounts and their roles"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get multi-account manager
+        multi_account_manager = crosschain_purchase_service.multi_account_manager
+        
+        return {
+            "success": True,
+            "multi_account_system": True,
+            "account_summary": multi_account_manager.get_account_summary(),
+            "current_account": {
+                "address": crosschain_purchase_service.current_account.address,
+                "roles": "deployer,admin"  # Current account roles
+            },
+            "role_assignments": {
+                "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                "manufacturers": ["0x04351e7dF40d04B5E610c4aA033faCf435b98711", "0x72EB9742d3B684ebA40F11573b733Ac9dB499f23", "0x28918ecf013F32fAf45e05d62B4D9b207FCae784"],
+                "buyers": ["0xc6A050a538a9E857B4DCb4A33436280c202F6941", "0x724876f86fA52568aBc51955BD3A68bFc1441097", "0x361d25a7F28F05dDE7a2cb191b4B8128EEE0fAB6"],
+                "transporters": ["0x5503a5B847e98B621d97695edf1bD84242C5862E", "0x94081502540FD333075f3290d1D5C10A21AC5A5C"],
+                "sellers": ["0x34Fc023EE50781e0a007852eEDC4A17fa353a8cD", "0x7ca2dF29b5ea3BB9Ef3b4245D8b7c41a03318Fc1"]
+            },
+            "note": "Real multi-account system ready for role-based testing"
+        }
+        
+    except Exception as e:
+        print(f"❌ Multi-account info error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get multi-account info: {str(e)}")
+
+@router.post("/contracts/switch-account")
+async def switch_account(request_data: Dict[str, Any]):
+    """Switch to a specific account for testing"""
+    try:
+        operation_type = request_data.get("operation_type", "admin")
+        preferred_address = request_data.get("preferred_address")
+        
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Switch account
+        result = crosschain_purchase_service.switch_account_for_operation(operation_type, preferred_address)
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "account_switched": True,
+                "current_account": result["address"],
+                "roles": result["roles"],
+                "operation": result["operation"],
+                "message": f"Successfully switched to {operation_type} account"
+            }
+        else:
+            return {
+                "success": False,
+                "error": result["error"],
+                "current_account": crosschain_purchase_service.current_account.address
+            }
+        
+    except Exception as e:
+        print(f"❌ Account switch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to switch account: {str(e)}")
+@router.get("/contracts/balances")
+async def get_contract_account_balances():
+    """Get account balances across all chains for all 11 accounts"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get all account balances
+        balances = await crosschain_purchase_service.get_account_balances()
+        
+        return {
+            "success": True,
+            "real_contracts": True,
+            "multi_account_system": True,
+            "account_balances": balances,
+            "contract_addresses": {
+                "hub_contract": crosschain_purchase_service.hub_contract_address,
+                "buyer_contract": crosschain_purchase_service.buyer_contract_address,
+                "manufacturer_contract": crosschain_purchase_service.manufacturer_contract_address,
+                "transporter_contract": crosschain_purchase_service.transporter_contract_address,
+                "layerzero_optimism": crosschain_purchase_service.layerzero_optimism_address,
+                "layerzero_hub": crosschain_purchase_service.layerzero_hub_address,
+                "fxportal_hub": crosschain_purchase_service.fxportal_hub_address
+            },
+            "chains_connected": {
+                "optimism_sepolia": crosschain_purchase_service.optimism_web3.is_connected() if crosschain_purchase_service.optimism_web3 else False,
+                "polygon_pos": crosschain_purchase_service.polygon_web3.is_connected() if crosschain_purchase_service.polygon_web3 else False,
+                "zkevm_cardona": crosschain_purchase_service.zkevm_web3.is_connected() if crosschain_purchase_service.zkevm_web3 else False,
+                "arbitrum_sepolia": crosschain_purchase_service.arbitrum_web3.is_connected() if crosschain_purchase_service.arbitrum_web3 else False
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Contract balances error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get contract balances: {str(e)}")
+
+@router.post("/contracts/test-layerzero")
+async def test_layerzero_bridge():
+    """Test LayerZero bridge connection and message sending"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Test LayerZero contract call
+        if not crosschain_purchase_service.layerzero_optimism_contract:
+            raise HTTPException(status_code=500, detail="LayerZero contract not initialized")
+        
+        # Get target chain ID for Polygon Hub
+        target_chain_id = settings.polygon_pos_chain_id
+        
+        # Test payload
+        test_payload = json.dumps({"test": "layerzero_bridge", "timestamp": int(time.time())}).encode('utf-8')
+        
+        # Estimate fees
+        try:
+            native_fee, zro_fee = crosschain_purchase_service.layerzero_optimism_contract.functions.estimateFee(
+                target_chain_id,
+                test_payload,
+                False,  # useZro
+                b""     # adapterParams
+            ).call()
+            
+            return {
+                "success": True,
+                "layerzero_bridge_test": "Fee estimation successful",
+                "native_fee_wei": native_fee,
+                "native_fee_eth": Web3.from_wei(native_fee, 'ether'),
+                "zro_fee": zro_fee,
+                "target_chain_id": target_chain_id,
+                "contract_address": crosschain_purchase_service.layerzero_optimism_address,
+                "chain": "Optimism Sepolia",
+                "note": "Real contract connected and responding"
+            }
+            
+        except Exception as contract_error:
+            return {
+                "success": False,
+                "error": str(contract_error),
+                "contract_address": crosschain_purchase_service.layerzero_optimism_address,
+                "chain": "Optimism Sepolia",
+                "note": "Contract connection failed"
+            }
+        
+    except Exception as e:
+        print(f"❌ LayerZero test error: {e}")
+        raise HTTPException(status_code=500, detail=f"LayerZero test failed: {str(e)}")
+
+@router.post("/contracts/test-fxportal") 
+async def test_fxportal_bridge():
+    """Test FxPortal bridge connection"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Test FxPortal contract call
+        if not crosschain_purchase_service.fxportal_hub_contract:
+            raise HTTPException(status_code=500, detail="FxPortal contract not initialized")
+        
+        # Test message data
+        test_data = {
+            "test": "fxportal_bridge",
+            "timestamp": int(time.time()),
+            "source_chain": "polygon_pos",
+            "target_chain": "zkevm_cardona"
+        }
+        
+        # Test payload
+        test_payload = json.dumps(test_data).encode('utf-8')
+        data_hash = Web3.keccak(text=json.dumps(test_data)).hex()
+        
+        # Get current gas price
+        gas_price = crosschain_purchase_service.polygon_web3.eth.gas_price
+        
+        # Estimate gas for the transaction
+        try:
+            gas_estimate = crosschain_purchase_service.fxportal_hub_contract.functions.sendMessageToChild(
+                0,  # MessageType.PRODUCT_REGISTRATION
+                data_hash,
+                test_payload
+            ).estimate_gas({'from': crosschain_purchase_service.account.address})
+            
+            estimated_cost = gas_estimate * gas_price
+            
+            return {
+                "success": True,
+                "fxportal_bridge_test": "Gas estimation successful",
+                "gas_estimate": gas_estimate,
+                "gas_price_wei": gas_price,
+                "gas_price_gwei": Web3.from_wei(gas_price, 'gwei'),
+                "estimated_cost_wei": estimated_cost,
+                "estimated_cost_eth": Web3.from_wei(estimated_cost, 'ether'),
+                "contract_address": crosschain_purchase_service.fxportal_hub_address,
+                "chain": "Polygon PoS Hub",
+                "note": "Real contract connected and responding"
+            }
+            
+        except Exception as contract_error:
+            return {
+                "success": False,
+                "error": str(contract_error),
+                "contract_address": crosschain_purchase_service.fxportal_hub_address,
+                "chain": "Polygon PoS Hub",
+                "note": "Contract connection failed"
+            }
+        
+    except Exception as e:
+        print(f"❌ FxPortal test error: {e}")
+        raise HTTPException(status_code=500, detail=f"FxPortal test failed: {str(e)}")
+
+@router.post("/contracts/test-multi-account-purchase")
+async def test_multi_account_cross_chain_purchase():
+    """Test cross-chain purchase using different accounts for different roles"""
+    try:
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get accounts for different roles
+        buyer_account = crosschain_purchase_service.multi_account_manager.get_primary_account_for_role('buyer')
+        seller_account = crosschain_purchase_service.multi_account_manager.get_primary_account_for_role('seller')
+        manufacturer_account = crosschain_purchase_service.multi_account_manager.get_primary_account_for_role('manufacturer')
+        
+        if not all([buyer_account, seller_account, manufacturer_account]):
+            raise HTTPException(status_code=500, detail="Missing required accounts for multi-role testing")
+        
+        # Test cross-chain purchase with role-based accounts
+        test_purchase_request = {
+            "product_id": "1749391842793",  # Use existing product
+            "buyer": buyer_account['address'],
+            "price": 0.001,
+            "payment_method": "ETH"
+        }
+        
+        print(f"🧪 Testing multi-account cross-chain purchase:")
+        print(f"   👤 Buyer: {buyer_account['address']} (roles: {buyer_account['roles']})")
+        print(f"   🏪 Seller: {seller_account['address']} (roles: {seller_account['roles']})")
+        print(f"   🏭 Manufacturer: {manufacturer_account['address']} (roles: {manufacturer_account['roles']})")
+        
+        # Execute cross-chain purchase
+        result = await crosschain_purchase_service.execute_cross_chain_purchase(test_purchase_request)
+        
+        return {
+            "success": result["success"],
+            "multi_account_test": True,
+            "accounts_used": {
+                "buyer": {
+                    "address": buyer_account['address'],
+                    "roles": buyer_account['roles']
+                },
+                "seller": {
+                    "address": seller_account['address'],
+                    "roles": seller_account['roles']
+                },
+                "manufacturer": {
+                    "address": manufacturer_account['address'],
+                    "roles": manufacturer_account['roles']
+                }
+            },
+            "purchase_result": result,
+            "note": "Real multi-account cross-chain purchase test completed"
+        }
+        
+    except Exception as e:
+        print(f"❌ Multi-account purchase test error: {e}")
+        raise HTTPException(status_code=500, detail=f"Multi-account purchase test failed: {str(e)}")
+
+# ==========================================
+# ENHANCED CROSS-CHAIN OPERATIONS
 # ==========================================
 
 @router.post("/cross-chain/sync")

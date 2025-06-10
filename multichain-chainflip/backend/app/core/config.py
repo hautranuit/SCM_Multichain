@@ -3,6 +3,7 @@ Configuration settings for ChainFLIP Multi-Chain Backend
 """
 import os
 from functools import lru_cache
+from typing import Optional
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -43,9 +44,14 @@ class Settings(BaseSettings):
     l2_cdk_rpc: str = os.getenv("L2_CDK_RPC", "")
     l2_cdk_chain_id: int = int(os.getenv("L2_CDK_CHAIN_ID", "0"))
     
-    # Private Keys
+    # Private Keys - Address-to-PrivateKey mapping (no role restrictions)
     deployer_private_key: str = os.getenv("DEPLOYER_PRIVATE_KEY", "")
-    operator_private_key: str = os.getenv("OPERATOR_PRIVATE_KEY", "")
+    
+    # Address-to-PrivateKey mapping for all 11 accounts
+    def get_private_key_for_address(self, address: str) -> Optional[str]:
+        """Get private key for any address"""
+        env_key = f"ACCOUNT_{address}"
+        return os.getenv(env_key, "")
     
     # Contract Addresses - Multi-Chain Architecture
     # Hub Contract (Polygon PoS)
@@ -65,7 +71,14 @@ class Settings(BaseSettings):
     dispute_resolution_contract: str = os.getenv("DISPUTE_RESOLUTION_CONTRACT", "")
     marketplace_contract: str = os.getenv("MARKETPLACE_CONTRACT", "")
     
-    # Bridge and Cross-chain
+    # Bridge and Cross-chain - Updated with real deployed addresses
+    bridge_layerzero_hub: str = os.getenv("BRIDGE_LAYERZERO_HUB", "0x72a336eAAC8186906F1Ee85dF00C7d6b91257A43")
+    bridge_fxportal_hub: str = os.getenv("BRIDGE_FXPORTAL_HUB", "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476")
+    bridge_crosschain_messenger: str = os.getenv("BRIDGE_CROSSCHAIN_MESSENGER", "0x04C881aaE303091Bda3e06731f6fa565A929F983")
+    bridge_optimism_layerzero: str = os.getenv("BRIDGE_OPTIMISM_LAYERZERO", "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26")
+    bridge_arbitrum_layerzero: str = os.getenv("BRIDGE_ARBITRUM_LAYERZERO", "0x217e72E43e9375c1121ca36dcAc3fe878901836D")
+    
+    # Legacy bridge settings
     bridge_contract: str = os.getenv("BRIDGE_CONTRACT", "")
     l2_participant_contract: str = os.getenv("L2_PARTICIPANT_CONTRACT", "")
     
