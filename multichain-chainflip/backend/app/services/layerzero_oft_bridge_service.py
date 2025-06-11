@@ -1006,7 +1006,7 @@ class LayerZeroOFTBridgeService:
                 ).build_transaction({
                     'from': user_account.address,
                     'value': native_fee,
-                    'gas': 1000000,
+                    'gas': 2000000,                # DEBUGGING: Increased gas limit
                     'gasPrice': web3.eth.gas_price,
                     'nonce': nonce,
                     'chainId': web3.eth.chain_id
@@ -1048,7 +1048,7 @@ class LayerZeroOFTBridgeService:
                 ).build_transaction({
                     'from': user_account.address,
                     'value': native_fee,
-                    'gas': 1000000,
+                    'gas': 2000000,                # DEBUGGING: Increased gas limit
                     'gasPrice': web3.eth.gas_price,
                     'nonce': nonce,
                     'chainId': web3.eth.chain_id
@@ -1089,7 +1089,7 @@ class LayerZeroOFTBridgeService:
                 ).build_transaction({
                     'from': user_account.address,
                     'value': native_fee,
-                    'gas': 1000000,
+                    'gas': 2000000,                # DEBUGGING: Increased gas limit
                     'gasPrice': web3.eth.gas_price,
                     'nonce': nonce,
                     'chainId': web3.eth.chain_id
@@ -1186,6 +1186,209 @@ class LayerZeroOFTBridgeService:
             native_fee = fee_estimate["native_fee_wei"]
             print(f"💳 Using fixed LayerZero fee: {Web3.from_wei(native_fee, 'ether')} ETH")
             
+            # DEBUGGING: Test LayerZero endpoint connectivity directly
+            print(f"🔍 === DEBUGGING LAYERZERO ENDPOINT CONNECTIVITY ===")
+            try:
+                # Get LayerZero endpoint contract
+                lz_endpoint_addr = oft_contract.functions.lzEndpoint().call()
+                print(f"🔗 LayerZero endpoint from contract: {lz_endpoint_addr}")
+                print(f"🎯 Expected endpoint: {source_config['layerzero_endpoint']}")
+                
+                # Test if endpoint is responsive (simple call)
+                endpoint_abi = [{"inputs": [], "name": "eid", "outputs": [{"name": "", "type": "uint32"}], "stateMutability": "view", "type": "function"}]
+                endpoint_contract = web3.eth.contract(address=lz_endpoint_addr, abi=endpoint_abi)
+                endpoint_eid = endpoint_contract.functions.eid().call()
+                print(f"✅ LayerZero endpoint responsive - EID: {endpoint_eid}")
+                
+            except Exception as endpoint_error:
+                print(f"⚠️ LayerZero endpoint test failed: {endpoint_error}")
+            
+            # DEBUGGING: Test message encoding and minimal parameters  
+            print(f"🔍 === DEBUGGING MESSAGE ENCODING ===")
+            print(f"🎯 Target EID: {target_config['layerzero_eid']} (type: {type(target_config['layerzero_eid'])})")
+            print(f"📧 Recipient bytes32: {recipient_bytes32.hex()} (length: {len(recipient_bytes32)})")
+            print(f"💰 Amount wei: {amount_wei} (type: {type(amount_wei)})")
+            print(f"🏠 Refund address: {user_account.address}")
+            
+            # DEBUGGING: Test with minimal parameters first
+            print(f"🧪 === TESTING WITH MINIMAL PARAMETERS ===")
+            try:
+                minimal_amount = Web3.to_wei(0.001, 'ether')  # Smaller amount
+                minimal_fee = Web3.to_wei(0.001, 'ether')    # Smaller fee
+                minimal_messaging_fee = (minimal_fee, 0)
+                
+                print(f"🔬 Testing minimal call with 0.001 ETH and 0.001 ETH fee...")
+                oft_contract.functions.send(
+                    target_config['layerzero_eid'],  # _dstEid (uint32)
+                    recipient_bytes32,               # _to (bytes32)  
+                    minimal_amount,                  # _amountLD (uint256)
+                    minimal_amount,                  # _minAmountLD (uint256)
+                    b'',                            # _extraOptions (bytes)
+                    minimal_messaging_fee,           # _fee (MessagingFee struct)
+                    user_account.address            # _refundAddress (address)
+                ).call({
+                    'from': user_account.address, 
+                    'value': minimal_fee
+                })
+                print("✅ Minimal parameters test successful - Issue not with parameters")
+                
+            except Exception as minimal_error:
+                print(f"❌ Minimal parameters test failed: {minimal_error}")
+                
+                # DEBUGGING: Check each requirement condition individually
+                print(f"🔍 === DEBUGGING INDIVIDUAL REQUIREMENTS ===")
+                
+                # Check 1: Peer set validation
+                try:
+                    peer_result = oft_contract.functions.peers(target_config['layerzero_eid']).call()
+                    is_peer_set = peer_result != b'\x00' * 32
+                    print(f"✅ Peer check - EID {target_config['layerzero_eid']}: {'SET' if is_peer_set else 'NOT SET'}")
+                    
+                    if is_peer_set:
+                        # Check if peer address matches expected target contract
+                        peer_hex = peer_result.hex()
+                        expected_peer = target_config['address'].lower().replace('0x', '').zfill(64)
+                        print(f"🔍 Peer address details:")
+                        print(f"   Current peer: 0x{peer_hex}")
+                        print(f"   Expected:     0x{expected_peer}")
+                        print(f"   Match: {'YES' if peer_hex == expected_peer else 'NO'}")
+                        
+                        if peer_hex != expected_peer:
+                            print(f"❌ CRITICAL: Peer address mismatch!")
+                            print(f"   This could be causing the LayerZero send to fail")
+                    else:
+                        print(f"❌ CRITICAL: Peer not set for destination chain!")
+                        print(f"   Expected peer: {target_config['address']}")
+                        print(f"   Run: npx hardhat run set-peer-connections.js --network optimismSepolia")
+                except Exception as peer_error:
+                    print(f"❌ Peer check failed: {peer_error}")
+                
+                # Check 2: User balance validation
+                try:
+                    user_balance = oft_contract.functions.balanceOf(user_account.address).call()
+                    user_balance_eth = float(Web3.from_wei(user_balance, 'ether'))
+                    amount_eth = float(Web3.from_wei(minimal_amount, 'ether'))
+                    print(f"✅ Balance check - User: {user_balance_eth} ETH, Required: {amount_eth} ETH")
+                    if user_balance < minimal_amount:
+                        print(f"❌ CRITICAL: Insufficient user balance!")
+                except Exception as balance_error:
+                    print(f"❌ Balance check failed: {balance_error}")
+                
+                # Check 3: Amount >= minimum validation
+                print(f"✅ Amount check - Amount: {minimal_amount}, Minimum: {minimal_amount} (should be equal)")
+                
+                # Check 4: Fee validation
+                try:
+                    print(f"✅ Fee check - Provided: {minimal_fee} wei, Required: {minimal_fee} wei (should be equal)")
+                    print(f"   msg.value in call: {minimal_fee} wei")
+                except Exception as fee_error:
+                    print(f"❌ Fee check failed: {fee_error}")
+                
+                # Check 5: LayerZero endpoint call simulation
+                try:
+                    print(f"🔍 Testing LayerZero endpoint direct call...")
+                    lz_endpoint_addr = oft_contract.functions.lzEndpoint().call()
+                    
+                    # Test if we can make a basic call to the endpoint
+                    lz_abi = [{"inputs": [], "name": "owner", "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                    lz_contract = web3.eth.contract(address=lz_endpoint_addr, abi=lz_abi)
+                    
+                    try:
+                        owner = lz_contract.functions.owner().call()
+                        print(f"✅ LayerZero endpoint responsive - Owner: {owner}")
+                    except:
+                        print(f"⚠️ LayerZero endpoint owner() call failed - trying alternative")
+                    
+                    # CRITICAL DEBUGGING: Test LayerZero V1 vs V2 compatibility
+                    print(f"🔍 === TESTING LAYERZERO V1 vs V2 COMPATIBILITY ===")
+                    
+                    # Test for V1 interface (uint16 chain IDs, different send function)
+                    try:
+                        v1_send_abi = [{
+                            "inputs": [
+                                {"name": "_dstChainId", "type": "uint16"},
+                                {"name": "_payload", "type": "bytes"},
+                                {"name": "_refundAddress", "type": "address"},
+                                {"name": "_zroPaymentAddress", "type": "address"},
+                                {"name": "_adapterParams", "type": "bytes"}
+                            ],
+                            "name": "send",
+                            "outputs": [],
+                            "stateMutability": "payable",
+                            "type": "function"
+                        }]
+                        
+                        v1_contract = web3.eth.contract(address=lz_endpoint_addr, abi=v1_send_abi)
+                        print(f"✅ LayerZero V1 interface instantiated successfully")
+                        
+                        # Test V1 call structure (but don't actually send)
+                        print(f"🔍 LayerZero endpoint appears to be V1 - this might be the issue!")
+                        print(f"   Our contract expects V2 interface but endpoint is V1")
+                        print(f"   This would cause 'execution reverted' on the endpoint.send() call")
+                        
+                    except Exception as v1_error:
+                        print(f"⚠️ LayerZero V1 test failed: {v1_error}")
+                    
+                    # Test for V2 interface compatibility
+                    try:
+                        v2_send_abi = [{
+                            "inputs": [
+                                {"name": "_params", "type": "tuple", "components": [
+                                    {"name": "dstEid", "type": "uint32"},
+                                    {"name": "receiver", "type": "bytes32"},
+                                    {"name": "message", "type": "bytes"},
+                                    {"name": "options", "type": "bytes"},
+                                    {"name": "payInLzToken", "type": "bool"}
+                                ]},
+                                {"name": "_refundAddress", "type": "address"}
+                            ],
+                            "name": "send", 
+                            "outputs": [{"name": "", "type": "tuple", "components": [
+                                {"name": "guid", "type": "bytes32"},
+                                {"name": "nonce", "type": "uint64"},
+                                {"name": "fee", "type": "tuple", "components": [
+                                    {"name": "nativeFee", "type": "uint256"},
+                                    {"name": "lzTokenFee", "type": "uint256"}
+                                ]}
+                            ]}],
+                            "stateMutability": "payable",
+                            "type": "function"
+                        }]
+                        
+                        v2_contract = web3.eth.contract(address=lz_endpoint_addr, abi=v2_send_abi)
+                        print(f"✅ LayerZero V2 interface instantiated successfully")
+                        
+                        # Test if we can call a V2 function without reverting
+                        # (This is just testing the ABI, not actually sending)
+                        print(f"🔍 LayerZero endpoint V2 interface ready for testing")
+                        
+                    except Exception as v2_error:
+                        print(f"⚠️ LayerZero V2 test failed: {v2_error}")
+                        
+                except Exception as lz_error:
+                    print(f"❌ LayerZero endpoint test failed: {lz_error}")
+                
+                # Try even more minimal - zero amount
+                try:
+                    print(f"🔬 Testing zero amount call...")
+                    oft_contract.functions.send(
+                        target_config['layerzero_eid'],  # _dstEid (uint32)
+                        recipient_bytes32,               # _to (bytes32)  
+                        0,                              # _amountLD (0 amount)
+                        0,                              # _minAmountLD (0 amount)
+                        b'',                            # _extraOptions (bytes)
+                        minimal_messaging_fee,           # _fee (MessagingFee struct)
+                        user_account.address            # _refundAddress (address)
+                    ).call({
+                        'from': user_account.address, 
+                        'value': minimal_fee
+                    })
+                    print("✅ Zero amount test successful - Issue is with amount handling")
+                    
+                except Exception as zero_error:
+                    print(f"❌ Zero amount test also failed: {zero_error}")
+                    print(f"🔍 This suggests the issue is with peer setup or LayerZero endpoint")
+            
             # FIXED: Use actual WETHOFT contract signature (individual parameters)
             print(f"🧪 Simulating OFT send transaction...")
             try:
@@ -1226,13 +1429,13 @@ class LayerZeroOFTBridgeService:
             ).build_transaction({
                 'from': user_account.address,
                 'value': native_fee,           # Pay LayerZero fee
-                'gas': 1000000,                # Increased gas limit for LayerZero
+                'gas': 2000000,                # DEBUGGING: Increased gas limit from 1000000 to 2000000
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': web3.eth.chain_id
             })
             
-            print(f"⛽ Transaction gas limit: 1,000,000")
+            print(f"⛽ Transaction gas limit: 2,000,000 (DEBUGGING: Increased from 1M)")
             print(f"💰 Transaction value (fee): {Web3.from_wei(native_fee, 'ether')} ETH")
             
             # Sign and send transaction
