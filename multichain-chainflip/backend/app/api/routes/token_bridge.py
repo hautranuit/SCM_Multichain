@@ -33,6 +33,9 @@ class FeeEstimateRequest(BaseModel):
 class TransferStatusRequest(BaseModel):
     transfer_id: str = Field(..., description="Transfer ID to check status")
 
+class ContractDebugRequest(BaseModel):
+    chain_name: str = Field(..., description="Chain name to debug (e.g., 'optimism_sepolia')")
+
 class TokenTransferResponse(BaseModel):
     success: bool
     transfer_id: Optional[str] = None
@@ -452,5 +455,57 @@ async def initialize_token_bridge():
         return {
             "success": False,
             "error": f"Initialization failed: {str(e)}",
+            "timestamp": time.time()
+        }
+
+@router.post("/debug/contract", response_model=Dict[str, Any])
+async def debug_oft_contract(request: ContractDebugRequest):
+    """Debug LayerZero OFT contract to understand available functions"""
+    try:
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Run contract debug
+        debug_result = await layerzero_oft_bridge_service.debug_oft_contract(request.chain_name)
+        
+        return {
+            "success": True,
+            "chain": request.chain_name,
+            "debug_result": debug_result,
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Contract debug failed: {str(e)}",
+            "chain": request.chain_name,
+            "timestamp": time.time()
+        }
+
+@router.post("/debug/functions", response_model=Dict[str, Any])
+async def test_oft_functions(request: ContractDebugRequest):
+    """Test which LayerZero functions are available on deployed contract"""
+    try:
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Run function availability test
+        function_result = await layerzero_oft_bridge_service.test_oft_function_availability(request.chain_name)
+        
+        return {
+            "success": True,
+            "chain": request.chain_name,
+            "function_tests": function_result,
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Function test failed: {str(e)}",
+            "chain": request.chain_name,
             "timestamp": time.time()
         }

@@ -33,15 +33,24 @@ def convert_decimals_to_float(obj):
     else:
         return obj
 
-# LayerZero OFT Contract ABI (Simplified for ETH bridging)
+# LayerZero V2 OFT Contract ABI (Updated for 2025)
 LAYERZERO_OFT_ABI = [
     {
         "inputs": [
-            {"name": "_dstEid", "type": "uint32"},
-            {"name": "_to", "type": "bytes32"},
-            {"name": "_amountLD", "type": "uint256"},
-            {"name": "_minAmountLD", "type": "uint256"},
-            {"name": "_extraOptions", "type": "bytes"}
+            {"name": "_sendParam", "type": "tuple", "components": [
+                {"name": "dstEid", "type": "uint32"},
+                {"name": "to", "type": "bytes32"},
+                {"name": "amountLD", "type": "uint256"},
+                {"name": "minAmountLD", "type": "uint256"},
+                {"name": "extraOptions", "type": "bytes"},
+                {"name": "composeMsg", "type": "bytes"},
+                {"name": "oftCmd", "type": "bytes"}
+            ]},
+            {"name": "_fee", "type": "tuple", "components": [
+                {"name": "nativeFee", "type": "uint256"},
+                {"name": "lzTokenFee", "type": "uint256"}
+            ]},
+            {"name": "_refundAddress", "type": "address"}
         ],
         "name": "send",
         "outputs": [
@@ -59,16 +68,20 @@ LAYERZERO_OFT_ABI = [
     },
     {
         "inputs": [
-            {"name": "_dstEid", "type": "uint32"},
-            {"name": "_to", "type": "bytes32"},
-            {"name": "_amountLD", "type": "uint256"},
-            {"name": "_minAmountLD", "type": "uint256"},
-            {"name": "_extraOptions", "type": "bytes"},
+            {"name": "_sendParam", "type": "tuple", "components": [
+                {"name": "dstEid", "type": "uint32"},
+                {"name": "to", "type": "bytes32"},
+                {"name": "amountLD", "type": "uint256"},
+                {"name": "minAmountLD", "type": "uint256"},
+                {"name": "extraOptions", "type": "bytes"},
+                {"name": "composeMsg", "type": "bytes"},
+                {"name": "oftCmd", "type": "bytes"}
+            ]},
             {"name": "_payInLzToken", "type": "bool"}
         ],
         "name": "quoteSend",
         "outputs": [
-            {"name": "fee", "type": "tuple", "components": [
+            {"name": "msgFee", "type": "tuple", "components": [
                 {"name": "nativeFee", "type": "uint256"},
                 {"name": "lzTokenFee", "type": "uint256"}
             ]}
@@ -317,7 +330,7 @@ class LayerZeroOFTBridgeService:
         amount_eth: float
     ) -> Dict[str, Any]:
         """
-        Estimate LayerZero OFT transfer fee
+        Estimate LayerZero OFT transfer fee using V2 struct format
         """
         try:
             # Get source chain Web3 and OFT contract
@@ -347,22 +360,29 @@ class LayerZeroOFTBridgeService:
             amount_wei = Web3.to_wei(amount_eth, 'ether')
             
             # Prepare recipient address (32 bytes format for LayerZero)
-            recipient_bytes32 = bytes(32)  # Placeholder - will be actual recipient
+            recipient_bytes32 = Web3.to_bytes(hexstr='0x28918ecf013F32fAf45e05d62B4D9b207FCae784'.lower().replace('0x', '').zfill(64))
             
-            # Quote the send fee
+            # Create LayerZero V2 SendParam struct
+            send_param = (
+                target_config['layerzero_eid'],  # dstEid
+                recipient_bytes32,              # to
+                amount_wei,                     # amountLD
+                amount_wei,                     # minAmountLD
+                b'',                           # extraOptions
+                b'',                           # composeMsg
+                b''                            # oftCmd
+            )
+            
+            # Quote the send fee using V2 format
             try:
                 fee_quote = oft_contract.functions.quoteSend(
-                    target_config['layerzero_eid'],  # Destination endpoint ID
-                    recipient_bytes32,              # Recipient address
-                    amount_wei,                     # Amount to transfer
-                    amount_wei,                     # Minimum amount (no slippage for now)
-                    b'',                           # Extra options
+                    send_param,                     # SendParam struct
                     False                          # Pay in LZ token (false = pay in native)
                 ).call()
                 
-                # Extract fee information
-                native_fee = fee_quote[0]  # Native fee in Wei
-                lz_token_fee = fee_quote[1]  # LZ token fee (should be 0 since payInLzToken=false)
+                # Extract fee information from V2 format
+                native_fee = fee_quote[0]  # msgFee.nativeFee
+                lz_token_fee = fee_quote[1]  # msgFee.lzTokenFee
                 
                 return {
                     "success": True,
@@ -370,7 +390,7 @@ class LayerZeroOFTBridgeService:
                     "native_fee_eth": float(Web3.from_wei(native_fee, 'ether')),
                     "lz_token_fee": lz_token_fee,
                     "total_cost_eth": amount_eth + float(Web3.from_wei(native_fee, 'ether')),
-                    "bridge_type": "LayerZero OFT",
+                    "bridge_type": "LayerZero OFT V2",
                     "from_chain": from_chain,
                     "to_chain": to_chain,
                     "amount_eth": amount_eth
@@ -639,55 +659,107 @@ class LayerZeroOFTBridgeService:
         to_address: str, 
         amount_wei: int
     ) -> Dict[str, Any]:
-        """Execute LayerZero OFT send transaction"""
+        """Execute LayerZero OFT send transaction using V2 struct format"""
         try:
             source_config = self.oft_contracts[from_chain]
             target_config = self.oft_contracts[to_chain]
+            
+            print(f"🔗 Source chain: {from_chain} (EID: {source_config['layerzero_eid']})")
+            print(f"🎯 Target chain: {to_chain} (EID: {target_config['layerzero_eid']})")
+            print(f"📧 To address: {to_address}")
+            print(f"💰 Amount: {Web3.from_wei(amount_wei, 'ether')} ETH")
             
             oft_contract = web3.eth.contract(
                 address=source_config['address'],
                 abi=LAYERZERO_OFT_ABI
             )
             
-            # Convert recipient address to bytes32 format
-            recipient_bytes32 = Web3.to_bytes(hexstr=to_address.lower().replace('0x', '').ljust(64, '0'))
+            # FIXED: Convert recipient address to bytes32 format (LEFT-PADDED)
+            recipient_bytes32 = Web3.to_bytes(hexstr=to_address.lower().replace('0x', '').zfill(64))
+            print(f"🔧 Recipient bytes32: {recipient_bytes32.hex()}")
             
-            # Get fee quote first
-            fee_quote = oft_contract.functions.quoteSend(
-                target_config['layerzero_eid'],
-                recipient_bytes32,
-                amount_wei,
-                amount_wei,  # Min amount (no slippage)
-                b'',         # Extra options
-                False        # Pay in native token
-            ).call()
+            # Create LayerZero V2 SendParam struct
+            send_param = (
+                target_config['layerzero_eid'],  # dstEid
+                recipient_bytes32,              # to
+                amount_wei,                     # amountLD
+                amount_wei,                     # minAmountLD
+                b'',                           # extraOptions
+                b'',                           # composeMsg
+                b''                            # oftCmd
+            )
             
-            native_fee = fee_quote[0]
+            # Get fee quote using V2 format
+            print(f"💸 Getting LayerZero V2 fee quote...")
+            try:
+                fee_quote = oft_contract.functions.quoteSend(
+                    send_param,                     # SendParam struct
+                    False                          # Pay in native token
+                ).call()
+                
+                # Extract fee from V2 format
+                native_fee = fee_quote[0]  # msgFee.nativeFee
+                print(f"💳 LayerZero native fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+            except Exception as fee_error:
+                print(f"❌ Fee quote failed: {fee_error}")
+                return {"success": False, "error": f"Fee quote failed: {fee_error}"}
             
-            # Build OFT send transaction
+            # ADDED: Simulate transaction before execution to catch errors early
+            print(f"🧪 Simulating OFT send transaction...")
+            try:
+                # Create MessagingFee struct for simulation
+                messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
+                
+                oft_contract.functions.send(
+                    send_param,                     # SendParam struct
+                    messaging_fee,                  # MessagingFee struct
+                    user_account.address           # refundAddress
+                ).call({
+                    'from': user_account.address, 
+                    'value': native_fee
+                })
+                print("✅ Transaction simulation successful")
+            except Exception as sim_error:
+                print(f"❌ Transaction simulation failed: {sim_error}")
+                return {"success": False, "error": f"Simulation failed: {sim_error}"}
+            
+            # Build OFT send transaction using V2 format
             nonce = web3.eth.get_transaction_count(user_account.address)
+            print(f"📊 Account nonce: {nonce}")
+            
+            # Create MessagingFee struct for transaction
+            messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
             
             transaction = oft_contract.functions.send(
-                target_config['layerzero_eid'],  # Destination endpoint ID
-                recipient_bytes32,              # Recipient address (bytes32)
-                amount_wei,                     # Amount to transfer
-                amount_wei,                     # Min amount (no slippage)
-                b''                            # Extra options
+                send_param,                     # SendParam struct
+                messaging_fee,                  # MessagingFee struct
+                user_account.address           # refundAddress
             ).build_transaction({
                 'from': user_account.address,
                 'value': native_fee,           # Pay LayerZero fee
-                'gas': 500000,                 # Higher gas for cross-chain
+                'gas': 1000000,                # FIXED: Increased gas limit for LayerZero
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': web3.eth.chain_id
             })
             
+            print(f"⛽ Transaction gas limit: 1,000,000")
+            print(f"💰 Transaction value (fee): {Web3.from_wei(native_fee, 'ether')} ETH")
+            
             # Sign and send transaction
+            print(f"✍️ Signing and sending OFT transaction...")
             signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
             tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 Transaction sent: {tx_hash.hex()}")
+            
+            # Wait for receipt with detailed logging
+            print(f"⏳ Waiting for transaction confirmation...")
             receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             
             if receipt.status == 1:
+                print(f"✅ OFT send transaction successful!")
+                
                 # Extract LayerZero GUID from logs (for tracking)
                 layerzero_guid = None
                 try:
@@ -709,10 +781,166 @@ class LayerZeroOFTBridgeService:
                     "destination_eid": target_config['layerzero_eid']
                 }
             else:
-                return {"success": False, "error": "OFT send transaction failed"}
+                print(f"❌ OFT send transaction failed - Receipt status: {receipt.status}")
+                return {"success": False, "error": f"OFT send transaction failed - Receipt status: {receipt.status}"}
                 
         except Exception as e:
+            print(f"❌ OFT send execution error: {e}")
+            import traceback
+            print(f"🔍 Full error traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
+
+    async def debug_oft_contract(self, chain_name: str) -> Dict[str, Any]:
+        """Debug OFT contract to understand available functions"""
+        try:
+            web3 = self.web3_connections.get(chain_name)
+            if not web3:
+                return {"success": False, "error": f"Chain {chain_name} not connected"}
+            
+            config = self.oft_contracts[chain_name]
+            contract_address = config.get('address')
+            
+            if not contract_address:
+                return {"success": False, "error": f"No contract address for {chain_name}"}
+            
+            print(f"🔍 Debugging OFT contract on {chain_name}")
+            print(f"📍 Contract address: {contract_address}")
+            
+            # Test basic contract interaction
+            try:
+                # Check if contract exists
+                code = web3.eth.get_code(contract_address)
+                if code == b'':
+                    return {"success": False, "error": f"No contract code at {contract_address}"}
+                
+                print(f"✅ Contract code exists (length: {len(code)} bytes)")
+                
+                # Try basic ERC20-style balanceOf
+                simple_abi = [
+                    {
+                        "inputs": [{"name": "account", "type": "address"}],
+                        "name": "balanceOf",
+                        "outputs": [{"name": "", "type": "uint256"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    }
+                ]
+                
+                simple_contract = web3.eth.contract(address=contract_address, abi=simple_abi)
+                balance = simple_contract.functions.balanceOf(self.current_account.address).call()
+                print(f"✅ balanceOf works: {balance}")
+                
+                return {
+                    "success": True,
+                    "contract_address": contract_address,
+                    "code_length": len(code),
+                    "balance_check": "working",
+                    "chain": chain_name,
+                    "message": "Contract is deployed and responsive"
+                }
+                
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": f"Contract interaction failed: {str(e)}",
+                    "contract_address": contract_address
+                }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Debug failed: {str(e)}"}
+
+    async def test_oft_function_availability(self, chain_name: str) -> Dict[str, Any]:
+        """Test which LayerZero functions are available on deployed contract"""
+        try:
+            web3 = self.web3_connections.get(chain_name)
+            config = self.oft_contracts[chain_name]
+            contract_address = config.get('address')
+            
+            if not web3 or not contract_address:
+                return {"success": False, "error": "Chain or contract not available"}
+            
+            print(f"🧪 Testing LayerZero function availability on {chain_name}")
+            
+            # Test different possible LayerZero function signatures
+            function_tests = []
+            
+            # Test 1: Old LayerZero V1 style quoteSend
+            try:
+                old_abi = [{
+                    "inputs": [
+                        {"name": "_dstEid", "type": "uint32"},
+                        {"name": "_to", "type": "bytes32"},
+                        {"name": "_amountLD", "type": "uint256"},
+                        {"name": "_minAmountLD", "type": "uint256"},
+                        {"name": "_extraOptions", "type": "bytes"},
+                        {"name": "_payInLzToken", "type": "bool"}
+                    ],
+                    "name": "quoteSend",
+                    "outputs": [{"name": "", "type": "tuple", "components": [
+                        {"name": "nativeFee", "type": "uint256"},
+                        {"name": "lzTokenFee", "type": "uint256"}
+                    ]}],
+                    "stateMutability": "view",
+                    "type": "function"
+                }]
+                
+                contract = web3.eth.contract(address=contract_address, abi=old_abi)
+                result = contract.functions.quoteSend(
+                    40158,  # zkEVM EID
+                    Web3.to_bytes(hexstr='0x28918ecf013F32fAf45e05d62B4D9b207FCae784'.lower().replace('0x', '').zfill(64)),
+                    Web3.to_wei(0.01, 'ether'),
+                    Web3.to_wei(0.01, 'ether'),
+                    b'',
+                    False
+                ).call()
+                function_tests.append({"name": "quoteSend_v1", "status": "works", "result": str(result)})
+                
+            except Exception as e:
+                function_tests.append({"name": "quoteSend_v1", "status": "failed", "error": str(e)})
+            
+            # Test 2: Simple endpoint getter
+            try:
+                endpoint_abi = [{
+                    "inputs": [],
+                    "name": "endpoint",
+                    "outputs": [{"name": "", "type": "address"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                }]
+                
+                contract = web3.eth.contract(address=contract_address, abi=endpoint_abi)
+                endpoint = contract.functions.endpoint().call()
+                function_tests.append({"name": "endpoint", "status": "works", "result": endpoint})
+                
+            except Exception as e:
+                function_tests.append({"name": "endpoint", "status": "failed", "error": str(e)})
+            
+            # Test 3: Check for peer function
+            try:
+                peer_abi = [{
+                    "inputs": [{"name": "_eid", "type": "uint32"}],
+                    "name": "peers",
+                    "outputs": [{"name": "", "type": "bytes32"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                }]
+                
+                contract = web3.eth.contract(address=contract_address, abi=peer_abi)
+                peer = contract.functions.peers(40158).call()  # zkEVM EID
+                function_tests.append({"name": "peers", "status": "works", "result": peer.hex()})
+                
+            except Exception as e:
+                function_tests.append({"name": "peers", "status": "failed", "error": str(e)})
+            
+            return {
+                "success": True,
+                "contract_address": contract_address,
+                "chain": chain_name,
+                "function_tests": function_tests
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Function test failed: {str(e)}"}
 
     async def get_oft_balance(self, chain_name: str, address: str) -> Dict[str, Any]:
         """Get OFT and WETH balances for an address"""
