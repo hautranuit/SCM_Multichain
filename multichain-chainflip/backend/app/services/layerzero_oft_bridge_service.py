@@ -458,8 +458,8 @@ class LayerZeroOFTBridgeService:
             
             user_account = user_account_info['account']
             
-            # STEP 1: Check WETH balance (skip OFT conversion - use WETH directly)
-            print(f"\n💰 === STEP 1: CHECK WETH BALANCE ===")
+            # STEP 1: Check WETH balance and auto-wrap ETH if needed
+            print(f"\n💰 === STEP 1: CHECK WETH BALANCE & AUTO-WRAP ===")
             weth_contract = self.weth_instances[from_chain]
             
             # Check current WETH balance
@@ -470,9 +470,45 @@ class LayerZeroOFTBridgeService:
             print(f"🎯 Required amount: {amount_eth} ETH")
             
             if weth_balance_eth < amount_eth:
-                return {"success": False, "error": f"Insufficient WETH balance. Have: {weth_balance_eth} ETH, Need: {amount_eth} ETH. Please wrap more ETH to WETH first."}
-            
-            print(f"✅ Sufficient WETH balance for bridge transfer")
+                # Check ETH balance for auto-wrapping
+                eth_balance = source_web3.eth.get_balance(user_account.address)
+                eth_balance_eth = float(Web3.from_wei(eth_balance, 'ether'))
+                needed_wrap = amount_eth - weth_balance_eth
+                
+                print(f"⚠️ Insufficient WETH balance. Need to wrap {needed_wrap} ETH → WETH")
+                print(f"💎 User ETH balance: {eth_balance_eth} ETH")
+                
+                # Reserve some ETH for gas fees (0.01 ETH buffer)
+                gas_reserve = 0.01
+                available_for_wrap = eth_balance_eth - gas_reserve
+                
+                if available_for_wrap >= needed_wrap:
+                    print(f"🔄 Auto-wrapping {needed_wrap} ETH to WETH...")
+                    
+                    # Execute ETH → WETH wrap
+                    wrap_result = await self._wrap_eth_to_weth(
+                        source_web3, from_chain, user_account, needed_wrap
+                    )
+                    
+                    if wrap_result["success"]:
+                        print(f"✅ Successfully wrapped {needed_wrap} ETH to WETH!")
+                        print(f"🔗 Wrap transaction: {wrap_result.get('transaction_hash')}")
+                        
+                        # Verify new WETH balance
+                        new_weth_balance = weth_contract.functions.balanceOf(user_account.address).call()
+                        new_weth_balance_eth = float(Web3.from_wei(new_weth_balance, 'ether'))
+                        print(f"✅ New WETH balance: {new_weth_balance_eth} ETH")
+                        
+                        if new_weth_balance_eth >= amount_eth:
+                            print(f"✅ Sufficient WETH balance after auto-wrap")
+                        else:
+                            return {"success": False, "error": f"Auto-wrap succeeded but still insufficient WETH. Have: {new_weth_balance_eth}, Need: {amount_eth}"}
+                    else:
+                        return {"success": False, "error": f"Auto-wrap failed: {wrap_result.get('error')}"}
+                else:
+                    return {"success": False, "error": f"Insufficient ETH balance for auto-wrap. Need: {needed_wrap} ETH + {gas_reserve} ETH gas, Have: {eth_balance_eth} ETH total. Please add more ETH to your wallet."}
+            else:
+                print(f"✅ Sufficient WETH balance for bridge transfer")
             
             # STEP 1.5: Approve OFT contract to spend WETH
             print(f"\n🔓 === STEP 1.5: APPROVE WETH SPENDING ===")
@@ -629,6 +665,80 @@ class LayerZeroOFTBridgeService:
             
         except Exception as e:
             print(f"❌ LayerZero OFT transfer error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _wrap_eth_to_weth(
+        self, 
+        web3: Web3, 
+        chain_name: str, 
+        user_account, 
+        amount_eth: float
+    ) -> Dict[str, Any]:
+        """Wrap ETH to WETH for LayerZero OFT bridge use"""
+        try:
+            weth_contract = self.weth_instances[chain_name]
+            amount_wei = Web3.to_wei(amount_eth, 'ether')
+            
+            print(f"🔧 Wrapping {amount_eth} ETH to WETH on {chain_name}")
+            print(f"📍 WETH Contract: {self.oft_contracts[chain_name]['weth_address']}")
+            print(f"💰 Amount in Wei: {amount_wei}")
+            
+            # Test the deposit function first with a call
+            try:
+                print(f"🧪 Testing WETH deposit function call...")
+                weth_contract.functions.deposit().call({
+                    'from': user_account.address,
+                    'value': amount_wei
+                })
+                print(f"✅ WETH deposit call test successful")
+            except Exception as call_error:
+                print(f"❌ WETH deposit call test failed: {call_error}")
+                return {"success": False, "error": f"WETH deposit call test failed: {call_error}"}
+            
+            # Build ETH → WETH deposit transaction
+            nonce = web3.eth.get_transaction_count(user_account.address)
+            print(f"📊 Account nonce: {nonce}")
+            
+            transaction = weth_contract.functions.deposit().build_transaction({
+                'from': user_account.address,
+                'value': amount_wei,  # Send ETH to convert to WETH
+                'gas': 100000,       # Gas for WETH deposit
+                'gasPrice': web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            })
+            
+            print(f"⛽ Transaction gas limit: 100,000")
+            print(f"💰 Transaction value: {amount_eth} ETH")
+            
+            # Sign and send transaction
+            print(f"✍️ Signing and sending WETH deposit transaction...")
+            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 Transaction sent: {tx_hash.hex()}")
+            
+            # Wait for receipt
+            print(f"⏳ Waiting for transaction confirmation...")
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ ETH → WETH wrap transaction successful!")
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "amount_wrapped": amount_eth,
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber,
+                    "method_used": "weth_deposit"
+                }
+            else:
+                print(f"❌ ETH → WETH wrap transaction failed - Receipt status: {receipt.status}")
+                return {"success": False, "error": f"WETH wrap transaction failed - Receipt status: {receipt.status}"}
+                
+        except Exception as e:
+            print(f"❌ ETH → WETH wrap error: {e}")
+            import traceback
+            print(f"🔍 Full error traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
     async def _convert_eth_to_oft(
@@ -1104,64 +1214,199 @@ class LayerZeroOFTBridgeService:
             print(f"🔍 Full error traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
-    async def debug_oft_contract(self, chain_name: str) -> Dict[str, Any]:
-        """Debug OFT contract to understand available functions"""
+    async def debug_layerzero_send_comprehensive(
+        self, 
+        from_chain: str, 
+        to_chain: str, 
+        user_address: str, 
+        amount_eth: float
+    ) -> Dict[str, Any]:
+        """Comprehensive debugging of LayerZero send issues with the user's actual account"""
         try:
-            web3 = self.web3_connections.get(chain_name)
-            if not web3:
-                return {"success": False, "error": f"Chain {chain_name} not connected"}
+            print(f"\n🔍 === COMPREHENSIVE LAYERZERO DEBUG ===")
+            print(f"📤 From: {from_chain} → To: {to_chain}")
+            print(f"👤 User: {user_address}")
+            print(f"💰 Amount: {amount_eth} ETH")
             
-            config = self.oft_contracts[chain_name]
-            contract_address = config.get('address')
+            # Get Web3 and configurations
+            source_web3 = self.web3_connections.get(from_chain)
+            source_config = self.oft_contracts[from_chain]
+            target_config = self.oft_contracts[to_chain]
             
-            if not contract_address:
-                return {"success": False, "error": f"No contract address for {chain_name}"}
+            if not source_web3:
+                return {"success": False, "error": f"Chain {from_chain} not connected"}
             
-            print(f"🔍 Debugging OFT contract on {chain_name}")
-            print(f"📍 Contract address: {contract_address}")
+            # Get user account
+            from app.services.multi_account_manager import address_key_manager
+            user_account_info = address_key_manager.get_account_info_for_address(user_address)
+            if not user_account_info:
+                return {"success": False, "error": f"No private key for {user_address}"}
             
-            # Test basic contract interaction
+            user_account = user_account_info['account']
+            oft_contract = self.oft_instances[from_chain]
+            
+            debug_results = {}
+            
+            # 1. Check OFT Balance for ACTUAL USER
+            print(f"\n💰 === CHECKING USER OFT BALANCE ===")
             try:
-                # Check if contract exists
-                code = web3.eth.get_code(contract_address)
-                if code == b'':
-                    return {"success": False, "error": f"No contract code at {contract_address}"}
-                
-                print(f"✅ Contract code exists (length: {len(code)} bytes)")
-                
-                # Try basic ERC20-style balanceOf
-                simple_abi = [
-                    {
-                        "inputs": [{"name": "account", "type": "address"}],
-                        "name": "balanceOf",
-                        "outputs": [{"name": "", "type": "uint256"}],
-                        "stateMutability": "view",
-                        "type": "function"
-                    }
-                ]
-                
-                simple_contract = web3.eth.contract(address=contract_address, abi=simple_abi)
-                balance = simple_contract.functions.balanceOf(self.current_account.address).call()
-                print(f"✅ balanceOf works: {balance}")
-                
-                return {
-                    "success": True,
-                    "contract_address": contract_address,
-                    "code_length": len(code),
-                    "balance_check": "working",
-                    "chain": chain_name,
-                    "message": "Contract is deployed and responsive"
+                oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
+                oft_balance_eth = float(Web3.from_wei(oft_balance, 'ether'))
+                debug_results["user_oft_balance"] = {
+                    "balance_wei": oft_balance,
+                    "balance_eth": oft_balance_eth,
+                    "user_address": user_account.address,
+                    "required_eth": amount_eth,
+                    "sufficient": oft_balance_eth >= amount_eth
                 }
+                print(f"✅ User OFT balance: {oft_balance_eth} cfWETH")
+                print(f"🎯 Required: {amount_eth} ETH")
+                print(f"📊 Sufficient: {'YES' if oft_balance_eth >= amount_eth else 'NO'}")
+            except Exception as e:
+                debug_results["user_oft_balance"] = {"error": str(e)}
+                print(f"❌ Error checking OFT balance: {e}")
+            
+            # 2. Check Peer Configuration
+            print(f"\n🔗 === CHECKING PEER CONNECTIONS ===")
+            try:
+                target_eid = target_config['layerzero_eid']
+                peer_address = oft_contract.functions.peers(target_eid).call()
+                target_addr = target_config['address'].lower().replace('0x', '').zfill(64)
+                expected_peer = Web3.to_bytes(hexstr=target_addr)
+                
+                debug_results["peer_connections"] = {
+                    "target_eid": target_eid,
+                    "peer_address_bytes": peer_address.hex(),
+                    "expected_peer_bytes": expected_peer.hex(),
+                    "peer_set": peer_address != b'0' * 32,
+                    "peer_correct": peer_address == expected_peer
+                }
+                
+                print(f"🎯 Target EID: {target_eid}")
+                print(f"🔗 Peer set: {'YES' if peer_address != b'0' * 32 else 'NO'}")
+                print(f"✅ Peer correct: {'YES' if peer_address == expected_peer else 'NO'}")
+                
+                if peer_address != expected_peer:
+                    print(f"⚠️ PEER MISMATCH!")
+                    print(f"   Current: {peer_address.hex()}")
+                    print(f"   Expected: {expected_peer.hex()}")
+                    
+            except Exception as e:
+                debug_results["peer_connections"] = {"error": str(e)}
+                print(f"❌ Error checking peers: {e}")
+            
+            # 3. Test LayerZero Endpoint
+            print(f"\n🔗 === TESTING LAYERZERO ENDPOINT ===")
+            try:
+                lz_endpoint = oft_contract.functions.lzEndpoint().call()
+                expected_endpoint = source_config['layerzero_endpoint']
+                
+                debug_results["layerzero_endpoint"] = {
+                    "actual_endpoint": lz_endpoint,
+                    "expected_endpoint": expected_endpoint,
+                    "endpoint_correct": lz_endpoint.lower() == expected_endpoint.lower()
+                }
+                
+                print(f"🔗 Actual endpoint: {lz_endpoint}")
+                print(f"🎯 Expected endpoint: {expected_endpoint}")
+                print(f"✅ Endpoint correct: {'YES' if lz_endpoint.lower() == expected_endpoint.lower() else 'NO'}")
                 
             except Exception as e:
-                return {
-                    "success": False,
-                    "error": f"Contract interaction failed: {str(e)}",
-                    "contract_address": contract_address
+                debug_results["layerzero_endpoint"] = {"error": str(e)}
+                print(f"❌ Error checking endpoint: {e}")
+            
+            # 4. Test Send Function with User Account
+            print(f"\n🧪 === TESTING SEND FUNCTION WITH USER ACCOUNT ===")
+            try:
+                amount_wei = Web3.to_wei(amount_eth, 'ether')
+                recipient_addr = "0x28918ecf013F32fAf45e05d62B4D9b207FCae784".lower().replace('0x', '').zfill(64)
+                recipient_bytes32 = Web3.to_bytes(hexstr=recipient_addr)
+                native_fee = Web3.to_wei(0.002, 'ether')
+                messaging_fee = (native_fee, 0)
+                
+                print(f"👤 Testing with user account: {user_account.address}")
+                print(f"💰 Amount: {amount_eth} ETH ({amount_wei} wei)")
+                print(f"💳 Fee: 0.002 ETH ({native_fee} wei)")
+                
+                # Try the send function call with user account
+                result = oft_contract.functions.send(
+                    target_config['layerzero_eid'],  # _dstEid
+                    recipient_bytes32,               # _to
+                    amount_wei,                      # _amountLD
+                    amount_wei,                      # _minAmountLD
+                    b'',                            # _extraOptions
+                    messaging_fee,                   # _fee
+                    user_account.address            # _refundAddress
+                ).call({
+                    'from': user_account.address,
+                    'value': native_fee
+                })
+                
+                debug_results["send_function_test"] = {
+                    "status": "success",
+                    "result": "Call simulation successful",
+                    "from_account": user_account.address
                 }
+                
+                print(f"✅ Send function simulation SUCCESSFUL!")
+                print(f"✅ LayerZero send should work!")
+                
+            except Exception as e:
+                debug_results["send_function_test"] = {
+                    "status": "failed",
+                    "error": str(e),
+                    "from_account": user_account.address
+                }
+                print(f"❌ Send function simulation FAILED: {e}")
+                
+                # Check if it's a balance issue
+                if "insufficient" in str(e).lower() or "balance" in str(e).lower():
+                    print(f"💡 BALANCE ISSUE DETECTED!")
+                    balance_info = debug_results.get('user_oft_balance', {})
+                    balance_eth = balance_info.get('balance_eth', 0)
+                    print(f"   User has {balance_eth} OFT tokens")
+                    print(f"   Required: {amount_eth} OFT tokens")
+            
+            # 5. Summary and Recommendations
+            print(f"\n📋 === DEBUG SUMMARY ===")
+            balance_ok = debug_results.get("user_oft_balance", {}).get("sufficient", False)
+            peer_ok = debug_results.get("peer_connections", {}).get("peer_correct", False)
+            endpoint_ok = debug_results.get("layerzero_endpoint", {}).get("endpoint_correct", False)
+            send_ok = debug_results.get("send_function_test", {}).get("status") == "success"
+            
+            print(f"✅ OFT Balance: {'OK' if balance_ok else 'ISSUE'}")
+            print(f"✅ Peer Connections: {'OK' if peer_ok else 'ISSUE'}")
+            print(f"✅ LayerZero Endpoint: {'OK' if endpoint_ok else 'ISSUE'}")
+            print(f"✅ Send Function: {'OK' if send_ok else 'ISSUE'}")
+            
+            debug_results["summary"] = {
+                "balance_ok": balance_ok,
+                "peer_ok": peer_ok,
+                "endpoint_ok": endpoint_ok,
+                "send_ok": send_ok,
+                "overall_status": "ready" if all([balance_ok, peer_ok, endpoint_ok, send_ok]) else "issues_detected"
+            }
+            
+            if not balance_ok:
+                print(f"🔧 SOLUTION: Deposit more WETH to get OFT tokens")
+            if not peer_ok:
+                print(f"🔧 SOLUTION: Run peer connection setup again")
+            if not endpoint_ok:
+                print(f"🔧 SOLUTION: Check LayerZero endpoint configuration")
+            if not send_ok and balance_ok and peer_ok and endpoint_ok:
+                print(f"🔧 SOLUTION: Contract implementation issue - may need different ABI")
+            
+            return {
+                "success": True,
+                "debug_results": debug_results,
+                "recommendations": debug_results["summary"]
+            }
             
         except Exception as e:
-            return {"success": False, "error": f"Debug failed: {str(e)}"}
+            print(f"❌ Debug error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
 
     async def investigate_contract_implementation(self, chain_name: str) -> Dict[str, Any]:
         """Deep investigation of the deployed contract to understand its actual implementation"""
@@ -2045,13 +2290,18 @@ class LayerZeroOFTBridgeService:
                 
                 messaging_fee = (test_fee, 0)  # (nativeFee, lzTokenFee)
                 
-                # Test call
+                # Get user account instead of deployer account
+                from app.services.multi_account_manager import address_key_manager
+                user_account_info = address_key_manager.get_account_info_for_address('0xc6A050a538a9E857B4DCb4A33436280c202F6941')
+                test_account = user_account_info['account'] if user_account_info else self.current_account
+                
+                # Test call with correct account
                 result = contract.functions.send(
                     send_param,
                     messaging_fee,
-                    self.current_account.address
+                    test_account.address
                 ).call({
-                    'from': self.current_account.address,
+                    'from': test_account.address,
                     'value': test_fee
                 })
                 
@@ -2110,7 +2360,12 @@ class LayerZeroOFTBridgeService:
                     contract = web3.eth.contract(address=contract_address, abi=v1_send_abi)
                     messaging_fee = (test_fee, 0)  # (nativeFee, lzTokenFee)
                     
-                    # Test call
+                    # Get user account instead of deployer account  
+                    from app.services.multi_account_manager import address_key_manager
+                    user_account_info = address_key_manager.get_account_info_for_address('0xc6A050a538a9E857B4DCb4A33436280c202F6941')
+                    test_account = user_account_info['account'] if user_account_info else self.current_account
+                    
+                    # Test call with correct account
                     result = contract.functions.send(
                         target_eid,           # _dstEid
                         recipient_bytes32,    # _to
@@ -2118,9 +2373,9 @@ class LayerZeroOFTBridgeService:
                         test_amount,          # _minAmountLD
                         b'',                  # _extraOptions
                         messaging_fee,        # _fee
-                        self.current_account.address  # _refundAddress
+                        test_account.address  # _refundAddress
                     ).call({
-                        'from': self.current_account.address,
+                        'from': test_account.address,
                         'value': test_fee
                     })
                     
