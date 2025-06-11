@@ -2,9 +2,9 @@
   "network": "arbitrumSepolia",
   "chainId": 421614,
   "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-  "deployedAt": "2025-06-11T03:57:46.136Z",
+  "deployedAt": "2025-06-11T10:18:42.631Z",
   "contracts": {
-    "wethOFT": "0x9767D45C02Bf58842d723a1E1D8340a22748f6B8"
+    "wethOFT": "0x35F63413FC7d0BE3f3e5f819BDd32b867A92d966"
   },
   "configuration": {
     "layerzeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",

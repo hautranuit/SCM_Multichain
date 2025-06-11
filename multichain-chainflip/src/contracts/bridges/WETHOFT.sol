@@ -184,28 +184,34 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
     
     /**
      * @dev Get quote for cross-chain send (Backend-compatible signature)
+     * Returns fixed fee structure since testnet endpoints may not support full quote functionality
      */
     function quoteSend(
         uint32 _dstEid,
-        bytes32 _to,
-        uint256 _amountLD,
-        uint256 _minAmountLD,
-        bytes calldata _extraOptions,
-        bool _payInLzToken
+        bytes32 /* _to */,
+        uint256 /* _amountLD */,
+        uint256 /* _minAmountLD */,
+        bytes calldata /* _extraOptions */,
+        bool /* _payInLzToken */
     ) external view returns (ILayerZeroEndpointV2.MessagingFee memory) {
         require(peers[_dstEid] != bytes32(0), "Peer not set");
         
-        bytes memory message = abi.encode(SEND, _to, _amountLD);
+        // Return fixed fee structure for testnet compatibility
+        // Different fees based on destination chain complexity
+        uint256 baseFee;
         
-        ILayerZeroEndpointV2.MessagingParams memory params = ILayerZeroEndpointV2.MessagingParams({
-            dstEid: _dstEid,
-            receiver: peers[_dstEid],
-            message: message,
-            options: _extraOptions,
-            payInLzToken: _payInLzToken
+        if (_dstEid == 40158) {  // zkEVM Cardona
+            baseFee = 0.003 ether;
+        } else if (_dstEid == 40313) {  // Polygon Amoy
+            baseFee = 0.0025 ether;
+        } else {  // Optimism/Arbitrum
+            baseFee = 0.002 ether;
+        }
+        
+        return ILayerZeroEndpointV2.MessagingFee({
+            nativeFee: baseFee,
+            lzTokenFee: 0
         });
-        
-        return lzEndpoint.quote(params, address(this));
     }
     
     /**

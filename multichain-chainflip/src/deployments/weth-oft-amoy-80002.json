@@ -1,0 +1,18 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "deployedAt": "2025-06-11T10:23:46.968Z",
+  "contracts": {
+    "wethOFT": "0x7793D6Af377548082833E341Fb93681B531C656B"
+  },
+  "configuration": {
+    "layerzeroEndpoint": "0x16c693A3924B947298F7227792953Cd6BBb21Ac8",
+    "layerzeroEid": 40313,
+    "wethAddress": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
+    "name": "ChainFLIP WETH",
+    "symbol": "cfWETH"
+  },
+  "bridgeType": "LayerZero OFT V2",
+  "gasUsed": "TBD"
+}

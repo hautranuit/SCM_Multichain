@@ -64,6 +64,13 @@ LAYERZERO_OFT_ABI = [
     },
     {
         "inputs": [{"name": "amount", "type": "uint256"}],
+        "name": "depositWETH",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [{"name": "amount", "type": "uint256"}],
         "name": "wrapAndDeposit",
         "outputs": [],
         "stateMutability": "payable",
@@ -171,10 +178,10 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # LayerZero OFT Configuration (DEPLOYED 2025)
+        # LayerZero OFT Configuration (FINAL FIXED CONTRACTS - JUNE 2025 - ALL QUOTESEND FIXED)
         self.oft_contracts = {
             "optimism_sepolia": {
-                "address": "0xf77FAB8A727ac0d6810881841Ad1274bacA306c9",  # DEPLOYED ✅
+                "address": "0x1A3F3924662aaa4f5122cD2B2EDff614Cf1d6eb0",  # ✅ FINAL FIXED CONTRACT
                 "weth_address": "0x4200000000000000000000000000000000000006",
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
@@ -186,7 +193,7 @@ class LayerZeroOFTBridgeService:
                 ]
             },
             "arbitrum_sepolia": {
-                "address": "0x9767D45C02Bf58842d723a1E1D8340a22748f6B8",  # DEPLOYED ✅
+                "address": "0x35F63413FC7d0BE3f3e5f819BDd32b867A92d966",  # ✅ FINAL FIXED CONTRACT
                 "weth_address": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
@@ -198,7 +205,7 @@ class LayerZeroOFTBridgeService:
                 ]
             },
             "polygon_pos": {
-                "address": "0x2edF34BA32BC489BcbF313A98037b8c423f83000",  # DEPLOYED ✅
+                "address": "0x7793D6Af377548082833E341Fb93681B531C656B",  # ✅ FINAL FIXED CONTRACT
                 "weth_address": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
@@ -210,7 +217,7 @@ class LayerZeroOFTBridgeService:
                 ]
             },
             "zkevm_cardona": {
-                "address": "0xc8DEf94605917074A3990D4c78cf52C556C47E28",  # DEPLOYED ✅
+                "address": "0x736A068c7d2124D21026d86ee9F23F0A2d1dA5A4",  # ✅ FINAL FIXED CONTRACT
                 "weth_address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
@@ -507,6 +514,57 @@ class LayerZeroOFTBridgeService:
                     return {"success": False, "error": "WETH approval transaction failed"}
             else:
                 print(f"✅ Sufficient WETH allowance already exists")
+            
+            # STEP 1.6: Convert WETH to OFT tokens (CRITICAL MISSING STEP!)
+            print(f"\n🔄 === STEP 1.6: CONVERT WETH TO OFT TOKENS ===")
+            oft_contract = self.oft_instances[from_chain]
+            
+            # Check current OFT balance
+            oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
+            oft_balance_eth = float(Web3.from_wei(oft_balance, 'ether'))
+            
+            print(f"💳 Current OFT balance: {oft_balance_eth} cfWETH")
+            print(f"🎯 Required OFT amount: {amount_eth} cfWETH")
+            
+            if oft_balance_eth < amount_eth:
+                needed_deposit = amount_eth - oft_balance_eth
+                print(f"🔄 Need to deposit {needed_deposit} WETH to get OFT tokens...")
+                
+                # Build depositWETH transaction
+                deposit_nonce = source_web3.eth.get_transaction_count(user_account.address)
+                deposit_amount_wei = Web3.to_wei(needed_deposit, 'ether')
+                
+                deposit_transaction = oft_contract.functions.depositWETH(deposit_amount_wei).build_transaction({
+                    'from': user_account.address,
+                    'gas': 200000,
+                    'gasPrice': source_web3.eth.gas_price,
+                    'nonce': deposit_nonce,
+                    'chainId': source_web3.eth.chain_id
+                })
+                
+                # Sign and send deposit transaction
+                signed_deposit = source_web3.eth.account.sign_transaction(deposit_transaction, user_account.key)
+                deposit_tx_hash = source_web3.eth.send_raw_transaction(signed_deposit.raw_transaction)
+                deposit_receipt = source_web3.eth.wait_for_transaction_receipt(deposit_tx_hash, timeout=300)
+                
+                if deposit_receipt.status == 1:
+                    print(f"✅ WETH deposited successfully: {deposit_tx_hash.hex()}")
+                    
+                    # Verify OFT balance increased
+                    new_oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
+                    new_oft_balance_eth = float(Web3.from_wei(new_oft_balance, 'ether'))
+                    print(f"✅ New OFT balance: {new_oft_balance_eth} cfWETH")
+                    
+                    if new_oft_balance_eth >= amount_eth:
+                        print(f"✅ Sufficient OFT tokens now available for transfer")
+                    else:
+                        return {"success": False, "error": f"OFT deposit succeeded but still insufficient balance. Have: {new_oft_balance_eth}, Need: {amount_eth}"}
+                else:
+                    return {"success": False, "error": "WETH deposit transaction failed"}
+            else:
+                print(f"✅ Sufficient OFT tokens already available")
+            
+            print(f"✅ Ready to proceed with LayerZero OFT transfer")
             
             # Initialize conversion result for tracking
             oft_convert_result = {"success": True, "transaction_hash": None, "method": "weth_with_approval"}

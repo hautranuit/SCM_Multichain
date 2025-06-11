@@ -2,9 +2,9 @@
   "network": "cardona",
   "chainId": 2442,
   "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-  "deployedAt": "2025-06-11T03:58:07.158Z",
+  "deployedAt": "2025-06-11T10:19:13.869Z",
   "contracts": {
-    "wethOFT": "0xc8DEf94605917074A3990D4c78cf52C556C47E28"
+    "wethOFT": "0x736A068c7d2124D21026d86ee9F23F0A2d1dA5A4"
   },
   "configuration": {
     "layerzeroEndpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",
