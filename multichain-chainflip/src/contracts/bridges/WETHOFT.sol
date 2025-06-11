@@ -141,18 +141,21 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
     }
     
     /**
-     * @dev Send OFT tokens cross-chain
+     * @dev Send OFT tokens cross-chain (Backend-compatible signature)
      */
     function send(
         uint32 _dstEid,
         bytes32 _to,
         uint256 _amountLD,
         uint256 _minAmountLD,
-        bytes calldata _extraOptions
+        bytes calldata _extraOptions,
+        ILayerZeroEndpointV2.MessagingFee calldata _fee,
+        address _refundAddress
     ) external payable nonReentrant returns (ILayerZeroEndpointV2.MessagingReceipt memory) {
         require(peers[_dstEid] != bytes32(0), "Peer not set");
         require(balanceOf(msg.sender) >= _amountLD, "Insufficient balance");
         require(_amountLD >= _minAmountLD, "Amount less than minimum");
+        require(msg.value >= _fee.nativeFee, "Insufficient fee");
         
         // Burn tokens on source chain
         _burn(msg.sender, _amountLD);
@@ -169,9 +172,9 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
             payInLzToken: false
         });
         
-        ILayerZeroEndpointV2.MessagingReceipt memory receipt = lzEndpoint.send{value: msg.value}(
+        ILayerZeroEndpointV2.MessagingReceipt memory receipt = lzEndpoint.send{value: _fee.nativeFee}(
             params,
-            payable(msg.sender)
+            payable(_refundAddress)
         );
         
         emit OFTSent(receipt.guid, _dstEid, msg.sender, _amountLD, _amountLD);
@@ -180,13 +183,15 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
     }
     
     /**
-     * @dev Get quote for cross-chain send
+     * @dev Get quote for cross-chain send (Backend-compatible signature)
      */
     function quoteSend(
         uint32 _dstEid,
         bytes32 _to,
         uint256 _amountLD,
-        bytes calldata _extraOptions
+        uint256 _minAmountLD,
+        bytes calldata _extraOptions,
+        bool _payInLzToken
     ) external view returns (ILayerZeroEndpointV2.MessagingFee memory) {
         require(peers[_dstEid] != bytes32(0), "Peer not set");
         
@@ -197,10 +202,29 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
             receiver: peers[_dstEid],
             message: message,
             options: _extraOptions,
-            payInLzToken: false
+            payInLzToken: _payInLzToken
         });
         
         return lzEndpoint.quote(params, address(this));
+    }
+    
+    /**
+     * @dev Legacy send function for backward compatibility
+     */
+    function send(
+        uint32 _dstEid,
+        bytes32 _to,
+        uint256 _amountLD,
+        uint256 _minAmountLD,
+        bytes calldata _extraOptions
+    ) external payable nonReentrant returns (ILayerZeroEndpointV2.MessagingReceipt memory) {
+        // Use default fee structure
+        ILayerZeroEndpointV2.MessagingFee memory fee = ILayerZeroEndpointV2.MessagingFee({
+            nativeFee: msg.value,
+            lzTokenFee: 0
+        });
+        
+        return this.send(_dstEid, _to, _amountLD, _minAmountLD, _extraOptions, fee, msg.sender);
     }
     
     /**

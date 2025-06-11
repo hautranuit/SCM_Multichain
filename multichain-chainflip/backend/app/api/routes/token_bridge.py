@@ -509,3 +509,150 @@ async def test_oft_functions(request: ContractDebugRequest):
             "chain": request.chain_name,
             "timestamp": time.time()
         }
+
+@router.post("/debug/investigate", response_model=Dict[str, Any])
+async def investigate_contract_implementation(request: ContractDebugRequest):
+    """Deep investigation of deployed LayerZero contract implementation"""
+    try:
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Run deep contract investigation
+        investigation_result = await layerzero_oft_bridge_service.investigate_contract_implementation(request.chain_name)
+        
+        return {
+            "success": True,
+            "chain": request.chain_name,
+            "investigation": investigation_result,
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Contract investigation failed: {str(e)}",
+            "chain": request.chain_name,
+            "timestamp": time.time()
+        }
+
+@router.post("/debug/test-send", response_model=Dict[str, Any])
+async def test_and_fix_send(request: Dict[str, str]):
+    """Test different LayerZero send patterns and identify working configuration"""
+    try:
+        from_chain = request.get("from_chain", "optimism_sepolia")
+        to_chain = request.get("to_chain", "zkevm_cardona")
+        
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Run send function tests and get fix recommendations
+        send_test_result = await layerzero_oft_bridge_service.test_and_fix_layerzero_send(from_chain, to_chain)
+        
+        return {
+            "success": True,
+            "from_chain": from_chain,
+            "to_chain": to_chain,
+            "test_results": send_test_result,
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Send test failed: {str(e)}",
+            "timestamp": time.time()
+        }
+
+@router.post("/debug/test-reverse", response_model=Dict[str, Any])
+async def test_reverse_direction():
+    """Test reverse direction transfer (zkEVM → Optimism) which should work"""
+    try:
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Test reverse direction: zkEVM → Optimism (should work since Optimism has zkEVM peer)
+        reverse_test_result = await layerzero_oft_bridge_service.test_and_fix_layerzero_send(
+            "zkevm_cardona", "optimism_sepolia"
+        )
+        
+        return {
+            "success": True,
+            "direction": "reverse",
+            "from_chain": "zkevm_cardona", 
+            "to_chain": "optimism_sepolia",
+            "test_results": reverse_test_result,
+            "note": "Testing reverse direction since zkEVM lacks peer configuration",
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Reverse direction test failed: {str(e)}",
+            "timestamp": time.time()
+        }
+
+@router.post("/transfer-reverse", response_model=Dict[str, Any])
+async def transfer_reverse_direction(request: TokenTransferRequest):
+    """Execute reverse direction transfer (zkEVM → other chains) as workaround"""
+    try:
+        # Force reverse direction for testing
+        if request.from_chain != "zkevm_cardona":
+            return {
+                "success": False,
+                "error": "This endpoint only supports zkEVM as source chain (reverse direction workaround)",
+                "suggestion": "Use zkEVM as from_chain to test working direction"
+            }
+        
+        # Generate escrow ID if not provided
+        escrow_id = request.escrow_id or f"REVERSE-{int(time.time())}-{request.from_address[-6:]}"
+        
+        print(f"\n🔄 === REVERSE DIRECTION TRANSFER (WORKAROUND) ===")
+        print(f"From: {request.from_chain} → To: {request.to_chain}")
+        print(f"Amount: {request.amount_eth} ETH")
+        print(f"Note: Testing reverse direction due to peer configuration issue")
+        
+        # Initialize LayerZero service if needed
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        # Execute reverse direction transfer
+        result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
+            request.from_chain,
+            request.to_chain,
+            request.from_address,
+            request.to_address,
+            request.amount_eth,
+            escrow_id
+        )
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "transfer_id": escrow_id,
+                "bridge_type": "LayerZero OFT (Reverse Direction)",
+                "amount_transferred": request.amount_eth,
+                "oft_transaction_hash": result.get("oft_transaction_hash"),
+                "layerzero_guid": result.get("layerzero_guid"),
+                "native_fee_paid": result.get("native_fee_paid"),
+                "is_workaround": True,
+                "note": "Reverse direction used due to zkEVM peer configuration issue",
+                "message": "Reverse direction transfer completed successfully",
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Reverse direction transfer failed: {result.get('error')}",
+                "timestamp": time.time()
+            }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Reverse transfer execution failed: {str(e)}",
+            "timestamp": time.time()
+        }

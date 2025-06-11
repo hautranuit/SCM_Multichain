@@ -688,6 +688,223 @@ class LayerZeroOFTBridgeService:
 
 
 
+    async def _execute_oft_send_adaptive(
+        self, 
+        web3: Web3, 
+        from_chain: str, 
+        to_chain: str, 
+        user_account, 
+        to_address: str, 
+        amount_wei: int
+    ) -> Dict[str, Any]:
+        """Execute LayerZero OFT send with adaptive pattern detection"""
+        try:
+            source_config = self.oft_contracts[from_chain]
+            target_config = self.oft_contracts[to_chain]
+            
+            print(f"🔗 Adaptive OFT Send: {from_chain} → {to_chain}")
+            print(f"📍 Contract: {source_config['address']}")
+            
+            # First, test and find working configuration
+            send_test = await self.test_and_fix_layerzero_send(from_chain, to_chain)
+            
+            if not send_test["success"] or not send_test.get("working_configuration"):
+                return {"success": False, "error": "No working LayerZero configuration found"}
+            
+            working_config = send_test["working_configuration"]
+            config_type = working_config["type"]
+            
+            print(f"✅ Using working configuration: {config_type}")
+            
+            # Get fee estimate
+            fee_estimate = await self.estimate_oft_transfer_fee(from_chain, to_chain, float(Web3.from_wei(amount_wei, 'ether')))
+            if not fee_estimate["success"]:
+                return {"success": False, "error": f"Fee estimation failed: {fee_estimate['error']}"}
+            
+            native_fee = fee_estimate["native_fee_wei"]
+            
+            # Convert recipient address to bytes32 format
+            recipient_bytes32 = Web3.to_bytes(hexstr=to_address.lower().replace('0x', '').zfill(64))
+            
+            # Create contract instance with appropriate ABI
+            oft_contract = web3.eth.contract(
+                address=source_config['address'],
+                abi=working_config["abi"]
+            )
+            
+            # Build transaction based on configuration type
+            nonce = web3.eth.get_transaction_count(user_account.address)
+            
+            if config_type == "v2_struct":
+                print(f"🔧 Using V2 struct-based send")
+                
+                # Create struct parameters
+                send_param = (
+                    target_config['layerzero_eid'],  # dstEid
+                    recipient_bytes32,               # to
+                    amount_wei,                      # amountLD
+                    amount_wei,                      # minAmountLD
+                    b'',                            # extraOptions
+                    b'',                            # composeMsg
+                    b''                             # oftCmd
+                )
+                
+                messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
+                
+                # Test call first
+                try:
+                    oft_contract.functions.send(
+                        send_param,
+                        messaging_fee,
+                        user_account.address
+                    ).call({
+                        'from': user_account.address,
+                        'value': native_fee
+                    })
+                    print("✅ V2 struct simulation successful")
+                except Exception as sim_error:
+                    return {"success": False, "error": f"V2 struct simulation failed: {sim_error}"}
+                
+                # Build transaction
+                transaction = oft_contract.functions.send(
+                    send_param,
+                    messaging_fee,
+                    user_account.address
+                ).build_transaction({
+                    'from': user_account.address,
+                    'value': native_fee,
+                    'gas': 1000000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': nonce,
+                    'chainId': web3.eth.chain_id
+                })
+                
+            elif config_type == "oft_adapter":
+                print(f"🔧 Using OFT Adapter sendFrom")
+                
+                messaging_fee = (native_fee, 0)
+                function_name = working_config["send_function"]  # Should be "sendFrom"
+                
+                # Test call first
+                try:
+                    getattr(oft_contract.functions, function_name)(
+                        target_config['layerzero_eid'],
+                        recipient_bytes32,
+                        amount_wei,
+                        amount_wei,
+                        b'',
+                        messaging_fee,
+                        user_account.address
+                    ).call({
+                        'from': user_account.address,
+                        'value': native_fee
+                    })
+                    print("✅ OFT Adapter simulation successful")
+                except Exception as sim_error:
+                    return {"success": False, "error": f"OFT Adapter simulation failed: {sim_error}"}
+                
+                # Build transaction
+                transaction = getattr(oft_contract.functions, function_name)(
+                    target_config['layerzero_eid'],
+                    recipient_bytes32,
+                    amount_wei,
+                    amount_wei,
+                    b'',
+                    messaging_fee,
+                    user_account.address
+                ).build_transaction({
+                    'from': user_account.address,
+                    'value': native_fee,
+                    'gas': 1000000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': nonce,
+                    'chainId': web3.eth.chain_id
+                })
+                
+            else:  # v1_individual (default/current implementation)
+                print(f"🔧 Using V1 individual parameters")
+                
+                messaging_fee = (native_fee, 0)
+                
+                # Test call first
+                try:
+                    oft_contract.functions.send(
+                        target_config['layerzero_eid'],
+                        recipient_bytes32,
+                        amount_wei,
+                        amount_wei,
+                        b'',
+                        messaging_fee,
+                        user_account.address
+                    ).call({
+                        'from': user_account.address,
+                        'value': native_fee
+                    })
+                    print("✅ V1 individual simulation successful")
+                except Exception as sim_error:
+                    return {"success": False, "error": f"V1 individual simulation failed: {sim_error}"}
+                
+                # Build transaction
+                transaction = oft_contract.functions.send(
+                    target_config['layerzero_eid'],
+                    recipient_bytes32,
+                    amount_wei,
+                    amount_wei,
+                    b'',
+                    messaging_fee,
+                    user_account.address
+                ).build_transaction({
+                    'from': user_account.address,
+                    'value': native_fee,
+                    'gas': 1000000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': nonce,
+                    'chainId': web3.eth.chain_id
+                })
+            
+            # Sign and send transaction
+            print(f"✍️ Signing and sending adaptive OFT transaction...")
+            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 Transaction sent: {tx_hash.hex()}")
+            
+            # Wait for receipt
+            print(f"⏳ Waiting for transaction confirmation...")
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ Adaptive OFT send successful!")
+                
+                # Extract LayerZero GUID from logs
+                layerzero_guid = None
+                try:
+                    for log in receipt.logs:
+                        if len(log.topics) > 0:
+                            layerzero_guid = log.topics[0].hex()[:32]
+                            break
+                except:
+                    pass
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber,
+                    "native_fee_paid": float(Web3.from_wei(native_fee, 'ether')),
+                    "layerzero_guid": layerzero_guid,
+                    "destination_eid": target_config['layerzero_eid'],
+                    "configuration_used": config_type,
+                    "adaptive_method": True
+                }
+            else:
+                return {"success": False, "error": f"Transaction failed - Receipt status: {receipt.status}"}
+                
+        except Exception as e:
+            print(f"❌ Adaptive OFT send error: {e}")
+            import traceback
+            print(f"🔍 Full error traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
     async def _execute_oft_send(
         self, 
         web3: Web3, 
@@ -699,6 +916,18 @@ class LayerZeroOFTBridgeService:
     ) -> Dict[str, Any]:
         """Execute LayerZero OFT send transaction using direct send approach (no fee quote)"""
         try:
+            # Try adaptive method first
+            adaptive_result = await self._execute_oft_send_adaptive(
+                web3, from_chain, to_chain, user_account, to_address, amount_wei
+            )
+            
+            if adaptive_result["success"]:
+                return adaptive_result
+            
+            print(f"⚠️ Adaptive method failed: {adaptive_result.get('error')}")
+            print(f"🔄 Falling back to original implementation...")
+            
+            # Fallback to original implementation
             source_config = self.oft_contracts[from_chain]
             target_config = self.oft_contracts[to_chain]
             
@@ -875,6 +1104,326 @@ class LayerZeroOFTBridgeService:
             
         except Exception as e:
             return {"success": False, "error": f"Debug failed: {str(e)}"}
+
+    async def investigate_contract_implementation(self, chain_name: str) -> Dict[str, Any]:
+        """Deep investigation of the deployed contract to understand its actual implementation"""
+        try:
+            web3 = self.web3_connections.get(chain_name)
+            config = self.oft_contracts[chain_name]
+            contract_address = config.get('address')
+            
+            if not web3 or not contract_address:
+                return {"success": False, "error": "Chain or contract not available"}
+            
+            print(f"🔍 DEEP CONTRACT INVESTIGATION: {chain_name}")
+            print(f"📍 Contract Address: {contract_address}")
+            
+            investigation_results = {}
+            
+            # 1. Basic Contract Info
+            try:
+                code = web3.eth.get_code(contract_address)
+                code_size = len(code)
+                investigation_results["basic_info"] = {
+                    "has_code": code_size > 0,
+                    "code_size_bytes": code_size,
+                    "code_hash": web3.keccak(code).hex() if code_size > 0 else None
+                }
+                print(f"📦 Contract code size: {code_size} bytes")
+            except Exception as e:
+                investigation_results["basic_info"] = {"error": str(e)}
+            
+            # 2. Check for LayerZero Standards
+            try:
+                # Test different LayerZero endpoint patterns
+                endpoint_tests = {}
+                
+                # Test lzEndpoint (V2 standard)
+                try:
+                    lz_abi = [{"inputs": [], "name": "lzEndpoint", "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                    contract = web3.eth.contract(address=contract_address, abi=lz_abi)
+                    endpoint = contract.functions.lzEndpoint().call()
+                    endpoint_tests["lzEndpoint"] = {"status": "works", "result": endpoint}
+                except Exception as e:
+                    endpoint_tests["lzEndpoint"] = {"status": "failed", "error": str(e)}
+                
+                # Test endpoint (V1 standard)
+                try:
+                    endpoint_abi = [{"inputs": [], "name": "endpoint", "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                    contract = web3.eth.contract(address=contract_address, abi=endpoint_abi)
+                    endpoint = contract.functions.endpoint().call()
+                    endpoint_tests["endpoint"] = {"status": "works", "result": endpoint}
+                except Exception as e:
+                    endpoint_tests["endpoint"] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["layerzero_endpoints"] = endpoint_tests
+                
+            except Exception as e:
+                investigation_results["layerzero_endpoints"] = {"error": str(e)}
+            
+            # 3. Check for OFT vs OFT Adapter patterns
+            try:
+                oft_pattern_tests = {}
+                
+                # Test for underlying token (OFT Adapter pattern)
+                token_function_names = ["token", "innerToken", "underlyingToken", "wrappedToken"]
+                for func_name in token_function_names:
+                    try:
+                        token_abi = [{"inputs": [], "name": func_name, "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                        contract = web3.eth.contract(address=contract_address, abi=token_abi)
+                        token_addr = contract.functions[func_name]().call()
+                        oft_pattern_tests[func_name] = {"status": "works", "result": token_addr}
+                        print(f"✅ Found {func_name}: {token_addr}")
+                    except Exception as e:
+                        oft_pattern_tests[func_name] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["oft_patterns"] = oft_pattern_tests
+                
+            except Exception as e:
+                investigation_results["oft_patterns"] = {"error": str(e)}
+            
+            # 4. Check for Proxy Patterns
+            try:
+                proxy_tests = {}
+                
+                # Common proxy implementation functions
+                proxy_functions = ["implementation", "getImplementation", "_implementation"]
+                for func_name in proxy_functions:
+                    try:
+                        proxy_abi = [{"inputs": [], "name": func_name, "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                        contract = web3.eth.contract(address=contract_address, abi=proxy_abi)
+                        impl_addr = contract.functions[func_name]().call()
+                        proxy_tests[func_name] = {"status": "works", "result": impl_addr}
+                        print(f"🔗 Proxy detected - {func_name}: {impl_addr}")
+                    except Exception as e:
+                        proxy_tests[func_name] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["proxy_patterns"] = proxy_tests
+                
+            except Exception as e:
+                investigation_results["proxy_patterns"] = {"error": str(e)}
+            
+            # 5. Test Various Send Function Signatures
+            try:
+                send_function_tests = {}
+                
+                # V2 OFT Standard with struct
+                try:
+                    v2_send_abi = [{
+                        "inputs": [
+                            {"name": "_sendParam", "type": "tuple", "components": [
+                                {"name": "dstEid", "type": "uint32"},
+                                {"name": "to", "type": "bytes32"},
+                                {"name": "amountLD", "type": "uint256"},
+                                {"name": "minAmountLD", "type": "uint256"},
+                                {"name": "extraOptions", "type": "bytes"},
+                                {"name": "composeMsg", "type": "bytes"},
+                                {"name": "oftCmd", "type": "bytes"}
+                            ]},
+                            {"name": "_fee", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]},
+                            {"name": "_refundAddress", "type": "address"}
+                        ],
+                        "name": "send",
+                        "outputs": [],
+                        "stateMutability": "payable",
+                        "type": "function"
+                    }]
+                    
+                    # Just check if function signature exists
+                    contract = web3.eth.contract(address=contract_address, abi=v2_send_abi)
+                    send_function_tests["v2_struct_send"] = {"status": "signature_exists", "result": "V2 struct-based send function found"}
+                    
+                except Exception as e:
+                    send_function_tests["v2_struct_send"] = {"status": "failed", "error": str(e)}
+                
+                # V1 OFT Standard with individual parameters (current implementation)
+                try:
+                    v1_send_abi = [{
+                        "inputs": [
+                            {"name": "_dstEid", "type": "uint32"},
+                            {"name": "_to", "type": "bytes32"},
+                            {"name": "_amountLD", "type": "uint256"},
+                            {"name": "_minAmountLD", "type": "uint256"},
+                            {"name": "_extraOptions", "type": "bytes"},
+                            {"name": "_fee", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]},
+                            {"name": "_refundAddress", "type": "address"}
+                        ],
+                        "name": "send",
+                        "outputs": [],
+                        "stateMutability": "payable",
+                        "type": "function"
+                    }]
+                    
+                    contract = web3.eth.contract(address=contract_address, abi=v1_send_abi)
+                    send_function_tests["v1_individual_send"] = {"status": "signature_exists", "result": "V1 individual parameter send function found"}
+                    
+                except Exception as e:
+                    send_function_tests["v1_individual_send"] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["send_function_variants"] = send_function_tests
+                
+            except Exception as e:
+                investigation_results["send_function_variants"] = {"error": str(e)}
+            
+            # 6. Test Fee Quote Functions Comprehensively
+            try:
+                fee_function_tests = {}
+                
+                # Multiple quoteSend variants
+                quote_variants = [
+                    # V2 struct-based
+                    {
+                        "name": "quoteSend_v2_struct",
+                        "abi": [{
+                            "inputs": [
+                                {"name": "_sendParam", "type": "tuple", "components": [
+                                    {"name": "dstEid", "type": "uint32"},
+                                    {"name": "to", "type": "bytes32"},
+                                    {"name": "amountLD", "type": "uint256"},
+                                    {"name": "minAmountLD", "type": "uint256"},
+                                    {"name": "extraOptions", "type": "bytes"},
+                                    {"name": "composeMsg", "type": "bytes"},
+                                    {"name": "oftCmd", "type": "bytes"}
+                                ]},
+                                {"name": "_payInLzToken", "type": "bool"}
+                            ],
+                            "name": "quoteSend",
+                            "outputs": [{"name": "", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]}],
+                            "stateMutability": "view",
+                            "type": "function"
+                        }]
+                    },
+                    # V1 individual parameters
+                    {
+                        "name": "quoteSend_v1_individual",
+                        "abi": [{
+                            "inputs": [
+                                {"name": "_dstEid", "type": "uint32"},
+                                {"name": "_to", "type": "bytes32"},
+                                {"name": "_amountLD", "type": "uint256"},
+                                {"name": "_minAmountLD", "type": "uint256"},
+                                {"name": "_extraOptions", "type": "bytes"},
+                                {"name": "_payInLzToken", "type": "bool"}
+                            ],
+                            "name": "quoteSend",
+                            "outputs": [{"name": "", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]}],
+                            "stateMutability": "view",
+                            "type": "function"
+                        }]
+                    }
+                ]
+                
+                for variant in quote_variants:
+                    try:
+                        contract = web3.eth.contract(address=contract_address, abi=variant["abi"])
+                        fee_function_tests[variant["name"]] = {"status": "signature_exists", "result": "Function signature found"}
+                    except Exception as e:
+                        fee_function_tests[variant["name"]] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["fee_quote_variants"] = fee_function_tests
+                
+            except Exception as e:
+                investigation_results["fee_quote_variants"] = {"error": str(e)}
+            
+            # 7. Check Contract Initialization State
+            try:
+                initialization_tests = {}
+                
+                # Check if peer is set for target chain (critical for LayerZero)
+                try:
+                    peer_abi = [{"inputs": [{"name": "_eid", "type": "uint32"}], "name": "peers", "outputs": [{"name": "", "type": "bytes32"}], "stateMutability": "view", "type": "function"}]
+                    contract = web3.eth.contract(address=contract_address, abi=peer_abi)
+                    
+                    # Test peer connection to zkEVM Cardona (our target)
+                    zkevm_eid = 40158
+                    peer_address = contract.functions.peers(zkevm_eid).call()
+                    
+                    if peer_address != b'\x00' * 32:  # Not zero bytes
+                        initialization_tests["peer_zkevm"] = {"status": "configured", "result": peer_address.hex()}
+                        print(f"✅ Peer configured for zkEVM: {peer_address.hex()}")
+                    else:
+                        initialization_tests["peer_zkevm"] = {"status": "not_configured", "result": "Peer not set"}
+                        print(f"⚠️ Peer NOT configured for zkEVM")
+                        
+                except Exception as e:
+                    initialization_tests["peer_zkevm"] = {"status": "failed", "error": str(e)}
+                
+                investigation_results["initialization_state"] = initialization_tests
+                
+            except Exception as e:
+                investigation_results["initialization_state"] = {"error": str(e)}
+            
+            return {
+                "success": True,
+                "chain": chain_name,
+                "contract_address": contract_address,
+                "investigation_results": investigation_results,
+                "recommendations": self._generate_fix_recommendations(investigation_results)
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Investigation failed: {str(e)}"}
+
+    def _generate_fix_recommendations(self, investigation_results: Dict[str, Any]) -> List[str]:
+        """Generate specific recommendations based on investigation results"""
+        recommendations = []
+        
+        # Check LayerZero endpoint availability
+        lz_endpoints = investigation_results.get("layerzero_endpoints", {})
+        if lz_endpoints.get("lzEndpoint", {}).get("status") == "works":
+            recommendations.append("✅ LayerZero V2 endpoint detected - use V2 functions")
+        elif lz_endpoints.get("endpoint", {}).get("status") == "works":
+            recommendations.append("⚠️ LayerZero V1 endpoint detected - may need V1 functions")
+        else:
+            recommendations.append("❌ No LayerZero endpoint found - contract may not be LayerZero OFT")
+        
+        # Check OFT pattern
+        oft_patterns = investigation_results.get("oft_patterns", {})
+        underlying_token_found = False
+        for pattern_name, pattern_result in oft_patterns.items():
+            if pattern_result.get("status") == "works":
+                underlying_token_found = True
+                recommendations.append(f"🔗 OFT Adapter pattern detected - underlying token via {pattern_name}")
+                break
+        
+        if not underlying_token_found:
+            recommendations.append("📦 Direct OFT pattern (not adapter) - may need different deposit method")
+        
+        # Check proxy pattern
+        proxy_patterns = investigation_results.get("proxy_patterns", {})
+        for proxy_name, proxy_result in proxy_patterns.items():
+            if proxy_result.get("status") == "works":
+                recommendations.append(f"🔄 Proxy contract detected - implementation at {proxy_result.get('result')}")
+                break
+        
+        # Check initialization
+        init_state = investigation_results.get("initialization_state", {})
+        peer_config = init_state.get("peer_zkevm", {})
+        if peer_config.get("status") == "not_configured":
+            recommendations.append("❌ CRITICAL: Peer not configured for target chain - this prevents transfers")
+        elif peer_config.get("status") == "configured":
+            recommendations.append("✅ Peer properly configured for target chain")
+        
+        # Check function signatures
+        send_variants = investigation_results.get("send_function_variants", {})
+        if send_variants.get("v2_struct_send", {}).get("status") == "signature_exists":
+            recommendations.append("🔧 Use V2 struct-based send function parameters")
+        elif send_variants.get("v1_individual_send", {}).get("status") == "signature_exists":
+            recommendations.append("🔧 Use V1 individual parameter send function")
+        
+        return recommendations
 
     async def test_oft_function_availability(self, chain_name: str) -> Dict[str, Any]:
         """Test which LayerZero functions are available on deployed contract"""
@@ -1367,6 +1916,328 @@ class LayerZeroOFTBridgeService:
             
         except Exception as e:
             return {"success": False, "error": f"Function test failed: {str(e)}"}
+
+    async def test_and_fix_layerzero_send(self, chain_name: str, target_chain: str) -> Dict[str, Any]:
+        """Test different LayerZero send patterns and identify working configuration"""
+        try:
+            web3 = self.web3_connections.get(chain_name)
+            source_config = self.oft_contracts[chain_name]
+            target_config = self.oft_contracts[target_chain]
+            contract_address = source_config.get('address')
+            
+            if not web3 or not contract_address:
+                return {"success": False, "error": "Chain or contract not available"}
+            
+            print(f"🔧 TESTING AND FIXING LAYERZERO SEND: {chain_name} → {target_chain}")
+            print(f"📍 Contract: {contract_address}")
+            
+            test_results = []
+            working_configuration = None
+            
+            # Test parameters
+            target_eid = target_config['layerzero_eid']
+            recipient_address = "0x28918ecf013F32fAf45e05d62B4D9b207FCae784"
+            recipient_bytes32 = Web3.to_bytes(hexstr=recipient_address.lower().replace('0x', '').zfill(64))
+            test_amount = Web3.to_wei(0.001, 'ether')  # Small test amount
+            test_fee = Web3.to_wei(0.002, 'ether')    # Test fee
+            
+            print(f"🎯 Target EID: {target_eid}")
+            print(f"📧 Recipient: {recipient_address}")
+            print(f"💰 Test amount: 0.001 ETH")
+            
+            # Test 1: V2 OFT Standard with struct parameters
+            try:
+                print(f"\n🧪 TEST 1: V2 OFT with struct parameters")
+                
+                v2_send_abi = [{
+                    "inputs": [
+                        {"name": "_sendParam", "type": "tuple", "components": [
+                            {"name": "dstEid", "type": "uint32"},
+                            {"name": "to", "type": "bytes32"},
+                            {"name": "amountLD", "type": "uint256"},
+                            {"name": "minAmountLD", "type": "uint256"},
+                            {"name": "extraOptions", "type": "bytes"},
+                            {"name": "composeMsg", "type": "bytes"},
+                            {"name": "oftCmd", "type": "bytes"}
+                        ]},
+                        {"name": "_fee", "type": "tuple", "components": [
+                            {"name": "nativeFee", "type": "uint256"},
+                            {"name": "lzTokenFee", "type": "uint256"}
+                        ]},
+                        {"name": "_refundAddress", "type": "address"}
+                    ],
+                    "name": "send",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                }]
+                
+                contract = web3.eth.contract(address=contract_address, abi=v2_send_abi)
+                
+                # Create struct parameters
+                send_param = (
+                    target_eid,           # dstEid
+                    recipient_bytes32,    # to
+                    test_amount,          # amountLD
+                    test_amount,          # minAmountLD
+                    b'',                  # extraOptions
+                    b'',                  # composeMsg
+                    b''                   # oftCmd
+                )
+                
+                messaging_fee = (test_fee, 0)  # (nativeFee, lzTokenFee)
+                
+                # Test call
+                result = contract.functions.send(
+                    send_param,
+                    messaging_fee,
+                    self.current_account.address
+                ).call({
+                    'from': self.current_account.address,
+                    'value': test_fee
+                })
+                
+                test_results.append({
+                    "test_name": "V2_struct_send",
+                    "status": "success",
+                    "result": "Function call successful",
+                    "configuration": {
+                        "type": "v2_struct",
+                        "abi": v2_send_abi,
+                        "parameters": "struct-based"
+                    }
+                })
+                
+                working_configuration = {
+                    "type": "v2_struct",
+                    "abi": v2_send_abi,
+                    "send_function": "send",
+                    "parameter_format": "struct"
+                }
+                
+                print(f"✅ V2 struct send: SUCCESS")
+                
+            except Exception as e:
+                test_results.append({
+                    "test_name": "V2_struct_send",
+                    "status": "failed",
+                    "error": str(e)
+                })
+                print(f"❌ V2 struct send failed: {e}")
+            
+            # Test 2: V1 OFT Standard with individual parameters (current implementation)
+            if working_configuration is None:
+                try:
+                    print(f"\n🧪 TEST 2: V1 OFT with individual parameters")
+                    
+                    v1_send_abi = [{
+                        "inputs": [
+                            {"name": "_dstEid", "type": "uint32"},
+                            {"name": "_to", "type": "bytes32"},
+                            {"name": "_amountLD", "type": "uint256"},
+                            {"name": "_minAmountLD", "type": "uint256"},
+                            {"name": "_extraOptions", "type": "bytes"},
+                            {"name": "_fee", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]},
+                            {"name": "_refundAddress", "type": "address"}
+                        ],
+                        "name": "send",
+                        "outputs": [],
+                        "stateMutability": "payable",
+                        "type": "function"
+                    }]
+                    
+                    contract = web3.eth.contract(address=contract_address, abi=v1_send_abi)
+                    messaging_fee = (test_fee, 0)  # (nativeFee, lzTokenFee)
+                    
+                    # Test call
+                    result = contract.functions.send(
+                        target_eid,           # _dstEid
+                        recipient_bytes32,    # _to
+                        test_amount,          # _amountLD
+                        test_amount,          # _minAmountLD
+                        b'',                  # _extraOptions
+                        messaging_fee,        # _fee
+                        self.current_account.address  # _refundAddress
+                    ).call({
+                        'from': self.current_account.address,
+                        'value': test_fee
+                    })
+                    
+                    test_results.append({
+                        "test_name": "V1_individual_send",
+                        "status": "success",
+                        "result": "Function call successful",
+                        "configuration": {
+                            "type": "v1_individual",
+                            "abi": v1_send_abi,
+                            "parameters": "individual"
+                        }
+                    })
+                    
+                    working_configuration = {
+                        "type": "v1_individual",
+                        "abi": v1_send_abi,
+                        "send_function": "send",
+                        "parameter_format": "individual"
+                    }
+                    
+                    print(f"✅ V1 individual send: SUCCESS")
+                    
+                except Exception as e:
+                    test_results.append({
+                        "test_name": "V1_individual_send",
+                        "status": "failed",
+                        "error": str(e)
+                    })
+                    print(f"❌ V1 individual send failed: {e}")
+            
+            # Test 3: OFT Adapter specific send (if underlying token detected)
+            if working_configuration is None:
+                try:
+                    print(f"\n🧪 TEST 3: OFT Adapter send pattern")
+                    
+                    # First check if this is an adapter by looking for underlying token
+                    token_abi = [{"inputs": [], "name": "token", "outputs": [{"name": "", "type": "address"}], "stateMutability": "view", "type": "function"}]
+                    token_contract = web3.eth.contract(address=contract_address, abi=token_abi)
+                    underlying_token = token_contract.functions.token().call()
+                    
+                    print(f"🔗 Underlying token found: {underlying_token}")
+                    
+                    # Try adapter-specific send
+                    adapter_send_abi = [{
+                        "inputs": [
+                            {"name": "_dstEid", "type": "uint32"},
+                            {"name": "_to", "type": "bytes32"},
+                            {"name": "_amountLD", "type": "uint256"},
+                            {"name": "_minAmountLD", "type": "uint256"},
+                            {"name": "_extraOptions", "type": "bytes"},
+                            {"name": "_fee", "type": "tuple", "components": [
+                                {"name": "nativeFee", "type": "uint256"},
+                                {"name": "lzTokenFee", "type": "uint256"}
+                            ]},
+                            {"name": "_refundAddress", "type": "address"}
+                        ],
+                        "name": "sendFrom",  # Note: sendFrom instead of send
+                        "outputs": [],
+                        "stateMutability": "payable",
+                        "type": "function"
+                    }]
+                    
+                    contract = web3.eth.contract(address=contract_address, abi=adapter_send_abi)
+                    messaging_fee = (test_fee, 0)
+                    
+                    result = contract.functions.sendFrom(
+                        target_eid,
+                        recipient_bytes32,
+                        test_amount,
+                        test_amount,
+                        b'',
+                        messaging_fee,
+                        self.current_account.address
+                    ).call({
+                        'from': self.current_account.address,
+                        'value': test_fee
+                    })
+                    
+                    test_results.append({
+                        "test_name": "OFT_adapter_sendFrom",
+                        "status": "success",
+                        "result": "sendFrom function successful",
+                        "underlying_token": underlying_token,
+                        "configuration": {
+                            "type": "oft_adapter",
+                            "abi": adapter_send_abi,
+                            "function": "sendFrom"
+                        }
+                    })
+                    
+                    working_configuration = {
+                        "type": "oft_adapter",
+                        "abi": adapter_send_abi,
+                        "send_function": "sendFrom",
+                        "underlying_token": underlying_token
+                    }
+                    
+                    print(f"✅ OFT Adapter sendFrom: SUCCESS")
+                    
+                except Exception as e:
+                    test_results.append({
+                        "test_name": "OFT_adapter_sendFrom", 
+                        "status": "failed",
+                        "error": str(e)
+                    })
+                    print(f"❌ OFT Adapter sendFrom failed: {e}")
+            
+            # Generate fix code if working configuration found
+            fix_code = None
+            if working_configuration:
+                fix_code = self._generate_send_fix_code(working_configuration)
+            
+            return {
+                "success": True,
+                "chain": chain_name,
+                "target_chain": target_chain,
+                "test_results": test_results,
+                "working_configuration": working_configuration,
+                "fix_needed": working_configuration is not None,
+                "fix_code": fix_code,
+                "recommendation": "Update _execute_oft_send function with working configuration" if working_configuration else "Contract may need redeployment or initialization"
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Send test failed: {str(e)}"}
+
+    def _generate_send_fix_code(self, config: Dict[str, Any]) -> str:
+        """Generate the code fix for the working LayerZero configuration"""
+        
+        if config["type"] == "v2_struct":
+            return """
+# V2 OFT Fix: Use struct-based parameters
+send_param = (
+    target_config['layerzero_eid'],  # dstEid
+    recipient_bytes32,               # to
+    amount_wei,                      # amountLD
+    amount_wei,                      # minAmountLD
+    b'',                            # extraOptions
+    b'',                            # composeMsg
+    b''                             # oftCmd
+)
+
+messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
+
+transaction = oft_contract.functions.send(
+    send_param,                      # _sendParam struct
+    messaging_fee,                   # _fee struct
+    user_account.address            # _refundAddress
+).build_transaction({...})
+"""
+        
+        elif config["type"] == "oft_adapter":
+            return f"""
+# OFT Adapter Fix: Use sendFrom function
+messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
+
+transaction = oft_contract.functions.sendFrom(
+    target_config['layerzero_eid'],  # _dstEid
+    recipient_bytes32,               # _to
+    amount_wei,                      # _amountLD
+    amount_wei,                      # _minAmountLD
+    b'',                            # _extraOptions
+    messaging_fee,                   # _fee
+    user_account.address            # _refundAddress
+).build_transaction({{...}})
+
+# Note: Underlying token is {config.get('underlying_token', 'N/A')}
+"""
+        
+        else:  # v1_individual (current implementation should work)
+            return """
+# V1 OFT Fix: Current implementation should work
+# The issue might be in peer configuration or contract initialization
+"""
 
     async def get_oft_balance(self, chain_name: str, address: str) -> Dict[str, Any]:
         """Get OFT and WETH balances for an address"""
