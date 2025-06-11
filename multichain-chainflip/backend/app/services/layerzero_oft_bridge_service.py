@@ -68,6 +68,28 @@ LAYERZERO_OFT_ABI = [
             {"name": "_to", "type": "bytes32"},
             {"name": "_amountLD", "type": "uint256"},
             {"name": "_minAmountLD", "type": "uint256"},
+            {"name": "_extraOptions", "type": "bytes"}
+        ],
+        "name": "send",
+        "outputs": [
+            {"name": "", "type": "tuple", "components": [
+                {"name": "guid", "type": "bytes32"},
+                {"name": "nonce", "type": "uint64"},
+                {"name": "fee", "type": "tuple", "components": [
+                    {"name": "nativeFee", "type": "uint256"},
+                    {"name": "lzTokenFee", "type": "uint256"}
+                ]}
+            ]}
+        ],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_dstEid", "type": "uint32"},
+            {"name": "_to", "type": "bytes32"},
+            {"name": "_amountLD", "type": "uint256"},
+            {"name": "_minAmountLD", "type": "uint256"},
             {"name": "_extraOptions", "type": "bytes"},
             {"name": "_payInLzToken", "type": "bool"}
         ],
@@ -240,7 +262,7 @@ class LayerZeroOFTBridgeService:
                 "weth_address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
-                "layerzero_eid": 40158,  # LayerZero V2 Endpoint ID (estimated)
+                "layerzero_eid": 30158,  # FIXED: Use V1 compatible EID (changed from 40158)
                 "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",  # Estimated
                 "alternative_rpcs": [
                     "https://polygon-zkevm-cardona.drpc.org"
@@ -1214,18 +1236,16 @@ class LayerZeroOFTBridgeService:
             print(f"🧪 === TESTING WITH MINIMAL PARAMETERS ===")
             try:
                 minimal_amount = Web3.to_wei(0.001, 'ether')  # Smaller amount
-                minimal_fee = Web3.to_wei(0.001, 'ether')    # Smaller fee
+                minimal_fee = native_fee  # Use EXACT fee from quoteSend instead of hardcoded 0.001 ETH
                 minimal_messaging_fee = (minimal_fee, 0)
                 
-                print(f"🔬 Testing minimal call with 0.001 ETH and 0.001 ETH fee...")
+                print(f"🔬 Testing minimal call with 0.001 ETH and {Web3.from_wei(minimal_fee, 'ether')} ETH fee (from quoteSend)...")
                 oft_contract.functions.send(
                     target_config['layerzero_eid'],  # _dstEid (uint32)
                     recipient_bytes32,               # _to (bytes32)  
                     minimal_amount,                  # _amountLD (uint256)
                     minimal_amount,                  # _minAmountLD (uint256)
-                    b'',                            # _extraOptions (bytes)
-                    minimal_messaging_fee,           # _fee (MessagingFee struct)
-                    user_account.address            # _refundAddress (address)
+                    b''                             # _extraOptions (bytes)
                 ).call({
                     'from': user_account.address, 
                     'value': minimal_fee
@@ -1395,15 +1415,13 @@ class LayerZeroOFTBridgeService:
                 # Create MessagingFee struct as expected by contract
                 messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
                 
-                # Test with call first - using the EXACT signature from WETHOFT.sol
+                # Test with call first - using V1 LEGACY signature (5 parameters)
                 oft_contract.functions.send(
                     target_config['layerzero_eid'],  # _dstEid (uint32)
                     recipient_bytes32,               # _to (bytes32)  
                     amount_wei,                      # _amountLD (uint256)
                     amount_wei,                      # _minAmountLD (uint256)
-                    b'',                            # _extraOptions (bytes)
-                    messaging_fee,                   # _fee (MessagingFee struct)
-                    user_account.address            # _refundAddress (address)
+                    b''                             # _extraOptions (bytes)
                 ).call({
                     'from': user_account.address, 
                     'value': native_fee
@@ -1414,7 +1432,7 @@ class LayerZeroOFTBridgeService:
                 print(f"❌ Transaction simulation failed: {sim_error}")
                 return {"success": False, "error": f"Simulation failed: {sim_error}"}
             
-            # Build OFT send transaction using EXACT WETHOFT signature
+            # Build OFT send transaction using V1 LEGACY interface (5 parameters)
             nonce = web3.eth.get_transaction_count(user_account.address)
             print(f"📊 Account nonce: {nonce}")
             
@@ -1423,13 +1441,11 @@ class LayerZeroOFTBridgeService:
                 recipient_bytes32,               # _to (bytes32)  
                 amount_wei,                      # _amountLD (uint256)
                 amount_wei,                      # _minAmountLD (uint256)
-                b'',                            # _extraOptions (bytes)
-                messaging_fee,                   # _fee (MessagingFee struct)
-                user_account.address            # _refundAddress (address)
+                b''                             # _extraOptions (bytes)
             ).build_transaction({
                 'from': user_account.address,
-                'value': native_fee,           # Pay LayerZero fee
-                'gas': 2000000,                # DEBUGGING: Increased gas limit from 1000000 to 2000000
+                'value': native_fee,           # Pay LayerZero fee directly via msg.value
+                'gas': 2000000,                # Keep increased gas limit
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': web3.eth.chain_id

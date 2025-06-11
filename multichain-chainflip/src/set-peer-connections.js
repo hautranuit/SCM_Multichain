@@ -8,12 +8,12 @@ const CONTRACTS = {
   zkevmCardona: "0x736A068c7d2124D21026d86ee9F23F0A2d1dA5A4"       // ✅ FINAL FIXED
 };
 
-// LayerZero V2 Endpoint IDs
+// LayerZero Endpoint IDs (V1 compatible for zkevmCardona)
 const EIDS = {
   optimismSepolia: 40232,
   arbitrumSepolia: 40231,
   polygonAmoy: 40313,
-  zkevmCardona: 40158
+  zkevmCardona: 30158  // FIXED: Use V1 compatible EID (changed from 40158)
 };
 
 // Convert address to bytes32 (for LayerZero peer setting)
