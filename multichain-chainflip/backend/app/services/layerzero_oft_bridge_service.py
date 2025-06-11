@@ -33,7 +33,7 @@ def convert_decimals_to_float(obj):
     else:
         return obj
 
-# LayerZero OFT Contract ABI (Updated for OFT Adapter with Deposit)
+# LayerZero WETH OFT Contract ABI (EXACT MATCH TO DEPLOYED CONTRACT)
 LAYERZERO_OFT_ABI = [
     {
         "inputs": [
@@ -50,7 +50,7 @@ LAYERZERO_OFT_ABI = [
         ],
         "name": "send",
         "outputs": [
-            {"name": "receipt", "type": "tuple", "components": [
+            {"name": "", "type": "tuple", "components": [
                 {"name": "guid", "type": "bytes32"},
                 {"name": "nonce", "type": "uint64"},
                 {"name": "fee", "type": "tuple", "components": [
@@ -60,6 +60,25 @@ LAYERZERO_OFT_ABI = [
             ]}
         ],
         "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_dstEid", "type": "uint32"},
+            {"name": "_to", "type": "bytes32"},
+            {"name": "_amountLD", "type": "uint256"},
+            {"name": "_minAmountLD", "type": "uint256"},
+            {"name": "_extraOptions", "type": "bytes"},
+            {"name": "_payInLzToken", "type": "bool"}
+        ],
+        "name": "quoteSend",
+        "outputs": [
+            {"name": "", "type": "tuple", "components": [
+                {"name": "nativeFee", "type": "uint256"},
+                {"name": "lzTokenFee", "type": "uint256"}
+            ]}
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -338,8 +357,7 @@ class LayerZeroOFTBridgeService:
         amount_eth: float
     ) -> Dict[str, Any]:
         """
-        Estimate LayerZero OFT transfer fee using fixed fee approach
-        (Since fee quote functions are not available on deployed contracts)
+        Estimate LayerZero OFT transfer fee using the actual quoteSend function
         """
         try:
             # Check if OFT contracts are deployed
@@ -354,34 +372,81 @@ class LayerZeroOFTBridgeService:
                     "deploy_command": "npx hardhat run scripts/deploy-oft.js --network optimismSepolia"
                 }
             
-            # FIXED FEE APPROACH - Common in LayerZero implementations
-            # These are typical LayerZero cross-chain fees based on chain pairs
+            # Try to use the actual quoteSend function from the contract
+            try:
+                source_web3 = self.web3_connections.get(from_chain)
+                oft_contract = self.oft_instances[from_chain]
+                
+                if source_web3 and oft_contract:
+                    # Convert amount to Wei
+                    amount_wei = Web3.to_wei(amount_eth, 'ether')
+                    
+                    # Convert recipient address to bytes32 format
+                    recipient_addr = "0x28918ecf013F32fAf45e05d62B4D9b207FCae784"
+                    recipient_bytes32 = Web3.to_bytes(hexstr=recipient_addr.lower().replace('0x', '').zfill(64))
+                    
+                    print(f"💸 Calling quoteSend on {from_chain} for {to_chain}")
+                    
+                    # Call the actual quoteSend function from WETHOFT.sol
+                    quote_result = oft_contract.functions.quoteSend(
+                        target_config['layerzero_eid'],  # _dstEid
+                        recipient_bytes32,               # _to
+                        amount_wei,                      # _amountLD
+                        amount_wei,                      # _minAmountLD
+                        b'',                            # _extraOptions
+                        False                           # _payInLzToken
+                    ).call()
+                    
+                    # Extract fees from the tuple result
+                    native_fee_wei = quote_result[0]  # nativeFee
+                    lz_token_fee = quote_result[1]    # lzTokenFee
+                    
+                    native_fee_eth = float(Web3.from_wei(native_fee_wei, 'ether'))
+                    
+                    print(f"✅ Real quoteSend fee: {native_fee_eth} ETH for {from_chain} → {to_chain}")
+                    
+                    return {
+                        "success": True,
+                        "native_fee_wei": native_fee_wei,
+                        "native_fee_eth": native_fee_eth,
+                        "lz_token_fee": lz_token_fee,
+                        "total_cost_eth": amount_eth + native_fee_eth,
+                        "bridge_type": "LayerZero WETH OFT (Real Quote)",
+                        "from_chain": from_chain,
+                        "to_chain": to_chain,
+                        "amount_eth": amount_eth,
+                        "fee_method": "quoteSend_function"
+                    }
+                    
+            except Exception as quote_error:
+                print(f"⚠️ quoteSend failed: {quote_error}, falling back to fixed fees")
             
+            # FALLBACK: Use fixed fee approach if quoteSend fails
             fixed_fees = {
                 "optimism_sepolia": {
-                    "zkevm_cardona": 0.002,      # 0.002 ETH
-                    "arbitrum_sepolia": 0.001,   # 0.001 ETH  
-                    "polygon_pos": 0.0015        # 0.0015 ETH
+                    "zkevm_cardona": 0.003,      # 0.003 ETH (matches contract)
+                    "arbitrum_sepolia": 0.002,   # 0.002 ETH  
+                    "polygon_pos": 0.0025        # 0.0025 ETH
                 },
                 "arbitrum_sepolia": {
-                    "zkevm_cardona": 0.002,
-                    "optimism_sepolia": 0.001,
-                    "polygon_pos": 0.0015
+                    "zkevm_cardona": 0.003,
+                    "optimism_sepolia": 0.002,
+                    "polygon_pos": 0.0025
                 },
                 "polygon_pos": {
-                    "zkevm_cardona": 0.002,
-                    "optimism_sepolia": 0.0015,
-                    "arbitrum_sepolia": 0.0015
+                    "zkevm_cardona": 0.003,
+                    "optimism_sepolia": 0.0025,
+                    "arbitrum_sepolia": 0.0025
                 },
                 "zkevm_cardona": {
-                    "optimism_sepolia": 0.002,
-                    "arbitrum_sepolia": 0.002,
-                    "polygon_pos": 0.002
+                    "optimism_sepolia": 0.003,
+                    "arbitrum_sepolia": 0.003,
+                    "polygon_pos": 0.003
                 }
             }
             
-            # Get fixed fee for this route
-            native_fee_eth = fixed_fees.get(from_chain, {}).get(to_chain, 0.002)  # Default 0.002 ETH
+            # Get fixed fee for this route (matches WETHOFT.sol quoteSend logic)
+            native_fee_eth = fixed_fees.get(from_chain, {}).get(to_chain, 0.003)  # Default 0.003 ETH
             
             print(f"💸 Using fixed LayerZero fee: {native_fee_eth} ETH for {from_chain} → {to_chain}")
             
@@ -391,11 +456,11 @@ class LayerZeroOFTBridgeService:
                 "native_fee_eth": native_fee_eth,
                 "lz_token_fee": 0,
                 "total_cost_eth": amount_eth + native_fee_eth,
-                "bridge_type": "LayerZero OFT (Fixed Fee)",
+                "bridge_type": "LayerZero WETH OFT (Fixed Fee)",
                 "from_chain": from_chain,
                 "to_chain": to_chain,
                 "amount_eth": amount_eth,
-                "fee_method": "fixed_fee_bypass"
+                "fee_method": "fixed_fee_fallback"
             }
                 
         except Exception as e:
@@ -1121,13 +1186,13 @@ class LayerZeroOFTBridgeService:
             native_fee = fee_estimate["native_fee_wei"]
             print(f"💳 Using fixed LayerZero fee: {Web3.from_wei(native_fee, 'ether')} ETH")
             
-            # FIXED: Use direct send function parameters (not struct)
+            # FIXED: Use actual WETHOFT contract signature (individual parameters)
             print(f"🧪 Simulating OFT send transaction...")
             try:
-                # Create MessagingFee struct
+                # Create MessagingFee struct as expected by contract
                 messaging_fee = (native_fee, 0)  # (nativeFee, lzTokenFee)
                 
-                # Test with call first
+                # Test with call first - using the EXACT signature from WETHOFT.sol
                 oft_contract.functions.send(
                     target_config['layerzero_eid'],  # _dstEid (uint32)
                     recipient_bytes32,               # _to (bytes32)  
@@ -1146,7 +1211,7 @@ class LayerZeroOFTBridgeService:
                 print(f"❌ Transaction simulation failed: {sim_error}")
                 return {"success": False, "error": f"Simulation failed: {sim_error}"}
             
-            # Build OFT send transaction using direct parameters
+            # Build OFT send transaction using EXACT WETHOFT signature
             nonce = web3.eth.get_transaction_count(user_account.address)
             print(f"📊 Account nonce: {nonce}")
             
