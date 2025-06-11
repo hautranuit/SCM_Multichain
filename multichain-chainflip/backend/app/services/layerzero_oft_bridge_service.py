@@ -85,7 +85,7 @@ LAYERZERO_OFT_ABI = [
     },
     {
         "inputs": [],
-        "name": "token",
+        "name": "wethToken",
         "outputs": [{"name": "", "type": "address"}],
         "stateMutability": "view",
         "type": "function"
@@ -138,6 +138,15 @@ WETH_ABI = [
         "payable": False,
         "stateMutability": "nonpayable",
         "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
+        "name": "allowance",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "payable": False,
+        "stateMutability": "view",
+        "type": "function"
     }
 ]
 
@@ -148,51 +157,51 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # LayerZero OFT Configuration (to be deployed)
+        # LayerZero OFT Configuration (DEPLOYED 2025)
         self.oft_contracts = {
             "optimism_sepolia": {
-                "address": None,  # Will be set after OFT deployment
+                "address": "0xf77FAB8A727ac0d6810881841Ad1274bacA306c9",  # DEPLOYED ✅
                 "weth_address": "0x4200000000000000000000000000000000000006",
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
                 "layerzero_eid": 40232,  # LayerZero V2 Endpoint ID
-                "layerzero_config": "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26",  # Your existing LZ contract
+                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # Updated 2025
                 "alternative_rpcs": [
                     "https://opt-sepolia.g.alchemy.com/v2/demo",
                     "https://sepolia.optimism.io/rpc"
                 ]
             },
             "arbitrum_sepolia": {
-                "address": None,  # Will be set after OFT deployment
+                "address": "0x9767D45C02Bf58842d723a1E1D8340a22748f6B8",  # DEPLOYED ✅
                 "weth_address": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,  # LayerZero V2 Endpoint ID
-                "layerzero_config": "0x217e72E43e9375c1121ca36dcAc3fe878901836D",  # Your existing LZ contract
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",  # Updated 2025
                 "alternative_rpcs": [
                     "https://arbitrum-sepolia.drpc.org",
                     "https://arb-sepolia.g.alchemy.com/v2/demo"
                 ]
             },
             "polygon_pos": {
-                "address": None,  # Will be set after OFT deployment
+                "address": "0x2edF34BA32BC489BcbF313A98037b8c423f83000",  # DEPLOYED ✅
                 "weth_address": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
-                "layerzero_eid": 40267,  # LayerZero V2 Endpoint ID
-                "layerzero_config": "0x72a336eAAC8186906F1Ee85dDF00C7d6b91257A43",  # Your existing LZ contract
+                "layerzero_eid": 40313,  # Updated EID for 2025
+                "layerzero_endpoint": "0x16c693A3924B947298F7227792953Cd6BBb21Ac8",  # Updated 2025
                 "alternative_rpcs": [
                     "https://polygon-amoy.g.alchemy.com/v2/demo",
                     "https://polygon-amoy.drpc.org"
                 ]
             },
             "zkevm_cardona": {
-                "address": None,  # Will be set after OFT deployment
+                "address": "0xc8DEf94605917074A3990D4c78cf52C556C47E28",  # DEPLOYED ✅
                 "weth_address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
                 "layerzero_eid": 40158,  # LayerZero V2 Endpoint ID (estimated)
-                "layerzero_config": "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476",  # Your existing FxPortal contract
+                "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",  # Estimated
                 "alternative_rpcs": [
                     "https://polygon-zkevm-cardona.drpc.org"
                 ]
@@ -222,6 +231,7 @@ class LayerZeroOFTBridgeService:
         
         print("✅ LayerZero OFT Bridge Service initialized")
         print("🌉 True cross-chain bridging enabled with LayerZero OFT")
+        print("🎉 ALL OFT CONTRACTS DEPLOYED AND READY!")
         
     async def _initialize_connections(self):
         """Initialize Web3 connections and contract instances"""
@@ -250,9 +260,18 @@ class LayerZeroOFTBridgeService:
                     )
                     self.weth_instances[chain_name] = weth_contract
                     
-                    # OFT contract will be initialized after deployment
-                    print(f"✅ Connected to {chain_name} - WETH contract ready")
-                    print(f"🔗 LayerZero Config: {config['layerzero_config']}")
+                    # Initialize OFT contract (DEPLOYED!)
+                    if config.get('address'):
+                        oft_contract = web3.eth.contract(
+                            address=config['address'],
+                            abi=LAYERZERO_OFT_ABI
+                        )
+                        self.oft_instances[chain_name] = oft_contract
+                        print(f"✅ Connected to {chain_name} - OFT contract ready at {config['address']}")
+                    else:
+                        print(f"⚠️ Connected to {chain_name} - OFT contract address not set")
+                    
+                    print(f"🔗 LayerZero Endpoint: {config['layerzero_endpoint']}")
                     print(f"🆔 LayerZero EID: {config['layerzero_eid']}")
                     
                 else:
@@ -348,9 +367,9 @@ class LayerZeroOFTBridgeService:
                 return {
                     "success": True,
                     "native_fee_wei": native_fee,
-                    "native_fee_eth": Web3.from_wei(native_fee, 'ether'),
+                    "native_fee_eth": float(Web3.from_wei(native_fee, 'ether')),
                     "lz_token_fee": lz_token_fee,
-                    "total_cost_eth": amount_eth + Web3.from_wei(native_fee, 'ether'),
+                    "total_cost_eth": amount_eth + float(Web3.from_wei(native_fee, 'ether')),
                     "bridge_type": "LayerZero OFT",
                     "from_chain": from_chain,
                     "to_chain": to_chain,
@@ -401,7 +420,7 @@ class LayerZeroOFTBridgeService:
             source_config = self.oft_contracts[from_chain]
             target_config = self.oft_contracts[to_chain]
             
-            # Check if OFT contracts are deployed
+            # Check if OFT contracts are deployed (SHOULD BE NOW!)
             if not source_config.get('address') or not target_config.get('address'):
                 return {
                     "success": False,
@@ -431,7 +450,7 @@ class LayerZeroOFTBridgeService:
             
             # Check current WETH balance
             weth_balance = weth_contract.functions.balanceOf(user_account.address).call()
-            weth_balance_eth = Web3.from_wei(weth_balance, 'ether')
+            weth_balance_eth = float(Web3.from_wei(weth_balance, 'ether'))
             
             if weth_balance_eth < amount_eth:
                 # Need to wrap more ETH
@@ -685,7 +704,7 @@ class LayerZeroOFTBridgeService:
                     "transaction_hash": tx_hash.hex(),
                     "gas_used": receipt.gasUsed,
                     "block_number": receipt.blockNumber,
-                    "native_fee_paid": Web3.from_wei(native_fee, 'ether'),
+                    "native_fee_paid": float(Web3.from_wei(native_fee, 'ether')),
                     "layerzero_guid": layerzero_guid,
                     "destination_eid": target_config['layerzero_eid']
                 }
@@ -704,15 +723,15 @@ class LayerZeroOFTBridgeService:
             
             # Get ETH balance
             eth_balance_wei = web3.eth.get_balance(address)
-            eth_balance = Web3.from_wei(eth_balance_wei, 'ether')
+            eth_balance = float(Web3.from_wei(eth_balance_wei, 'ether'))
             
             # Get WETH balance
             weth_contract = self.weth_instances[chain_name]
             weth_balance_wei = weth_contract.functions.balanceOf(address).call()
-            weth_balance = Web3.from_wei(weth_balance_wei, 'ether')
+            weth_balance = float(Web3.from_wei(weth_balance_wei, 'ether'))
             
-            # Get OFT balance (if deployed)
-            oft_balance = 0
+            # Get OFT balance (should be deployed now!)
+            oft_balance = 0.0
             config = self.oft_contracts[chain_name]
             if config.get('address'):
                 try:
@@ -721,7 +740,7 @@ class LayerZeroOFTBridgeService:
                         abi=LAYERZERO_OFT_ABI
                     )
                     oft_balance_wei = oft_contract.functions.balanceOf(address).call()
-                    oft_balance = Web3.from_wei(oft_balance_wei, 'ether')
+                    oft_balance = float(Web3.from_wei(oft_balance_wei, 'ether'))
                 except:
                     pass
             

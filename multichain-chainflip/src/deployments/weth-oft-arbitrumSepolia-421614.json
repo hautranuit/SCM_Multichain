@@ -1,0 +1,18 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": 421614,
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "deployedAt": "2025-06-11T03:57:46.136Z",
+  "contracts": {
+    "wethOFT": "0x9767D45C02Bf58842d723a1E1D8340a22748f6B8"
+  },
+  "configuration": {
+    "layerzeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "layerzeroEid": 40231,
+    "wethAddress": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+    "name": "ChainFLIP WETH",
+    "symbol": "cfWETH"
+  },
+  "bridgeType": "LayerZero OFT V2",
+  "gasUsed": "TBD"
+}

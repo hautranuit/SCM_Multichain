@@ -2,11 +2,11 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-// LayerZero V2 Endpoint addresses for testnets (2025)
+// LayerZero V2 Endpoint addresses for testnets (Updated June 2025)
 const LAYERZERO_V2_ENDPOINTS = {
-  80002: "0x6Fcb97553D41516Cb228ac03FdC8B9a0a9df04A1", // Polygon Amoy
-  421614: "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3", // Arbitrum Sepolia
-  11155420: "0x55370E0fBB5f5b8dAeD978BA1c075a499eB107B8", // Optimism Sepolia
+  80002: "0x16c693A3924B947298F7227792953Cd6BBb21Ac8", // Polygon Amoy (Updated)
+  421614: "0x6EDCE65403992e310A62460808c4b910D972f10f", // Arbitrum Sepolia (Updated)
+  11155420: "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8", // Optimism Sepolia (Updated)
   2442: "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3" // zkEVM Cardona (estimated)
 };
 
@@ -18,9 +18,9 @@ const WETH_ADDRESSES = {
   2442: "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9" // zkEVM Cardona
 };
 
-// LayerZero V2 Endpoint IDs (eid)
+// LayerZero V2 Endpoint IDs (eid) - Updated 2025
 const LAYERZERO_V2_EIDS = {
-  80002: 40267,   // Polygon Amoy
+  80002: 40313,   // Polygon Amoy (Updated)
   421614: 40231,  // Arbitrum Sepolia
   11155420: 40232, // Optimism Sepolia
   2442: 40158     // zkEVM Cardona (estimated)
@@ -72,7 +72,7 @@ async function main() {
     // Verify the deployment
     console.log("\n🔍 Verifying deployment...");
     const wethToken = await wethOFT.wethToken();
-    const lzEndpoint = await wethOFT.endpoint();
+    const lzEndpoint = await wethOFT.lzEndpoint();
     const owner = await wethOFT.owner();
     
     console.log("📋 Contract verification:");

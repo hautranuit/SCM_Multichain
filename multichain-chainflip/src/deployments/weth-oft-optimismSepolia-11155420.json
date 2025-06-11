@@ -1,0 +1,18 @@
+{
+  "network": "optimismSepolia",
+  "chainId": 11155420,
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "deployedAt": "2025-06-11T03:57:11.837Z",
+  "contracts": {
+    "wethOFT": "0xf77FAB8A727ac0d6810881841Ad1274bacA306c9"
+  },
+  "configuration": {
+    "layerzeroEndpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
+    "layerzeroEid": 40232,
+    "wethAddress": "0x4200000000000000000000000000000000000006",
+    "name": "ChainFLIP WETH",
+    "symbol": "cfWETH"
+  },
+  "bridgeType": "LayerZero OFT V2",
+  "gasUsed": "TBD"
+}

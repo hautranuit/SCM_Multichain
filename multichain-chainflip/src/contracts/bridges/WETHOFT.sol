@@ -210,8 +210,8 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
         Origin calldata _origin,
         bytes32 _guid,
         bytes calldata _message,
-        address _executor,
-        bytes calldata _extraData
+        address /* _executor */,
+        bytes calldata /* _extraData */
     ) external payable override {
         require(msg.sender == address(lzEndpoint), "Only endpoint");
         require(_origin.sender == peers[_origin.srcEid], "Invalid sender");
