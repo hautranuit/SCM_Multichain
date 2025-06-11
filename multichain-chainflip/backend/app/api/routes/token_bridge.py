@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 from app.services.real_weth_bridge_service import real_weth_bridge_service
+from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
 
 router = APIRouter()
 
@@ -118,48 +119,103 @@ async def get_token_bridge_status():
             "timestamp": time.time()
         }
 
-@router.post("/transfer", response_model=TokenTransferResponse)
+@router.post("/transfer", response_model=Dict[str, Any])
 async def transfer_tokens_cross_chain(request: TokenTransferRequest):
-    """Execute real cross-chain ETH transfer using verified WETH contracts"""
+    """Execute cross-chain ETH transfer using LayerZero OFT or Real WETH bridge"""
     try:
-        # Initialize service if needed
-        if not hasattr(real_weth_bridge_service, 'database') or real_weth_bridge_service.database is None:
-            await real_weth_bridge_service.initialize()
-        
         # Generate escrow ID if not provided
-        escrow_id = request.escrow_id or f"ESCROW-{int(time.time())}-{hash(request.from_address)}"
+        escrow_id = request.escrow_id or f"BRIDGE-{int(time.time())}-{request.from_address[-6:]}"
         
-        # Execute transfer using real WETH contracts
-        result = await real_weth_bridge_service.transfer_eth_cross_chain(
-            from_chain=request.from_chain,
-            to_chain=request.to_chain,
-            from_address=request.from_address,
-            to_address=request.to_address,
-            amount_eth=request.amount_eth,
-            escrow_id=escrow_id
+        print(f"\n🌉 === CROSS-CHAIN TRANSFER REQUEST ===")
+        print(f"From: {request.from_chain} → To: {request.to_chain}")
+        print(f"Amount: {request.amount_eth} ETH")
+        print(f"From: {request.from_address} → To: {request.to_address}")
+        print(f"Escrow ID: {escrow_id}")
+        
+        # Try LayerZero OFT transfer first (new decentralized method)
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        print(f"🔄 Attempting LayerZero OFT transfer...")
+        oft_result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
+            request.from_chain,
+            request.to_chain,
+            request.from_address,
+            request.to_address,
+            request.amount_eth,
+            escrow_id
         )
         
-        if result["success"]:
-            return TokenTransferResponse(
-                success=True,
-                transfer_id=result.get("transfer_id"),
-                wrap_transaction_hash=result.get("wrap_transaction_hash"),
-                transfer_transaction_hash=result.get("transfer_transaction_hash"),
-                amount_transferred=result.get("amount_transferred"),
-                actual_token_movement=result.get("actual_token_movement", True),
-                gas_used=result.get("gas_used")
-            )
-        else:
-            return TokenTransferResponse(
-                success=False,
-                error=result.get("error", "Transfer failed")
+        if oft_result["success"]:
+            print(f"✅ LayerZero OFT transfer successful!")
+            return {
+                "success": True,
+                "transfer_id": escrow_id,
+                "bridge_type": "LayerZero OFT",
+                "amount_transferred": request.amount_eth,
+                "wrap_transaction_hash": oft_result.get("wrap_transaction_hash"),
+                "approve_transaction_hash": oft_result.get("approve_transaction_hash"),
+                "oft_transaction_hash": oft_result.get("oft_transaction_hash"),
+                "layerzero_guid": oft_result.get("layerzero_guid"),
+                "native_fee_paid": oft_result.get("native_fee_paid"),
+                "is_decentralized": True,
+                "message": "LayerZero OFT cross-chain transfer completed successfully",
+                "timestamp": time.time()
+            }
+        
+        # Check if it failed due to missing OFT deployment
+        if oft_result.get("deployment_needed") or "OFT contracts not deployed" in oft_result.get("error", ""):
+            print(f"⚠️ LayerZero OFT contracts not deployed yet, falling back to Real WETH bridge")
+            
+            # Fallback to Real WETH bridge (existing custodial method)
+            if real_weth_bridge_service.database is None:
+                await real_weth_bridge_service.initialize()
+            
+            print(f"🔄 Attempting Real WETH bridge transfer...")
+            weth_result = await real_weth_bridge_service.transfer_eth_cross_chain(
+                request.from_chain,
+                request.to_chain,
+                request.from_address,
+                request.to_address,
+                request.amount_eth,
+                escrow_id
             )
             
+            if weth_result["success"]:
+                print(f"✅ Real WETH bridge transfer successful!")
+                return {
+                    "success": True,
+                    "transfer_id": escrow_id,
+                    "bridge_type": "Real WETH (Custodial)",
+                    "amount_transferred": request.amount_eth,
+                    "wrap_transaction_hash": weth_result.get("wrap_transaction_hash"),
+                    "layerzero_transaction_hash": weth_result.get("bridge_transaction_hash"),
+                    "is_decentralized": False,
+                    "message": "Real WETH cross-chain transfer completed successfully",
+                    "deployment_note": "Deploy LayerZero OFT contracts for decentralized bridging",
+                    "timestamp": time.time()
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Both LayerZero OFT and Real WETH transfers failed. OFT: {oft_result.get('error')}. WETH: {weth_result.get('error')}",
+                    "timestamp": time.time()
+                }
+        else:
+            # OFT available but failed for other reasons
+            return {
+                "success": False,
+                "error": f"LayerZero OFT transfer failed: {oft_result.get('error')}",
+                "timestamp": time.time()
+            }
+        
     except Exception as e:
-        return TokenTransferResponse(
-            success=False,
-            error=f"Transfer error: {str(e)}"
-        )
+        print(f"❌ Transfer execution error: {e}")
+        return {
+            "success": False,
+            "error": f"Transfer execution failed: {str(e)}",
+            "timestamp": time.time()
+        }
 
 @router.post("/balance", response_model=BalanceResponse)
 async def get_chain_balance(request: BalanceRequest):
@@ -196,48 +252,60 @@ async def get_chain_balance(request: BalanceRequest):
             error=f"Balance check error: {str(e)}"
         )
 
-@router.post("/estimate-fee", response_model=FeeEstimateResponse)
+@router.post("/estimate-fee", response_model=Dict[str, Any])
 async def estimate_transfer_fee(request: FeeEstimateRequest):
-    """Estimate gas fees for real WETH transfer"""
+    """Estimate cross-chain transfer fees using LayerZero OFT or Real WETH"""
     try:
-        # Initialize service if needed
-        if not hasattr(real_weth_bridge_service, 'database') or real_weth_bridge_service.database is None:
+        # Try LayerZero OFT estimation first (new method)
+        if layerzero_oft_bridge_service.database is None:
+            await layerzero_oft_bridge_service.initialize()
+        
+        oft_estimate = await layerzero_oft_bridge_service.estimate_oft_transfer_fee(
+            request.from_chain,
+            request.to_chain,
+            request.amount_eth
+        )
+        
+        if oft_estimate["success"]:
+            return {
+                "success": True,
+                "from_chain": request.from_chain,
+                "to_chain": request.to_chain,
+                "amount_eth": request.amount_eth,
+                "bridge_type": "LayerZero OFT",
+                "native_fee_eth": oft_estimate["native_fee_eth"],
+                "total_fee_eth": oft_estimate["native_fee_eth"],
+                "total_cost_eth": oft_estimate["total_cost_eth"],
+                "is_decentralized": True,
+                "deployment_needed": oft_estimate.get("deployment_needed", False),
+                "timestamp": time.time()
+            }
+        
+        # Fallback to Real WETH bridge if OFT not available
+        print("⚠️ LayerZero OFT not available, falling back to Real WETH bridge")
+        
+        # Initialize WETH service if not already done
+        if real_weth_bridge_service.database is None:
             await real_weth_bridge_service.initialize()
         
-        # Get source chain Web3 connection
-        source_web3 = real_weth_bridge_service.web3_connections.get(request.from_chain)
-        if not source_web3:
-            return FeeEstimateResponse(
-                success=False,
-                error=f"Chain {request.from_chain} not connected"
-            )
+        # Simplified fee estimation for WETH bridge
+        base_gas_fee = 0.005  # 0.005 ETH base gas fee
+        layerzero_fee = 0.001  # 0.001 ETH LayerZero messaging fee
+        total_fee = base_gas_fee + layerzero_fee
         
-        # Estimate gas fees for real WETH operations
-        gas_price = source_web3.eth.gas_price
-        
-        # Estimate WETH wrap gas (real contract: ~46,000 gas)
-        wrap_gas = 60000
-        wrap_fee_wei = wrap_gas * gas_price
-        wrap_fee_eth = float(source_web3.from_wei(wrap_fee_wei, 'ether'))
-        
-        # Estimate WETH transfer gas (real contract: ~65,000 gas)
-        transfer_gas = 65000
-        transfer_fee_wei = transfer_gas * gas_price
-        transfer_fee_eth = float(source_web3.from_wei(transfer_fee_wei, 'ether'))
-        
-        # No LayerZero fee for same-chain transfers (for now)
-        layerzero_fee_eth = 0.0
-        
-        total_fee_eth = wrap_fee_eth + transfer_fee_eth + layerzero_fee_eth
-        
-        return FeeEstimateResponse(
-            success=True,
-            from_chain=request.from_chain,
-            to_chain=request.to_chain,
-            estimated_gas_fee=wrap_fee_eth + transfer_fee_eth,
-            layerzero_fee=layerzero_fee_eth,
-            total_fee_eth=total_fee_eth
-        )
+        return {
+            "success": True,
+            "from_chain": request.from_chain,
+            "to_chain": request.to_chain,
+            "amount_eth": request.amount_eth,
+            "estimated_gas_fee": base_gas_fee,
+            "layerzero_fee": layerzero_fee,
+            "total_fee_eth": total_fee,
+            "total_cost_eth": request.amount_eth + total_fee,
+            "bridge_type": "Real WETH (Custodial)",
+            "is_decentralized": False,
+            "timestamp": time.time()
+        }
         
     except Exception as e:
         return FeeEstimateResponse(

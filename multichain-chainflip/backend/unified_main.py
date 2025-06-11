@@ -30,6 +30,7 @@ from app.services.blockchain_service import blockchain_service
 from app.services.multichain_service import multichain_service
 from app.services.crosschain_purchase_service import crosschain_purchase_service
 from app.services.real_weth_bridge_service import real_weth_bridge_service
+from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
 
 # Import additional routes from server.py
 from app.api import participant_routes
@@ -378,6 +379,13 @@ async def unified_startup_event():
             logger.info("✅ Real WETH bridge service initialized")
         except Exception as e:
             logger.warning(f"Real WETH bridge service initialization warning: {e}")
+        
+        # Initialize LayerZero OFT bridge service (new)
+        try:
+            await layerzero_oft_bridge_service.initialize()
+            logger.info("✅ LayerZero OFT bridge service initialized")
+        except Exception as e:
+            logger.warning(f"LayerZero OFT bridge service initialization warning: {e}")
         
         # Initialize FL service (from app/main.py)
         try:
