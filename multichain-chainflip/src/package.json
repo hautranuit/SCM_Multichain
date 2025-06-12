@@ -56,9 +56,9 @@
   "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
-    "@nomicfoundation/hardhat-ethers": "^3.0.9",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-verify": "^1.1.1",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@typechain/ethers-v5": "^10.2.1",
     "@typechain/hardhat": "^6.1.6",
     "@types/chai": "^4.3.20",
@@ -72,11 +72,11 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.59",
+    "@layerzerolabs/oapp-evm": "^0.3.1",
+    "@layerzerolabs/oft-evm": "^3.1.4",
     "@openzeppelin/contracts": "^4.9.0",
     "@openzeppelin/contracts-upgradeable": "^4.9.0",
-    "@layerzerolabs/oft-evm": "^3.1.4",
-    "@layerzerolabs/oapp-evm": "^0.3.1",
-    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.59",
     "dotenv": "^16.5.0",
     "ethers": "^5.7.2"
   }

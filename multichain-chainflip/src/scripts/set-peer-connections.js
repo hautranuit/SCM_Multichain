@@ -44,19 +44,16 @@ async function main() {
     
     console.log(`   Current Contract: ${currentContractAddress}`);
     
-    // Get contract instance - Try both contract names
+    // Get contract instance
     let oft;
     try {
-        const ChainFlipOFT = await ethers.getContractFactory("ChainFlipOFT");
-        oft = ChainFlipOFT.attach(currentContractAddress);
+        const RealChainFlipOFT = await ethers.getContractFactory("RealChainFlipOFT");
+        oft = RealChainFlipOFT.attach(currentContractAddress);
+        console.log(`   ✅ Connected to RealChainFlipOFT contract`);
     } catch (error) {
-        try {
-            const SimpleChainFlipOFT = await ethers.getContractFactory("SimpleChainFlipOFT");
-            oft = SimpleChainFlipOFT.attach(currentContractAddress);
-        } catch (error2) {
-            console.log(`❌ Contract factory not found. Tried ChainFlipOFT and SimpleChainFlipOFT`);
-            return;
-        }
+        console.log(`❌ Contract factory 'RealChainFlipOFT' not found: ${error.message}`);
+        console.log("Make sure your contract is compiled: npx hardhat compile");
+        return;
     }
     
     // Set peers for all other networks
