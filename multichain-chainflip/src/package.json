@@ -12,6 +12,7 @@
     "deploy:hub:polygon": "hardhat run deployment/deploy-hub.js --network polygon",
     "deploy:hub:local": "hardhat run deployment/deploy-hub.js --network localhost",
     "deploy:manufacturer:cardona": "hardhat run deployment/deploy-manufacturer.js --network cardona",
+    "deploy:manufacturer:baseSepolia": "hardhat run deployment/deploy-manufacturer.js --network baseSepolia",
     "deploy:manufacturer:local": "hardhat run deployment/deploy-manufacturer.js --network manufacturer",
     "deploy:transporter:cardona": "hardhat run deployment/deploy-transporter.js --network cardona",
     "deploy:transporter:arbitrum": "hardhat run deployment/deploy-transporter.js --network arbitrumSepolia",

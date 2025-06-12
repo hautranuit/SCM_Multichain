@@ -37,11 +37,11 @@ const TokenBridge = () => {
       color: '#8247e5',
       icon: '🟣'
     },
-    zkevm_cardona: {
-      name: 'zkEVM Cardona',
+    base_sepolia: {
+      name: 'Base Sepolia',
       role: 'Manufacturer Chain',
-      color: '#7c3aed',
-      icon: '🟢'
+      color: '#0052ff',
+      icon: '🔷'
     },
     arbitrum_sepolia: {
       name: 'Arbitrum Sepolia',

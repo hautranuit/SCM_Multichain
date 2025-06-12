@@ -5,7 +5,7 @@
   "contract_addresses": {
     "optimism_sepolia": "0x8AfF7B758eC0f57FfC4b08Dd91589832b8DF4d78",
     "polygon_pos": "0x778Ccc71741a1e3F455E0e82b6BF3C583E62bfb0",
-    "zkevm_cardona": "0x760e686710E42A9209162cF27Bf3f23F33213762",
+    "base_sepolia": "0x760e686710E42A9209162cF27Bf3f23F33213762",
     "arbitrum_sepolia": "0x33d62824787BCD38c4738AC5B5d962d30C80F91a"
   },
   "chain_connectivity": {
@@ -19,10 +19,10 @@
       "latest_block": 22705062,
       "layerzero_id": 10109
     },
-    "zkevm_cardona": {
+    "base_sepolia": {
       "connected": true,
       "latest_block": 13853900,
-      "layerzero_id": 10158
+      "layerzero_id": 40245
     },
     "arbitrum_sepolia": {
       "connected": true,

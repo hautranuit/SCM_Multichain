@@ -505,7 +505,7 @@ const ProductManagement = () => {
 
       // Navigate to token bridge with prefilled data
       const bridgeUrl = `/token-bridge?` + new URLSearchParams({
-        to_chain: 'zkevm_cardona',
+        to_chain: 'base_sepolia',
         to_address: manufacturer,
         amount_eth: price,
         escrow_id: `PURCHASE-${product.token_id}-${Date.now()}`,

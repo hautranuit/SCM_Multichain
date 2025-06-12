@@ -37,9 +37,9 @@
           "weth_balance": 26.9936902663405,
           "total_balance": 53.987380532681
         },
-        "zkevm_cardona": {
+        "base_sepolia": {
           "success": true,
-          "chain": "zkevm_cardona",
+          "chain": "base_sepolia",
           "address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",
           "eth_balance": 0.0,
           "weth_balance": 0.0,
@@ -61,7 +61,7 @@
     "fee_optimization": {
       "status": "WARNING",
       "fee_results": {
-        "optimism_sepolia \u2192 zkevm_cardona": {
+        "optimism_sepolia \u2192 base_sepolia": {
           "wrap_fee": 6.88e-11,
           "transfer_fee": 6.88e-10,
           "layerzero_fee": 0.01,
@@ -77,7 +77,7 @@
           "transfer_amount": 0.01,
           "fee_percentage": 100.000007568
         },
-        "polygon_pos \u2192 zkevm_cardona": {
+        "polygon_pos \u2192 base_sepolia": {
           "wrap_fee": 0.00368998284465,
           "transfer_fee": 0.0368998284465,
           "layerzero_fee": 0.01,

@@ -330,7 +330,7 @@ class BlockchainService:
                 "metadata": metadata,
                 "metadata_cid": metadata_cid,
                 "transaction_hash": mock_tx_hash,
-                "chain_id": settings.zkevm_cardona_chain_id,
+                "chain_id": settings.base_sepolia_chain_id,
                 "encrypted_qr_code": encrypted_qr_code,
                 "qr_hash": qr_hash,
                 "qr_data": qr_payload,
@@ -349,7 +349,7 @@ class BlockchainService:
                 "transaction_hash": mock_tx_hash,
                 "metadata_cid": metadata_cid,
                 "qr_hash": qr_hash,
-                "chain_id": settings.zkevm_cardona_chain_id,
+                "chain_id": settings.base_sepolia_chain_id,
                 "encryption_keys": keys_used,
                 "_id": str(result.inserted_id)
             }
@@ -710,7 +710,7 @@ class BlockchainService:
     
     async def _verify_manufacturer_role_blockchain(self, manufacturer_address: str) -> Dict[str, Any]:
         """
-        Verify manufacturer role based on blockchain connection (zkEVM Cardona Chain ID = 2442)
+        Verify manufacturer role based on blockchain connection (Base Sepolia Chain ID = 84532)
         This replaces the MongoDB-based role verification with blockchain-first approach
         """
         try:

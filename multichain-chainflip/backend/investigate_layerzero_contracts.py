@@ -23,7 +23,7 @@ async def main():
         return
     
     # Chains to investigate
-    chains = ["optimism_sepolia", "zkevm_cardona", "arbitrum_sepolia", "polygon_pos"]
+    chains = ["optimism_sepolia", "base_sepolia", "arbitrum_sepolia", "polygon_pos"]
     
     for chain in chains:
         print(f"\n{'='*60}")
@@ -74,11 +74,11 @@ async def main():
             
             # Initialization state
             init_state = results.get("initialization_state", {})
-            peer_config = init_state.get("peer_zkevm", {})
+            peer_config = init_state.get("peer_base_sepolia", {})
             if peer_config.get("status") == "configured":
-                print(f"✅ Peer configured for zkEVM: {peer_config.get('result')}")
+                print(f"✅ Peer configured for Base Sepolia: {peer_config.get('result')}")
             elif peer_config.get("status") == "not_configured":
-                print(f"❌ CRITICAL: Peer NOT configured for zkEVM")
+                print(f"❌ CRITICAL: Peer NOT configured for Base Sepolia")
             
             # Print recommendations
             recommendations = investigation.get("recommendations", [])
@@ -89,12 +89,12 @@ async def main():
         else:
             print(f"❌ Investigation failed: {investigation.get('error')}")
         
-        # 3. Test send functionality (only for optimism_sepolia -> zkevm_cardona)
+        # 3. Test send functionality (only for optimism_sepolia -> base_sepolia)
         if chain == "optimism_sepolia":
             print(f"\n3️⃣ Send Function Testing")
             print("-" * 30)
             send_test = await layerzero_oft_bridge_service.test_and_fix_layerzero_send(
-                "optimism_sepolia", "zkevm_cardona"
+                "optimism_sepolia", "base_sepolia"
             )
             
             if send_test["success"]:
@@ -145,8 +145,8 @@ async def main():
                 explorer = f"https://sepolia.arbiscan.io/address/{config['address']}"
             elif chain_name == "polygon_pos":
                 explorer = f"https://amoy.polygonscan.com/address/{config['address']}"
-            elif chain_name == "zkevm_cardona":
-                explorer = f"https://cardona-zkevm.polygonscan.com/address/{config['address']}"
+            elif chain_name == "base_sepolia":
+                explorer = f"https://sepolia.basescan.org/address/{config['address']}"
             else:
                 explorer = f"Contract: {config['address']}"
             

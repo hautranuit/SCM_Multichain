@@ -251,15 +251,15 @@ async def enhanced_health_check():
         if blockchain_service.database is None:
             await blockchain_service.initialize()
         
-        # Test zkEVM Cardona (Manufacturer chain)
+        # Test Base Sepolia (Manufacturer chain)
         if blockchain_service.manufacturer_web3:
             try:
                 latest_block = blockchain_service.manufacturer_web3.eth.block_number
-                blockchain_status["zkevm_cardona"] = {"connected": True, "latest_block": latest_block}
+                blockchain_status["base_sepolia"] = {"connected": True, "latest_block": latest_block}
             except Exception as e:
-                blockchain_status["zkevm_cardona"] = {"connected": False, "error": str(e)}
+                blockchain_status["base_sepolia"] = {"connected": False, "error": str(e)}
         else:
-            blockchain_status["zkevm_cardona"] = {"connected": False, "error": "Not initialized"}
+            blockchain_status["base_sepolia"] = {"connected": False, "error": "Not initialized"}
         
         # Test Polygon Hub
         if blockchain_service.pos_web3:

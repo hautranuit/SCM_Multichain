@@ -42,7 +42,7 @@ async def deploy_weth_oft_contracts():
         # Collect Web3 connections
         print("📋 Step 2: Checking chain connections...")
         web3_connections = {}
-        chains = ["optimism_sepolia", "polygon_pos", "zkevm_cardona", "arbitrum_sepolia"]
+        chains = ["optimism_sepolia", "polygon_pos", "base_sepolia", "arbitrum_sepolia"]
         
         for chain in chains:
             web3 = token_bridge_service.get_web3_for_chain(chain)

@@ -9,6 +9,7 @@ module.exports = {
                 enabled: true,
                 runs: 200,
             },
+            viaIR: true  // Add this to fix "Stack too deep" error
         },
     },
     networks: {

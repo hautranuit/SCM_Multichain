@@ -15,7 +15,7 @@ from eth_account import Account
 LAYERZERO_ENDPOINTS = {
     "optimism_sepolia": "0x6EDCE65403992e310A62460808c4b910D972f10f",
     "polygon_pos": "0x6EDCE65403992e310A62460808c4b910D972f10f", 
-    "zkevm_cardona": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "base_sepolia": "0x6EDCE65403992e310A62460808c4b910D972f10f",
     "arbitrum_sepolia": "0x6EDCE65403992e310A62460808c4b910D972f10f"
 }
 
@@ -33,8 +33,8 @@ CHAIN_CONFIGS = {
         "oft_name": "ChainFLIP Omnichain WETH",
         "oft_symbol": "cfWETH"
     },
-    "zkevm_cardona": {
-        "name": "zkEVM Cardona",
+    "base_sepolia": {
+        "name": "Base Sepolia",
         "native_token": "ETH",
         "oft_name": "ChainFLIP Omnichain WETH", 
         "oft_symbol": "cfWETH"
