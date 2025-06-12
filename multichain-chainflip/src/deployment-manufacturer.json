@@ -1,11 +1,11 @@
 {
-  "network": "cardona",
-  "chainId": 2442,
-  "contractAddress": "0x7345824F815bF1C4693D1995224128ed299Fcec0",
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "contractAddress": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d",
   "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
   "hubContract": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8",
-  "transactionHash": "0x463991089e310d12606cfabbc93f65e6926f8737c84405f665d61294c7456257",
+  "transactionHash": "0x60e1ad5d3bf72d9ef649f08de1cb1895df1cb7505eede7ac17f4ecf3b6596a9d",
   "blockNumber": "N/A",
-  "timestamp": "2025-06-06T11:08:21.490Z",
-  "deploymentType": "simplified"
+  "timestamp": "2024-12-19T15:30:00.000Z",
+  "deploymentType": "base-sepolia-migration"
 }

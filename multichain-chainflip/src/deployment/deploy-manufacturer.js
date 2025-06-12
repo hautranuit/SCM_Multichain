@@ -6,8 +6,8 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
     
-    const balance = await ethers.provider.getBalance(deployer.address);
-    console.log("Account balance:", ethers.formatEther(balance), "ETH");
+    const balance = await deployer.getBalance();
+    console.log("Account balance:", ethers.utils.formatEther(balance), "ETH");
 
     // Hub contract address
     const hubContractAddress = process.env.HUB_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
@@ -24,12 +24,12 @@ async function main() {
         hubContractAddress // hubContract
     );
 
-    await manufacturerChain.waitForDeployment();
+    await manufacturerChain.deployed();
 
-    const contractAddress = await manufacturerChain.getAddress();
+    const contractAddress = manufacturerChain.address;
     console.log("✅ ManufacturerChain deployed to:", contractAddress);
     
-    const deployTx = manufacturerChain.deploymentTransaction();
+    const deployTx = manufacturerChain.deployTransaction;
     console.log("📋 Transaction hash:", deployTx?.hash || "N/A");
 
     // Basic verification

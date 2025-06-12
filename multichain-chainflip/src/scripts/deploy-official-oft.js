@@ -3,13 +3,12 @@
 
 const { ethers } = require("hardhat");
 
-// Official LayerZero V2 Endpoint addresses (June 2025)
+// Official LayerZero V2 Endpoint addresses (December 2024)
 const LAYERZERO_ENDPOINTS = {
     optimismSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f",
     arbitrumSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f", 
     amoy: "0x6EDCE65403992e310A62460808c4b910D972f10f",
-    baseSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f",
-    cardona: "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3"
+    baseSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f"
 };
 
 // Official LayerZero V2 Endpoint IDs
@@ -17,8 +16,7 @@ const LAYERZERO_EIDS = {
     optimismSepolia: 40232,
     arbitrumSepolia: 40231,
     amoy: 40267,
-    baseSepolia: 40245,
-    cardona: 40158
+    baseSepolia: 40245
 };
 
 async function main() {
@@ -62,12 +60,12 @@ async function main() {
         deployer.address               // Delegate (owner)
     );
     
-    await oft.waitForDeployment();
-    const oftAddress = await oft.getAddress();
+    await oft.deployed();
+    const oftAddress = oft.address;
     
     console.log("\n✅ Deployment Successful!");
     console.log(`   Contract Address: ${oftAddress}`);
-    console.log(`   Transaction: ${oft.deploymentTransaction().hash}`);
+    console.log(`   Transaction: ${oft.deployTransaction.hash}`);
     
     // Verify contract functions are available
     console.log("\n🔍 Verifying Contract Interface...");
@@ -112,7 +110,7 @@ async function main() {
         token_name: "ChainFLIP WETH",
         token_symbol: "cfWETH",
         deployment_timestamp: new Date().toISOString(),
-        transaction_hash: oft.deploymentTransaction().hash,
+        transaction_hash: oft.deployTransaction.hash,
         gas_used: "pending_confirmation",
         block_number: "pending_confirmation",
         interface: "Official LayerZero V2 OFT (@layerzerolabs/oft-evm)"
@@ -140,6 +138,7 @@ async function main() {
     console.log("4. Test LayerZero transfers (should fix the '0x3ee5aeb5' error)");
     
     console.log("\n🔗 Deployment Commands for Other Networks:");
+    console.log("   npx hardhat run scripts/deploy-official-oft.js --network optimismSepolia");
     console.log("   npx hardhat run scripts/deploy-official-oft.js --network arbitrumSepolia");
     console.log("   npx hardhat run scripts/deploy-official-oft.js --network amoy");
     console.log("   npx hardhat run scripts/deploy-official-oft.js --network baseSepolia");

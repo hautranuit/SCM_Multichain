@@ -8,14 +8,16 @@ const { ethers } = require("hardhat");
 const OFT_CONTRACTS = {
     optimismSepolia: "0x6478eAB366A16d96ae910fd16F6770DDa1845648",
     arbitrumSepolia: "0x441C06d8548De93d64072F781e15E16A7c316b67",
-    amoy: "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4"
+    amoy: "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4",
+    baseSepolia: "0xdAd142646292A550008B44D968764c52eF1C3f67"
 };
 
 // LayerZero Endpoint IDs for V2
 const LAYERZERO_EIDS = {
     optimismSepolia: 40232,
     arbitrumSepolia: 40231,
-    amoy: 40267
+    amoy: 40267,
+    baseSepolia: 40245
 };
 
 // OFT ABI - only the functions we need
@@ -138,6 +140,7 @@ async function main() {
     console.log(`   npx hardhat run scripts/set-peer-connections-oft.js --network optimismSepolia`);
     console.log(`   npx hardhat run scripts/set-peer-connections-oft.js --network arbitrumSepolia`);
     console.log(`   npx hardhat run scripts/set-peer-connections-oft.js --network amoy`);
+    console.log(`   npx hardhat run scripts/set-peer-connections-oft.js --network baseSepolia`);
 }
 
 main().catch((error) => {
