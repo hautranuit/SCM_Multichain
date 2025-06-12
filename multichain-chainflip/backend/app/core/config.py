@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     bridge_optimism_layerzero: str = os.getenv("BRIDGE_OPTIMISM_LAYERZERO", "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26")
     bridge_arbitrum_layerzero: str = os.getenv("BRIDGE_ARBITRUM_LAYERZERO", "0x217e72E43e9375c1121ca36dcAc3fe878901836D")
     
+    # LayerZero OFT Contracts (Separated Architecture) - FIXED
+    chainflip_oft_optimism_sepolia: str = os.getenv("CHAINFLIP_OFT_OPTIMISM_SEPOLIA", "0x6478eAB366A16d96ae910fd16F6770DDa1845648")
+    chainflip_oft_arbitrum_sepolia: str = os.getenv("CHAINFLIP_OFT_ARBITRUM_SEPOLIA", "0x441C06d8548De93d64072F781e15E16A7c316b67")
+    chainflip_oft_amoy: str = os.getenv("CHAINFLIP_OFT_AMOY", "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4")
+    ethwrapper_optimism_sepolia: str = os.getenv("ETHWRAPPER_OPTIMISM_SEPOLIA", "0x5428793EBd36693c993D6B3f8f2641C46121ec29")
+    ethwrapper_arbitrum_sepolia: str = os.getenv("ETHWRAPPER_ARBITRUM_SEPOLIA", "0x5952569276eA7f7eF95B910EAd0a67067A518188")
+    ethwrapper_amoy: str = os.getenv("ETHWRAPPER_AMOY", "0xA471c665263928021AF5aa7852724b6f757005e1")
+    
     # Legacy bridge settings
     bridge_contract: str = os.getenv("BRIDGE_CONTRACT", "")
     l2_participant_contract: str = os.getenv("L2_PARTICIPANT_CONTRACT", "")

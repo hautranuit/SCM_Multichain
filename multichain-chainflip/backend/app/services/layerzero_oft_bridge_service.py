@@ -180,27 +180,36 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # Separated Architecture Configuration: ChainFlipOFT + ETHWrapper (UPDATED ADDRESSES)
+        # DEBUG: Print what settings are loading
+        print(f"🔍 DEBUG: LayerZero OFT Addresses from settings:")
+        print(f"   Optimism: {settings.chainflip_oft_optimism_sepolia}")
+        print(f"   Arbitrum: {settings.chainflip_oft_arbitrum_sepolia}")
+        print(f"   Amoy: {settings.chainflip_oft_amoy}")
+        print(f"   Wrapper Optimism: {settings.ethwrapper_optimism_sepolia}")
+        print(f"   Wrapper Arbitrum: {settings.ethwrapper_arbitrum_sepolia}")
+        print(f"   Wrapper Amoy: {settings.ethwrapper_amoy}")
+        
+        # Separated Architecture Configuration: ChainFlipOFT + ETHWrapper
         self.oft_contracts = {
             "optimism_sepolia": {
-                "oft_address": "0x6478eAB366A16d96ae910fd16F6770DDa1845648",
-                "wrapper_address": "0x5428793EBd36693c993D6B3f8f2641C46121ec29",
+                "oft_address": settings.chainflip_oft_optimism_sepolia,
+                "wrapper_address": settings.ethwrapper_optimism_sepolia,
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
                 "layerzero_eid": 40232,
                 "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "arbitrum_sepolia": {
-                "oft_address": "0x441C06d8548De93d64072F781e15E16A7c316b67",
-                "wrapper_address": "0x5952569276eA7f7eF95B910EAd0a67067A518188",
+                "oft_address": settings.chainflip_oft_arbitrum_sepolia,
+                "wrapper_address": settings.ethwrapper_arbitrum_sepolia,
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,
                 "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "polygon_amoy": {
-                "oft_address": "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4",
-                "wrapper_address": "0xA471c665263928021AF5aa7852724b6f757005e1",
+                "oft_address": settings.chainflip_oft_amoy,
+                "wrapper_address": settings.ethwrapper_amoy,
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
                 "layerzero_eid": 40267,
@@ -244,15 +253,16 @@ class LayerZeroOFTBridgeService:
                 if web3.is_connected():
                     self.web3_connections[chain_name] = web3
                     
-                    # Initialize OFT contract if address is configured
-                    if config.get('address'):
+                    # Initialize OFT contract using oft_address
+                    if config.get('oft_address'):
                         oft_contract = web3.eth.contract(
-                            address=config['address'],
+                            address=config['oft_address'],
                             abi=OFFICIAL_LAYERZERO_OFT_ABI
                         )
                         self.oft_instances[chain_name] = oft_contract
-                        print(f"✅ Connected to {chain_name} - Official OFT contract ready at {config['address']}")
-                        print(f"   ✨ NEW: Supports deposit() and withdraw() functions")
+                        print(f"✅ Connected to {chain_name} - Official OFT contract ready at {config['oft_address']}")
+                        print(f"   🔧 ETH Wrapper contract: {config['wrapper_address']}")
+                        print(f"   ✨ Separated architecture: ChainFlipOFT + ETHWrapper")
                     else:
                         print(f"⚠️ Connected to {chain_name} - Contract address not configured yet")
                         print(f"   Deploy contract first: npx hardhat run scripts/deploy-official-oft.js --network {chain_name.replace('_', '')}")
@@ -358,7 +368,7 @@ class LayerZeroOFTBridgeService:
             source_config = self.oft_contracts[from_chain]
             target_config = self.oft_contracts[to_chain]
             
-            if not source_config.get('address') or not target_config.get('address'):
+            if not source_config.get('oft_address') or not target_config.get('oft_address'):
                 return {
                     "success": False, 
                     "error": "Official OFT contracts not yet deployed. Deploy contracts first.",
@@ -458,7 +468,7 @@ class LayerZeroOFTBridgeService:
             target_config = self.oft_contracts[to_chain]
             
             # Check if OFT contracts are deployed
-            if not source_config.get('address') or not target_config.get('address'):
+            if not source_config.get('oft_address') or not target_config.get('oft_address'):
                 return {
                     "success": False,
                     "error": "Official OFT contracts not deployed yet. Please deploy contracts first.",
@@ -588,10 +598,10 @@ class LayerZeroOFTBridgeService:
             target_config = self.oft_contracts[to_chain]
             
             print(f"🔗 Official OFT Send: {from_chain} → {to_chain}")
-            print(f"📍 Contract: {source_config['address']}")
+            print(f"📍 Contract: {source_config['oft_address']}")
             
             oft_contract = web3.eth.contract(
-                address=source_config['address'],
+                address=source_config['oft_address'],
                 abi=OFFICIAL_LAYERZERO_OFT_ABI
             )
             
