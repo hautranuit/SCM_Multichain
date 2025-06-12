@@ -15,7 +15,7 @@ router = APIRouter()
 # Pydantic Models for Request/Response
 class TokenTransferRequest(BaseModel):
     from_chain: str = Field(..., description="Source chain name (e.g., 'optimism_sepolia')")
-    to_chain: str = Field(..., description="Destination chain name (e.g., 'zkevm_cardona')")
+    to_chain: str = Field(..., description="Destination chain name (e.g., 'base_sepolia')")
     from_address: str = Field(..., description="Sender wallet address")
     to_address: str = Field(..., description="Recipient wallet address")
     amount_eth: float = Field(..., gt=0, description="Amount in ETH to transfer")
@@ -83,7 +83,7 @@ async def get_token_bridge_status():
         
         # Get chain connection status
         chain_status = {}
-        chains = ['optimism_sepolia', 'polygon_pos', 'zkevm_cardona', 'arbitrum_sepolia']
+        chains = ['optimism_sepolia', 'polygon_pos', 'base_sepolia', 'arbitrum_sepolia']
         
         for chain in chains:
             web3 = real_weth_bridge_service.web3_connections.get(chain)
@@ -399,11 +399,11 @@ async def get_supported_chains():
                 "native_token": "MATIC",
                 "real_weth": True
             },
-            "zkevm_cardona": {
-                "name": "zkEVM Cardona",
+            "base_sepolia": {
+                "name": "Base Sepolia",
                 "role": "Manufacturer Chain",
-                "chain_id": 2442,
-                "weth_contract": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
+                "chain_id": 84532,
+                "weth_contract": "0x4200000000000000000000000000000000000006",
                 "native_token": "ETH",
                 "real_weth": True
             },
@@ -541,7 +541,7 @@ async def test_and_fix_send(request: Dict[str, str]):
     """Test different LayerZero send patterns and identify working configuration"""
     try:
         from_chain = request.get("from_chain", "optimism_sepolia")
-        to_chain = request.get("to_chain", "zkevm_cardona")
+        to_chain = request.get("to_chain", "base_sepolia")
         
         # Initialize LayerZero service if needed
         if layerzero_oft_bridge_service.database is None:
@@ -573,18 +573,18 @@ async def test_reverse_direction():
         if layerzero_oft_bridge_service.database is None:
             await layerzero_oft_bridge_service.initialize()
         
-        # Test reverse direction: zkEVM → Optimism (should work since Optimism has zkEVM peer)
+        # Test reverse direction: Base Sepolia → Optimism (should work since Optimism has Base peer)
         reverse_test_result = await layerzero_oft_bridge_service.test_and_fix_layerzero_send(
-            "zkevm_cardona", "optimism_sepolia"
+            "base_sepolia", "optimism_sepolia"
         )
         
         return {
             "success": True,
             "direction": "reverse",
-            "from_chain": "zkevm_cardona", 
+            "from_chain": "base_sepolia", 
             "to_chain": "optimism_sepolia",
             "test_results": reverse_test_result,
-            "note": "Testing reverse direction since zkEVM lacks peer configuration",
+            "note": "Testing reverse direction since Base Sepolia lacks peer configuration",
             "timestamp": time.time()
         }
         
@@ -597,14 +597,14 @@ async def test_reverse_direction():
 
 @router.post("/transfer-reverse", response_model=Dict[str, Any])
 async def transfer_reverse_direction(request: TokenTransferRequest):
-    """Execute reverse direction transfer (zkEVM → other chains) as workaround"""
+    """Execute reverse direction transfer (Base Sepolia → other chains) as workaround"""
     try:
         # Force reverse direction for testing
-        if request.from_chain != "zkevm_cardona":
+        if request.from_chain != "base_sepolia":
             return {
                 "success": False,
-                "error": "This endpoint only supports zkEVM as source chain (reverse direction workaround)",
-                "suggestion": "Use zkEVM as from_chain to test working direction"
+                "error": "This endpoint only supports Base Sepolia as source chain (reverse direction workaround)",
+                "suggestion": "Use Base Sepolia as from_chain to test working direction"
             }
         
         # Generate escrow ID if not provided

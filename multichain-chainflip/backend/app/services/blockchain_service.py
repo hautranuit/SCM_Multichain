@@ -39,17 +39,17 @@ class BlockchainService:
             self.account = Account.from_key(settings.deployer_private_key)
             print(f"✅ Blockchain account loaded: {self.account.address}")
         
-        # Initialize zkEVM Cardona connection (Primary chain for manufacturing)
-        if settings.zkevm_cardona_rpc:
-            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.zkevm_cardona_rpc))
-            # Add PoA middleware for zkEVM
+        # Initialize Base Sepolia connection (Primary chain for manufacturing)
+        if settings.base_sepolia_rpc:
+            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.base_sepolia_rpc))
+            # Add PoA middleware for Base Sepolia
             self.manufacturer_web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
             
             if self.manufacturer_web3.is_connected():
-                print(f"✅ Connected to zkEVM Cardona (Chain ID: {settings.zkevm_cardona_chain_id})")
+                print(f"✅ Connected to Base Sepolia (Chain ID: {settings.base_sepolia_chain_id})")
                 print(f"📊 Latest block: {self.manufacturer_web3.eth.block_number}")
             else:
-                print("❌ Failed to connect to zkEVM Cardona")
+                print("❌ Failed to connect to Base Sepolia")
         
         # Initialize Polygon PoS connection (Hub chain) with enhanced retry logic
         if settings.polygon_pos_rpc:
@@ -252,7 +252,7 @@ class BlockchainService:
                                 "metadata_cid": metadata_cid,
                                 "transaction_hash": tx_hash_hex,
                                 "block_number": receipt.blockNumber,
-                                "chain_id": settings.zkevm_cardona_chain_id,
+                                "chain_id": settings.base_sepolia_chain_id,
                                 "contract_address": contract_address,
                                 "encrypted_qr_code": encrypted_qr_code,
                                 "qr_hash": qr_hash,
@@ -280,7 +280,7 @@ class BlockchainService:
                                 "metadata_cid": metadata_cid,
                                 "qr_hash": qr_hash,
                                 "token_uri": token_uri,
-                                "chain_id": settings.zkevm_cardona_chain_id,
+                                "chain_id": settings.base_sepolia_chain_id,
                                 "gas_used": receipt.gasUsed,
                                 "contract_address": contract_address,
                                 "encryption_keys": keys_used,
@@ -729,13 +729,13 @@ class BlockchainService:
                 print(f"❌ No zkEVM Cardona connection available")
                 return {
                     "valid": False,
-                    "error": "zkEVM Cardona blockchain not connected. Manufacturing requires connection to Chain ID 2442."
+                    "error": "Base Sepolia blockchain not connected. Manufacturing requires connection to Chain ID 84532."
                 }
             
-            # Verify blockchain connection is to zkEVM Cardona (Chain ID: 2442)
+            # Verify blockchain connection is to Base Sepolia (Chain ID: 84532)
             try:
                 current_chain_id = self.manufacturer_web3.eth.chain_id
-                expected_chain_id = settings.zkevm_cardona_chain_id  # Should be 2442
+                expected_chain_id = settings.base_sepolia_chain_id  # Should be 84532
                 
                 if current_chain_id != expected_chain_id:
                     return {
@@ -862,7 +862,7 @@ class BlockchainService:
                 manufacturer_count = await self.database.participants.count_documents({
                     "role": "manufacturer",
                     "status": "active",
-                    "chain_id": settings.zkevm_cardona_chain_id
+                    "chain_id": settings.base_sepolia_chain_id
                 })
             except Exception as e:
                 print(f"⚠️ Participant stats error: {e}")
@@ -882,7 +882,7 @@ class BlockchainService:
                 },
                 "bridge_status": bridge_status,
                 "ipfs_gateway": settings.ipfs_gateway,
-                "zkEVM_cardona_chain_id": settings.zkevm_cardona_chain_id,
+                "base_sepolia_chain_id": settings.base_sepolia_chain_id,
                 "role_verification_enabled": getattr(settings, 'enable_role_verification', True),
                 "algorithm_usage": {
                     "authenticity_verification": total_verifications,

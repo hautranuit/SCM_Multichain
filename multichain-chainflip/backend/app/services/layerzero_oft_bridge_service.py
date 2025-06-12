@@ -137,9 +137,11 @@ class LayerZeroOFTBridgeService:
         print(f"🔍 DEBUG: LayerZero OFT Addresses from settings:")
         print(f"   Optimism: {settings.chainflip_oft_optimism_sepolia}")
         print(f"   Arbitrum: {settings.chainflip_oft_arbitrum_sepolia}")
+        print(f"   Base Sepolia: {settings.chainflip_oft_base_sepolia}")
         print(f"   Amoy: {settings.chainflip_oft_amoy}")
         print(f"   Wrapper Optimism: {settings.ethwrapper_optimism_sepolia}")
         print(f"   Wrapper Arbitrum: {settings.ethwrapper_arbitrum_sepolia}")
+        print(f"   Wrapper Base Sepolia: {settings.ethwrapper_base_sepolia}")
         print(f"   Wrapper Amoy: {settings.ethwrapper_amoy}")
         
         # CORRECTED: Separate OFT and Wrapper responsibilities
@@ -158,6 +160,14 @@ class LayerZeroOFTBridgeService:
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+            },
+            "base_sepolia": {
+                "oft_address": settings.chainflip_oft_base_sepolia,
+                "wrapper_address": settings.ethwrapper_base_sepolia,
+                "rpc": settings.base_sepolia_rpc,
+                "chain_id": 84532,
+                "layerzero_eid": 40245,
                 "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "polygon_amoy": {

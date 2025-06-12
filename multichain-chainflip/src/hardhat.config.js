@@ -19,10 +19,10 @@ module.exports = {
             gas: 5000000,
             gasPrice: 50000000000, // 50 gwei
         },
-        cardona: {
-            url: process.env.L2_CDK_RPC || "https://rpc.cardona.zkevm-rpc.com",
+        baseSepolia: {
+            url: process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org",
             accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
-            chainId: 2442,
+            chainId: 84532,
             gas: 5000000,
             gasPrice: 1000000000, // 1 gwei
         },
@@ -37,6 +37,14 @@ module.exports = {
             url: process.env.OPTIMISM_SEPOLIA_RPC || "https://sepolia.optimism.io",
             accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
             chainId: 11155420,
+            gas: 5000000,
+            gasPrice: 1000000000, // 1 gwei
+        },
+        // Legacy cardona network (deprecated)
+        cardona: {
+            url: process.env.L2_CDK_RPC || "https://rpc.cardona.zkevm-rpc.com",
+            accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+            chainId: 2442,
             gas: 5000000,
             gasPrice: 1000000000, // 1 gwei
         },

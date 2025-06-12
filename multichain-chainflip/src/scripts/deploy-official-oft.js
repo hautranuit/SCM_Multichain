@@ -5,9 +5,10 @@ const { ethers } = require("hardhat");
 
 // Official LayerZero V2 Endpoint addresses (June 2025)
 const LAYERZERO_ENDPOINTS = {
-    optimismSepolia: "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
+    optimismSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f",
     arbitrumSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f", 
-    amoy: "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
+    amoy: "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    baseSepolia: "0x6EDCE65403992e310A62460808c4b910D972f10f",
     cardona: "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3"
 };
 
@@ -16,6 +17,7 @@ const LAYERZERO_EIDS = {
     optimismSepolia: 40232,
     arbitrumSepolia: 40231,
     amoy: 40267,
+    baseSepolia: 40245,
     cardona: 40158
 };
 
@@ -140,7 +142,7 @@ async function main() {
     console.log("\n🔗 Deployment Commands for Other Networks:");
     console.log("   npx hardhat run scripts/deploy-official-oft.js --network arbitrumSepolia");
     console.log("   npx hardhat run scripts/deploy-official-oft.js --network amoy");
-    console.log("   npx hardhat run scripts/deploy-official-oft.js --network cardona");
+    console.log("   npx hardhat run scripts/deploy-official-oft.js --network baseSepolia");
     
     console.log(`\n✅ Contract deployed with official LayerZero V2 interface: ${oftAddress}`);
 }

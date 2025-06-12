@@ -114,7 +114,7 @@ LAYERZERO_OFT_ABI = [
 LAYERZERO_CHAIN_IDS = {
     "optimism_sepolia": 10132,    # Optimism Sepolia
     "polygon_pos": 10109,         # Polygon Amoy  
-    "zkevm_cardona": 10158,       # zkEVM Cardona
+    "base_sepolia": 10245,        # Base Sepolia
     "arbitrum_sepolia": 10231     # Arbitrum Sepolia
 }
 
@@ -132,7 +132,7 @@ class TokenBridgeService:
         self.weth_oft_contracts = {
             "optimism_sepolia": "0x8AfF7B758eC0f57FfC4b08Dd91589832b8DF4d78",  # Real deployed contract
             "polygon_pos": "0x778Ccc71741a1e3F455E0e82b6BF3C583E62bfb0",      # Real deployed contract
-            "zkevm_cardona": "0x760e686710E42A9209162cF27Bf3f23F33213762",    # Real deployed contract
+            "base_sepolia": "0x0000000000000000000000000000000000000000",    # To be deployed
             "arbitrum_sepolia": "0x33d62824787BCD38c4738AC5B5d962d30C80F91a"  # Real deployed contract
         }
         
@@ -165,7 +165,7 @@ class TokenBridgeService:
         print("✅ Token Bridge Service initialized with REAL LayerZero OFT contracts")
         print(f"   📄 Optimism: {self.weth_oft_contracts['optimism_sepolia']}")
         print(f"   📄 Polygon: {self.weth_oft_contracts['polygon_pos']}")
-        print(f"   📄 zkEVM: {self.weth_oft_contracts['zkevm_cardona']}")
+        print(f"   📄 Base Sepolia: {self.weth_oft_contracts['base_sepolia']}")
         print(f"   📄 Arbitrum: {self.weth_oft_contracts['arbitrum_sepolia']}")
     
     async def _initialize_chain_connections(self):
@@ -183,11 +183,11 @@ class TokenBridgeService:
             if self.polygon_web3.is_connected():
                 print(f"✅ Token Bridge connected to Polygon PoS Hub")
                 
-        # zkEVM Cardona (Manufacturer Chain)
-        if settings.zkevm_cardona_rpc:
-            self.zkevm_web3 = Web3(Web3.HTTPProvider(settings.zkevm_cardona_rpc))
-            if self.zkevm_web3.is_connected():
-                print(f"✅ Token Bridge connected to zkEVM Cardona")
+        # Base Sepolia (Manufacturer Chain)
+        if settings.base_sepolia_rpc:
+            self.base_sepolia_web3 = Web3(Web3.HTTPProvider(settings.base_sepolia_rpc))
+            if self.base_sepolia_web3.is_connected():
+                print(f"✅ Token Bridge connected to Base Sepolia")
                 
         # Arbitrum Sepolia (Transporter Chain)
         if settings.arbitrum_sepolia_rpc:
@@ -216,12 +216,12 @@ class TokenBridgeService:
                 )
                 print(f"✅ Polygon WETH OFT contract initialized")
                 
-            if self.zkevm_web3:
-                self.weth_oft_zkevm = self.zkevm_web3.eth.contract(
-                    address=self.weth_oft_contracts["zkevm_cardona"],
+            if self.base_sepolia_web3:
+                self.weth_oft_base = self.base_sepolia_web3.eth.contract(
+                    address=self.weth_oft_contracts["base_sepolia"],
                     abi=LAYERZERO_OFT_ABI
                 )
-                print(f"✅ zkEVM WETH OFT contract initialized")
+                print(f"✅ Base Sepolia WETH OFT contract initialized")
                 
             if self.arbitrum_web3:
                 self.weth_oft_arbitrum = self.arbitrum_web3.eth.contract(
@@ -244,7 +244,7 @@ class TokenBridgeService:
         chain_map = {
             "optimism_sepolia": self.optimism_web3,
             "polygon_pos": self.polygon_web3,
-            "zkevm_cardona": self.zkevm_web3,
+            "base_sepolia": self.base_sepolia_web3,
             "arbitrum_sepolia": self.arbitrum_web3
         }
         return chain_map.get(chain_name)
@@ -254,7 +254,7 @@ class TokenBridgeService:
         contract_map = {
             "optimism_sepolia": self.weth_oft_optimism,
             "polygon_pos": self.weth_oft_polygon,
-            "zkevm_cardona": self.weth_oft_zkevm,
+            "base_sepolia": self.weth_oft_base,
             "arbitrum_sepolia": self.weth_oft_arbitrum
         }
         return contract_map.get(chain_name)
@@ -273,7 +273,7 @@ class TokenBridgeService:
         
         Args:
             from_chain: Source chain name (e.g. "optimism_sepolia")
-            to_chain: Destination chain name (e.g. "zkevm_cardona") 
+            to_chain: Destination chain name (e.g. "base_sepolia") 
             from_address: Sender address
             to_address: Recipient address
             amount_eth: Amount in ETH to transfer
