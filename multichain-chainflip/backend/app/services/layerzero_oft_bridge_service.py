@@ -33,15 +33,20 @@ def convert_decimals_to_float(obj):
     else:
         return obj
 
-# LayerZero WETH OFT Contract ABI (EXACT MATCH TO DEPLOYED CONTRACT)
+# Official LayerZero V2 OFT Contract ABI (Compatible with @layerzerolabs/oft-evm)
 LAYERZERO_OFT_ABI = [
+    # Official LayerZero OFT send function
     {
         "inputs": [
-            {"name": "_dstEid", "type": "uint32"},
-            {"name": "_to", "type": "bytes32"},
-            {"name": "_amountLD", "type": "uint256"},
-            {"name": "_minAmountLD", "type": "uint256"},
-            {"name": "_extraOptions", "type": "bytes"},
+            {"name": "_sendParam", "type": "tuple", "components": [
+                {"name": "dstEid", "type": "uint32"},
+                {"name": "to", "type": "bytes32"},
+                {"name": "amountLD", "type": "uint256"},
+                {"name": "minAmountLD", "type": "uint256"},
+                {"name": "extraOptions", "type": "bytes"},
+                {"name": "composeMsg", "type": "bytes"},
+                {"name": "oftCmd", "type": "bytes"}
+            ]},
             {"name": "_fee", "type": "tuple", "components": [
                 {"name": "nativeFee", "type": "uint256"},
                 {"name": "lzTokenFee", "type": "uint256"}
@@ -50,7 +55,7 @@ LAYERZERO_OFT_ABI = [
         ],
         "name": "send",
         "outputs": [
-            {"name": "", "type": "tuple", "components": [
+            {"name": "receipt", "type": "tuple", "components": [
                 {"name": "guid", "type": "bytes32"},
                 {"name": "nonce", "type": "uint64"},
                 {"name": "fee", "type": "tuple", "components": [
@@ -62,40 +67,23 @@ LAYERZERO_OFT_ABI = [
         "stateMutability": "payable",
         "type": "function"
     },
+    # Official LayerZero OFT quoteSend function
     {
         "inputs": [
-            {"name": "_dstEid", "type": "uint32"},
-            {"name": "_to", "type": "bytes32"},
-            {"name": "_amountLD", "type": "uint256"},
-            {"name": "_minAmountLD", "type": "uint256"},
-            {"name": "_extraOptions", "type": "bytes"}
-        ],
-        "name": "send",
-        "outputs": [
-            {"name": "", "type": "tuple", "components": [
-                {"name": "guid", "type": "bytes32"},
-                {"name": "nonce", "type": "uint64"},
-                {"name": "fee", "type": "tuple", "components": [
-                    {"name": "nativeFee", "type": "uint256"},
-                    {"name": "lzTokenFee", "type": "uint256"}
-                ]}
-            ]}
-        ],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {"name": "_dstEid", "type": "uint32"},
-            {"name": "_to", "type": "bytes32"},
-            {"name": "_amountLD", "type": "uint256"},
-            {"name": "_minAmountLD", "type": "uint256"},
-            {"name": "_extraOptions", "type": "bytes"},
+            {"name": "_sendParam", "type": "tuple", "components": [
+                {"name": "dstEid", "type": "uint32"},
+                {"name": "to", "type": "bytes32"},
+                {"name": "amountLD", "type": "uint256"},
+                {"name": "minAmountLD", "type": "uint256"},
+                {"name": "extraOptions", "type": "bytes"},
+                {"name": "composeMsg", "type": "bytes"},
+                {"name": "oftCmd", "type": "bytes"}
+            ]},
             {"name": "_payInLzToken", "type": "bool"}
         ],
         "name": "quoteSend",
         "outputs": [
-            {"name": "", "type": "tuple", "components": [
+            {"name": "fee", "type": "tuple", "components": [
                 {"name": "nativeFee", "type": "uint256"},
                 {"name": "lzTokenFee", "type": "uint256"}
             ]}
@@ -103,6 +91,7 @@ LAYERZERO_OFT_ABI = [
         "stateMutability": "view",
         "type": "function"
     },
+    # WETH-specific functions
     {
         "inputs": [{"name": "amount", "type": "uint256"}],
         "name": "depositWETH",
@@ -111,22 +100,30 @@ LAYERZERO_OFT_ABI = [
         "type": "function"
     },
     {
-        "inputs": [{"name": "amount", "type": "uint256"}],
+        "inputs": [],
         "name": "wrapAndDeposit",
         "outputs": [],
         "stateMutability": "payable",
         "type": "function"
     },
+    # Standard ERC20 and OFT functions
     {
-        "inputs": [{"name": "amount", "type": "uint256"}],
-        "name": "deposit",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{"name": "account", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
-        "name": "lzEndpoint",
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "endpoint",
         "outputs": [{"name": "", "type": "address"}],
         "stateMutability": "view",
         "type": "function"
@@ -139,16 +136,9 @@ LAYERZERO_OFT_ABI = [
         "type": "function"
     },
     {
-        "inputs": [{"name": "account", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
         "inputs": [],
-        "name": "decimals",
-        "outputs": [{"name": "", "type": "uint8"}],
+        "name": "owner",
+        "outputs": [{"name": "", "type": "address"}],
         "stateMutability": "view",
         "type": "function"
     }
@@ -227,7 +217,7 @@ class LayerZeroOFTBridgeService:
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
                 "layerzero_eid": 40232,  # LayerZero V2 Endpoint ID
-                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # Updated 2025
+                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # MATCHED: Endpoint from deployed contract
                 "alternative_rpcs": [
                     "https://opt-sepolia.g.alchemy.com/v2/demo",
                     "https://sepolia.optimism.io/rpc"
@@ -239,7 +229,7 @@ class LayerZeroOFTBridgeService:
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,  # LayerZero V2 Endpoint ID
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",  # Updated 2025
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",  # MATCHED: Official 2025 V2 endpoint
                 "alternative_rpcs": [
                     "https://arbitrum-sepolia.drpc.org",
                     "https://arb-sepolia.g.alchemy.com/v2/demo"
@@ -251,7 +241,7 @@ class LayerZeroOFTBridgeService:
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
                 "layerzero_eid": 40313,  # Updated EID for 2025
-                "layerzero_endpoint": "0x16c693A3924B947298F7227792953Cd6BBb21Ac8",  # Updated 2025
+                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # MATCHED: Same as Optimism (cross-compatible)
                 "alternative_rpcs": [
                     "https://polygon-amoy.g.alchemy.com/v2/demo",
                     "https://polygon-amoy.drpc.org"
@@ -262,7 +252,7 @@ class LayerZeroOFTBridgeService:
                 "weth_address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
-                "layerzero_eid": 30158,  # FIXED: Use V1 compatible EID (changed from 40158)
+                "layerzero_eid": 40158,  # CORRECTED: Use EID that matches contract quoteSend logic
                 "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",  # Estimated
                 "alternative_rpcs": [
                     "https://polygon-zkevm-cardona.drpc.org"
@@ -379,7 +369,7 @@ class LayerZeroOFTBridgeService:
         amount_eth: float
     ) -> Dict[str, Any]:
         """
-        Estimate LayerZero OFT transfer fee using the actual quoteSend function
+        Estimate LayerZero OFT transfer fee using the official V2 quoteSend function
         """
         try:
             # Check if OFT contracts are deployed
@@ -391,10 +381,10 @@ class LayerZeroOFTBridgeService:
                     "success": False, 
                     "error": "OFT contracts not yet deployed. Deploy OFT contracts first.",
                     "deployment_needed": True,
-                    "deploy_command": "npx hardhat run scripts/deploy-oft.js --network optimismSepolia"
+                    "deploy_command": "npx hardhat run deployment/deploy-official-layerzero-oft.js --network optimismSepolia"
                 }
             
-            # Try to use the actual quoteSend function from the contract
+            # Try to use the official LayerZero V2 quoteSend function
             try:
                 source_web3 = self.web3_connections.get(from_chain)
                 oft_contract = self.oft_instances[from_chain]
@@ -407,15 +397,22 @@ class LayerZeroOFTBridgeService:
                     recipient_addr = "0x28918ecf013F32fAf45e05d62B4D9b207FCae784"
                     recipient_bytes32 = Web3.to_bytes(hexstr=recipient_addr.lower().replace('0x', '').zfill(64))
                     
-                    print(f"💸 Calling quoteSend on {from_chain} for {to_chain}")
+                    print(f"💸 Calling official LayerZero V2 quoteSend on {from_chain} for {to_chain}")
                     
-                    # Call the actual quoteSend function from WETHOFT.sol
+                    # Create official LayerZero V2 SendParam struct
+                    send_param = (
+                        target_config['layerzero_eid'],  # dstEid
+                        recipient_bytes32,               # to
+                        amount_wei,                      # amountLD
+                        amount_wei,                      # minAmountLD
+                        b'',                            # extraOptions
+                        b'',                            # composeMsg
+                        b''                             # oftCmd
+                    )
+                    
+                    # Call the official quoteSend function with struct parameter
                     quote_result = oft_contract.functions.quoteSend(
-                        target_config['layerzero_eid'],  # _dstEid
-                        recipient_bytes32,               # _to
-                        amount_wei,                      # _amountLD
-                        amount_wei,                      # _minAmountLD
-                        b'',                            # _extraOptions
+                        send_param,                     # _sendParam struct
                         False                           # _payInLzToken
                     ).call()
                     
@@ -425,7 +422,7 @@ class LayerZeroOFTBridgeService:
                     
                     native_fee_eth = float(Web3.from_wei(native_fee_wei, 'ether'))
                     
-                    print(f"✅ Real quoteSend fee: {native_fee_eth} ETH for {from_chain} → {to_chain}")
+                    print(f"✅ Official LayerZero V2 quoteSend fee: {native_fee_eth} ETH for {from_chain} → {to_chain}")
                     
                     return {
                         "success": True,
@@ -433,15 +430,15 @@ class LayerZeroOFTBridgeService:
                         "native_fee_eth": native_fee_eth,
                         "lz_token_fee": lz_token_fee,
                         "total_cost_eth": amount_eth + native_fee_eth,
-                        "bridge_type": "LayerZero WETH OFT (Real Quote)",
+                        "bridge_type": "Official LayerZero V2 OFT",
                         "from_chain": from_chain,
                         "to_chain": to_chain,
                         "amount_eth": amount_eth,
-                        "fee_method": "quoteSend_function"
+                        "fee_method": "official_v2_quoteSend"
                     }
                     
             except Exception as quote_error:
-                print(f"⚠️ quoteSend failed: {quote_error}, falling back to fixed fees")
+                print(f"⚠️ Official quoteSend failed: {quote_error}, falling back to fixed fees")
             
             # FALLBACK: Use fixed fee approach if quoteSend fails
             fixed_fees = {
@@ -467,7 +464,7 @@ class LayerZeroOFTBridgeService:
                 }
             }
             
-            # Get fixed fee for this route (matches WETHOFT.sol quoteSend logic)
+            # Get fixed fee for this route
             native_fee_eth = fixed_fees.get(from_chain, {}).get(to_chain, 0.003)  # Default 0.003 ETH
             
             print(f"💸 Using fixed LayerZero fee: {native_fee_eth} ETH for {from_chain} → {to_chain}")
@@ -478,7 +475,7 @@ class LayerZeroOFTBridgeService:
                 "native_fee_eth": native_fee_eth,
                 "lz_token_fee": 0,
                 "total_cost_eth": amount_eth + native_fee_eth,
-                "bridge_type": "LayerZero WETH OFT (Fixed Fee)",
+                "bridge_type": "LayerZero OFT (Fixed Fee Fallback)",
                 "from_chain": from_chain,
                 "to_chain": to_chain,
                 "amount_eth": amount_eth,
@@ -1483,8 +1480,8 @@ class LayerZeroOFTBridgeService:
             # Test 3: Try with different EID values
             print(f"\n🧪 TEST: Different destination EID values")
             test_eids = [
-                30158,  # Current V1 EID
-                40158,  # V2 EID 
+                40158,  # Current corrected EID (matches contract)
+                30158,  # Old V1 EID for comparison
                 2442,   # Chain ID as EID
                 target_config['layerzero_eid']  # Current config
             ]

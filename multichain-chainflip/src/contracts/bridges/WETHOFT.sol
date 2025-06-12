@@ -1,83 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { OFT } from "@layerzerolabs/oft-evm/contracts/OFT.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-// Simplified LayerZero V2 interfaces (no external dependencies)
-interface ILayerZeroEndpointV2 {
-    struct MessagingParams {
-        uint32 dstEid;
-        bytes32 receiver;
-        bytes message;
-        bytes options;
-        bool payInLzToken;
-    }
-    
-    struct MessagingReceipt {
-        bytes32 guid;
-        uint64 nonce;
-        MessagingFee fee;
-    }
-    
-    struct MessagingFee {
-        uint256 nativeFee;
-        uint256 lzTokenFee;
-    }
-    
-    function send(
-        MessagingParams calldata _params,
-        address _refundAddress
-    ) external payable returns (MessagingReceipt memory);
-    
-    function quote(
-        MessagingParams calldata _params,
-        address _sender
-    ) external view returns (MessagingFee memory);
-}
-
-interface ILayerZeroReceiver {
-    function lzReceive(
-        Origin calldata _origin,
-        bytes32 _guid,
-        bytes calldata _message,
-        address _executor,
-        bytes calldata _extraData
-    ) external payable;
-}
-
-struct Origin {
-    uint32 srcEid;
-    bytes32 sender;
-    uint64 nonce;
-}
 
 /**
  * @title WETHOFT
- * @dev Simplified LayerZero OFT implementation for WETH cross-chain transfers
- * Compatible with existing LayerZero infrastructure without external dependencies
+ * @dev Official LayerZero V2 OFT implementation for WETH cross-chain transfers
+ * Compatible with LayerZero V2 endpoints and official OFT standards
  */
-contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
-    
-    // LayerZero endpoint
-    ILayerZeroEndpointV2 public immutable lzEndpoint;
+contract WETHOFT is OFT, ReentrancyGuard {
     
     // WETH contract on this chain
     IERC20 public immutable wethToken;
     
-    // Peer addresses on other chains (eid => peer address)
-    mapping(uint32 => bytes32) public peers;
-    
-    // Message types
-    uint8 constant SEND = 1;
-    uint8 constant SEND_AND_CALL = 2;
-    
     // Events
     event WETHDeposited(address indexed user, uint256 amount);
     event WETHWithdrawn(address indexed user, uint256 amount);
-    event PeerSet(uint32 indexed eid, bytes32 peer);
     event OFTSent(
         bytes32 indexed guid,
         uint32 dstEid,
@@ -98,17 +39,8 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
         address _lzEndpoint,
         address _wethToken,
         address _delegate
-    ) ERC20(_name, _symbol) Ownable(_delegate) {
-        lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
+    ) OFT(_name, _symbol, _lzEndpoint, _delegate) Ownable(_delegate) {
         wethToken = IERC20(_wethToken);
-    }
-    
-    /**
-     * @dev Set peer address for a destination chain
-     */
-    function setPeer(uint32 _eid, bytes32 _peer) external onlyOwner {
-        peers[_eid] = _peer;
-        emit PeerSet(_eid, _peer);
     }
     
     /**
@@ -141,128 +73,19 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
     }
     
     /**
-     * @dev Send OFT tokens cross-chain (Backend-compatible signature)
+     * @dev Wrap ETH to WETH and deposit to get OFT tokens (convenience function)
      */
-    function send(
-        uint32 _dstEid,
-        bytes32 _to,
-        uint256 _amountLD,
-        uint256 _minAmountLD,
-        bytes calldata _extraOptions,
-        ILayerZeroEndpointV2.MessagingFee calldata _fee,
-        address _refundAddress
-    ) external payable nonReentrant returns (ILayerZeroEndpointV2.MessagingReceipt memory) {
-        require(peers[_dstEid] != bytes32(0), "Peer not set");
-        require(balanceOf(msg.sender) >= _amountLD, "Insufficient balance");
-        require(_amountLD >= _minAmountLD, "Amount less than minimum");
-        require(msg.value >= _fee.nativeFee, "Insufficient fee");
+    function wrapAndDeposit() external payable nonReentrant {
+        require(msg.value > 0, "Must send ETH");
         
-        // Burn tokens on source chain
-        _burn(msg.sender, _amountLD);
+        // First wrap ETH to WETH (assuming WETH contract has deposit function)
+        (bool success,) = address(wethToken).call{value: msg.value}("");
+        require(success, "ETH to WETH wrap failed");
         
-        // Prepare message
-        bytes memory message = abi.encode(SEND, _to, _amountLD);
+        // Then mint OFT tokens
+        _mint(msg.sender, msg.value);
         
-        // Send LayerZero message
-        ILayerZeroEndpointV2.MessagingParams memory params = ILayerZeroEndpointV2.MessagingParams({
-            dstEid: _dstEid,
-            receiver: peers[_dstEid],
-            message: message,
-            options: _extraOptions,
-            payInLzToken: false
-        });
-        
-        ILayerZeroEndpointV2.MessagingReceipt memory receipt = lzEndpoint.send{value: _fee.nativeFee}(
-            params,
-            payable(_refundAddress)
-        );
-        
-        emit OFTSent(receipt.guid, _dstEid, msg.sender, _amountLD, _amountLD);
-        
-        return receipt;
-    }
-    
-    /**
-     * @dev Get quote for cross-chain send (Backend-compatible signature)
-     * Returns fixed fee structure since testnet endpoints may not support full quote functionality
-     */
-    function quoteSend(
-        uint32 _dstEid,
-        bytes32 /* _to */,
-        uint256 /* _amountLD */,
-        uint256 /* _minAmountLD */,
-        bytes calldata /* _extraOptions */,
-        bool /* _payInLzToken */
-    ) external view returns (ILayerZeroEndpointV2.MessagingFee memory) {
-        require(peers[_dstEid] != bytes32(0), "Peer not set");
-        
-        // Return fixed fee structure for testnet compatibility
-        // Different fees based on destination chain complexity
-        uint256 baseFee;
-        
-        if (_dstEid == 40158) {  // zkEVM Cardona
-            baseFee = 0.003 ether;
-        } else if (_dstEid == 40313) {  // Polygon Amoy
-            baseFee = 0.0025 ether;
-        } else {  // Optimism/Arbitrum
-            baseFee = 0.002 ether;
-        }
-        
-        return ILayerZeroEndpointV2.MessagingFee({
-            nativeFee: baseFee,
-            lzTokenFee: 0
-        });
-    }
-    
-    /**
-     * @dev Legacy send function for backward compatibility
-     */
-    function send(
-        uint32 _dstEid,
-        bytes32 _to,
-        uint256 _amountLD,
-        uint256 _minAmountLD,
-        bytes calldata _extraOptions
-    ) external payable nonReentrant returns (ILayerZeroEndpointV2.MessagingReceipt memory) {
-        // Use default fee structure
-        ILayerZeroEndpointV2.MessagingFee memory fee = ILayerZeroEndpointV2.MessagingFee({
-            nativeFee: msg.value,
-            lzTokenFee: 0
-        });
-        
-        return this.send(_dstEid, _to, _amountLD, _minAmountLD, _extraOptions, fee, msg.sender);
-    }
-    
-    /**
-     * @dev Receive LayerZero message
-     */
-    function lzReceive(
-        Origin calldata _origin,
-        bytes32 _guid,
-        bytes calldata _message,
-        address /* _executor */,
-        bytes calldata /* _extraData */
-    ) external payable override {
-        require(msg.sender == address(lzEndpoint), "Only endpoint");
-        require(_origin.sender == peers[_origin.srcEid], "Invalid sender");
-        
-        (uint8 msgType, bytes32 to, uint256 amountLD) = abi.decode(_message, (uint8, bytes32, uint256));
-        
-        if (msgType == SEND) {
-            address toAddress = address(uint160(uint256(to)));
-            
-            // Mint tokens on destination chain
-            _mint(toAddress, amountLD);
-            
-            emit OFTReceived(_guid, _origin.srcEid, toAddress, amountLD);
-        }
-    }
-    
-    /**
-     * @dev Check if peer is set
-     */
-    function isPeer(uint32 _eid, bytes32 _peer) external view returns (bool) {
-        return peers[_eid] == _peer;
+        emit WETHDeposited(msg.sender, msg.value);
     }
     
     /**
@@ -278,5 +101,59 @@ contract WETHOFT is ERC20, Ownable, ReentrancyGuard, ILayerZeroReceiver {
     function rescueTokens(address token, uint256 amount) external onlyOwner {
         require(token != address(wethToken), "Cannot rescue WETH");
         IERC20(token).transfer(owner(), amount);
+    }
+    
+    /**
+     * @dev Override _lzSend to add custom logging
+     */
+    function _lzSend(
+        uint32 _dstEid,
+        bytes memory _message,
+        bytes memory _options,
+        MessagingFee memory _fee,
+        address _refundAddress
+    ) internal virtual override returns (MessagingReceipt memory receipt) {
+        receipt = super._lzSend(_dstEid, _message, _options, _fee, _refundAddress);
+        
+        // Decode message to get recipient and amount for logging
+        // This assumes standard OFT message format
+        if (_message.length >= 32) {
+            bytes32 toAddress;
+            uint256 amountLD;
+            assembly {
+                toAddress := mload(add(_message, 32))
+                amountLD := mload(add(_message, 64))
+            }
+            
+            emit OFTSent(receipt.guid, _dstEid, msg.sender, amountLD, amountLD);
+        }
+        
+        return receipt;
+    }
+    
+    /**
+     * @dev Override _lzReceive to add custom logging
+     */
+    function _lzReceive(
+        Origin calldata _origin,
+        bytes32 _guid,
+        bytes calldata _message,
+        address /*_executor*/,
+        bytes calldata /*_extraData*/
+    ) internal virtual override {
+        super._lzReceive(_origin, _guid, _message, address(0), "");
+        
+        // Decode message to get recipient and amount for logging
+        if (_message.length >= 32) {
+            bytes32 toAddressBytes32;
+            uint256 amountLD;
+            assembly {
+                toAddressBytes32 := mload(add(_message, 32))
+                amountLD := mload(add(_message, 64))
+            }
+            
+            address toAddress = address(uint160(uint256(toAddressBytes32)));
+            emit OFTReceived(_guid, _origin.srcEid, toAddress, amountLD);
+        }
     }
 }

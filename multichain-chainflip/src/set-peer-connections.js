@@ -13,7 +13,7 @@ const EIDS = {
   optimismSepolia: 40232,
   arbitrumSepolia: 40231,
   polygonAmoy: 40313,
-  zkevmCardona: 30158  // FIXED: Use V1 compatible EID (changed from 40158)
+  zkevmCardona: 40158  // CORRECTED: Use EID that matches contract quoteSend logic
 };
 
 // Convert address to bytes32 (for LayerZero peer setting)

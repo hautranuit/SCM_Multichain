@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@layerzero-devs/hardhat-lz-oapp");
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -57,6 +58,10 @@ module.exports = {
       maxPriorityFeePerGas: 1000000000,  // 1 gwei
       maxFeePerGas: 10000000000,         // 10 gwei
       gasPrice: "auto",
+      // LayerZero V2 Configuration
+      lz: {
+        eid: 40231  // Official LayerZero V2 EID for Arbitrum Sepolia
+      }
     },
 
     // Arbitrum One Mainnet (Production)
@@ -80,6 +85,10 @@ module.exports = {
       maxPriorityFeePerGas: 1000000000,  // 1 gwei
       maxFeePerGas: 10000000000,         // 10 gwei
       gasPrice: "auto",
+      // LayerZero V2 Configuration
+      lz: {
+        eid: 40232  // Official LayerZero V2 EID for Optimism Sepolia
+      }
     },
 
     // Optimism Mainnet (Production)
