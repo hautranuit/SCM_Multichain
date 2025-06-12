@@ -1,4 +1,5 @@
-﻿const { ethers } = require("hardhat");
+const hre = require("hardhat");
+const { ethers } = require("ethers");
 
 const LAYERZERO_ENDPOINTS = {
     optimismSepolia: "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
@@ -10,8 +11,11 @@ const LAYERZERO_ENDPOINTS = {
 async function main() {
     console.log("🚀 Deploying REAL LayerZero OFT Contract...");
 
-    const [deployer] = await ethers.getSigners();
+    // Get provider and wallet from hardhat config
     const network = hre.network.name;
+    const provider = new ethers.providers.JsonRpcProvider(hre.network.config.url);
+    const privateKey = hre.network.config.accounts[0];
+    const deployer = new ethers.Wallet(privateKey, provider);
 
     console.log(`Network: ${network}`);
     console.log(`Deployer: ${deployer.address}`);
@@ -24,18 +28,23 @@ async function main() {
 
     console.log(`LayerZero Endpoint: ${lzEndpoint}`);
 
-    const RealChainFlipOFT = await ethers.getContractFactory("RealChainFlipOFT");
-    const oft = await RealChainFlipOFT.deploy(
+    // Get contract artifact and create contract factory
+    const contractArtifact = await hre.artifacts.readArtifact("RealChainFlipOFT");
+    const contractFactory = new ethers.ContractFactory(
+        contractArtifact.abi,
+        contractArtifact.bytecode,
+        deployer
+    );
+    
+    const oft = await contractFactory.deploy(
         "ChainFLIP WETH",
         "cfWETH",
         lzEndpoint,
         deployer.address
     );
 
-    await oft.waitForDeployment();
-    const oftAddress = await oft.getAddress();
-
-    console.log(`✅ Deployed at: ${oftAddress}`);
+    await oft.deployed();
+    console.log(`✅ Deployed at: ${oft.address}`);
     console.log(`✅ Real LayerZero OFT with deposit/withdraw functionality!`);
 }
 

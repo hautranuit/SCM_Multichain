@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 
-import "@layerzerolabs/oft-evm/contracts/oft/OFT.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@layerzerolabs/oft-evm/contracts/OFT.sol";
 
 /**
  * @title RealChainFlipOFT - Real LayerZero OFT with ETH Deposit/Withdraw
  * @dev Official LayerZero OFT implementation with deposit/withdraw functionality
- * Uses official @layerzerolabs/oft-evm package for real cross-chain transfers
+ * Uses official LayerZero oft-evm package for real cross-chain transfers
  */
 contract RealChainFlipOFT is OFT {
     
@@ -21,7 +20,8 @@ contract RealChainFlipOFT is OFT {
         address _lzEndpoint,
         address _delegate
     ) OFT(_name, _symbol, _lzEndpoint, _delegate) {
-        // Constructor automatically calls parent OFT constructor
+        // OFT constructor handles Ownable initialization with _delegate
+        // _delegate becomes the owner of the contract
     }
     
     /**
