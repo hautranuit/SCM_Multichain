@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+// require("@layerzero-devs/hardhat-lz-oapp"); // Plugin not available - using direct OFT deployment
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -24,6 +25,10 @@ module.exports = {
       gas: 30_000_000,
       maxPriorityFeePerGas: 40000000000,
       maxFeePerGas: 70000000000,
+      // LayerZero V2 Configuration
+      lz: {
+        eid: 40267, // Polygon Amoy
+      },
     },
     
     // Polygon Mainnet (Production Hub)
@@ -44,6 +49,10 @@ module.exports = {
       gas: 30_000_000,
       maxPriorityFeePerGas: 40000000000,
       maxFeePerGas: 70000000000,
+      // LayerZero V2 Configuration
+      lz: {
+        eid: 40158, // zkEVM Cardona
+      },
     },
 
     // === ARBITRUM ECOSYSTEM ===
@@ -58,6 +67,9 @@ module.exports = {
       maxFeePerGas: 10000000000,         // 10 gwei
       gasPrice: "auto",
       // LayerZero V2 Configuration
+      lz: {
+        eid: 40231, // Arbitrum Sepolia
+      },
     },
 
     // Arbitrum One Mainnet (Production)
@@ -81,6 +93,10 @@ module.exports = {
       maxPriorityFeePerGas: 1000000000,  // 1 gwei
       maxFeePerGas: 10000000000,         // 10 gwei
       gasPrice: "auto",
+      // LayerZero V2 Configuration
+      lz: {
+        eid: 40232, // Optimism Sepolia
+      },
     },
 
     // Optimism Mainnet (Production)

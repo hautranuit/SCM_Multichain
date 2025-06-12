@@ -1,0 +1,18 @@
+{
+  "network": "cardona",
+  "chainId": "2442",
+  "deployment_type": "Official LayerZero V2 OFT",
+  "contract_name": "ChainFlipOFT",
+  "deployment_purpose": "Fix LayerZero interface mismatch error ('0x3ee5aeb5')",
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "oft_contract": "0x8087A0F764f48014F4AE089348951Cbc798f2B34",
+  "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",
+  "layerzero_eid": 40158,
+  "token_name": "ChainFLIP WETH",
+  "token_symbol": "cfWETH",
+  "deployment_timestamp": "2025-06-12T05:56:22.016Z",
+  "transaction_hash": "0x36c171ca2094b95d1097cdbd5beb0b088f687d16d22b69947c85fca34a5f486a",
+  "gas_used": "pending_confirmation",
+  "block_number": "pending_confirmation",
+  "interface": "Official LayerZero V2 OFT (@layerzerolabs/oft-evm)"
+}
