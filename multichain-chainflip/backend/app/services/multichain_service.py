@@ -34,8 +34,8 @@ class MultiChainService:
                 "contract_address": "0x45A2C5B59272dcC9b427926DCd6079B52D4335C8"
             },
             "manufacturer": {
-                "chain_id": 2442,  # zkEVM Cardona
-                "name": "Manufacturer zkEVM Chain", 
+                "chain_id": 84532,  # Base Sepolia
+                "name": "Manufacturer Base Sepolia Chain", 
                 "role": "Product creation and quality control",
                 "contract_address": "0x4806bdE2D69Af285759e913DA9A4322F876ACE4d"
             },
@@ -69,11 +69,11 @@ class MultiChainService:
                 print("❌ Failed to connect to Hub Chain")
         
         # Initialize L2 connections - Real multichain deployment
-        # Manufacturer L2: zkEVM Cardona
-        if settings.zkevm_cardona_rpc:
-            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.zkevm_cardona_rpc))
+        # Manufacturer L2: Base Sepolia
+        if settings.base_sepolia_rpc:
+            self.manufacturer_web3 = Web3(Web3.HTTPProvider(settings.base_sepolia_rpc))
             if self.manufacturer_web3.is_connected():
-                print(f"✅ Connected to Manufacturer Chain (zkEVM Cardona - Chain ID: {self.chain_configs['manufacturer']['chain_id']})")
+                print(f"✅ Connected to Manufacturer Chain (Base Sepolia - Chain ID: {self.chain_configs['manufacturer']['chain_id']})")
             else:
                 print("❌ Failed to connect to Manufacturer Chain")
         

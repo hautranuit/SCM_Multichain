@@ -3,7 +3,7 @@ Cross-Chain Purchase Service for ChainFLIP Multi-Chain Architecture - REAL CONTR
 Implements Algorithm 1 (Payment Release and Incentive Mechanism) and 
 Algorithm 5 (Post Supply Chain Management for NFT-Based Product Sale)
 
-Flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (zkEVM Cardona)
+Flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (Base Sepolia)
 Bridges: LayerZero (Buyer→Hub) + fxPortal (Hub→Manufacturer)
 
 ⚠️ IMPORTANT: This version uses REAL deployed contracts on testnets
@@ -30,7 +30,7 @@ class CrossChainPurchaseService:
         # Multi-chain Web3 connections
         self.optimism_web3: Optional[Web3] = None  # Buyer chain
         self.polygon_web3: Optional[Web3] = None   # Hub chain 
-        self.zkevm_web3: Optional[Web3] = None     # Manufacturer chain
+        self.base_sepolia_web3: Optional[Web3] = None     # Manufacturer chain
         self.arbitrum_web3: Optional[Web3] = None  # Transporter chain
         
         # Real deployed contract addresses from .env
@@ -121,11 +121,11 @@ class CrossChainPurchaseService:
                 print(f"🌐 Hub contract initialized: {self.hub_contract_address}")
                 print(f"🌉 Bridge contracts initialized - LayerZero: {self.layerzero_hub_address}, FxPortal: {self.fxportal_hub_address}")
                 
-        # Initialize zkEVM Cardona (Manufacturer Chain)
-        if settings.zkevm_cardona_rpc:
-            self.zkevm_web3 = Web3(Web3.HTTPProvider(settings.zkevm_cardona_rpc))
-            if self.zkevm_web3.is_connected():
-                print(f"✅ Connected to zkEVM Cardona (Manufacturer Chain) - Chain ID: {settings.zkevm_cardona_chain_id}")
+        # Initialize Base Sepolia (Manufacturer Chain)
+        if settings.base_sepolia_rpc:
+            self.base_sepolia_web3 = Web3(Web3.HTTPProvider(settings.base_sepolia_rpc))
+            if self.base_sepolia_web3.is_connected():
+                print(f"✅ Connected to Base Sepolia (Manufacturer Chain) - Chain ID: {settings.base_sepolia_chain_id}")
                 
         # Initialize Arbitrum Sepolia (Transporter Chain)
         if settings.arbitrum_sepolia_rpc:
@@ -178,12 +178,12 @@ class CrossChainPurchaseService:
                         "chain_id": settings.polygon_pos_chain_id
                     }
                     
-                if self.zkevm_web3 and self.zkevm_web3.is_connected():
-                    balance_wei = self.zkevm_web3.eth.get_balance(account_info["address"])
-                    account_balances["balances"]["zkevm_cardona"] = {
+                if self.base_sepolia_web3 and self.base_sepolia_web3.is_connected():
+                    balance_wei = self.base_sepolia_web3.eth.get_balance(account_info["address"])
+                    account_balances["balances"]["base_sepolia"] = {
                         "balance_eth": float(Web3.from_wei(balance_wei, 'ether')),
                         "balance_wei": balance_wei,
-                        "chain_id": settings.zkevm_cardona_chain_id
+                        "chain_id": settings.base_sepolia_chain_id
                     }
                     
                 if self.arbitrum_web3 and self.arbitrum_web3.is_connected():
@@ -236,7 +236,7 @@ class CrossChainPurchaseService:
             print(f"   📦 Product ID: {product_id}")
             print(f"   👤 Buyer: {buyer_address}")
             print(f"   💰 Price: {purchase_price} ETH")
-            print(f"   🔗 Flow: Optimism Sepolia → Polygon Hub → zkEVM Cardona")
+            print(f"   🔗 Flow: Optimism Sepolia → Polygon Hub → Base Sepolia")
             
             # Step 1: Get Product details, NFT details, buyer details
             print(f"📋 Step 1: Retrieving product and NFT details...")
@@ -309,7 +309,7 @@ class CrossChainPurchaseService:
                                 "price_eth": purchase_price,
                                 "timestamp": time.time(),
                                 "cross_chain": True,
-                                "chains_involved": ["optimism_sepolia", "polygon_pos", "zkevm_cardona"]
+                                "chains_involved": ["optimism_sepolia", "polygon_pos", "base_sepolia"]
                             }]
                         }
                     }
@@ -327,7 +327,7 @@ class CrossChainPurchaseService:
                     "cross_chain_details": {
                         "buyer_chain": "optimism_sepolia",
                         "hub_chain": "polygon_pos", 
-                        "manufacturer_chain": "zkevm_cardona",
+                        "manufacturer_chain": "base_sepolia",
                         "layerzero_tx": payment_result.get("layerzero_tx"),
                         "fxportal_tx": transfer_result.get("fxportal_tx"),
                         "escrow_id": payment_result["escrow_id"]
@@ -392,7 +392,7 @@ class CrossChainPurchaseService:
             print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism (REAL TOKENS)")
             print(f"   🔐 Escrow ID: {escrow_id}")
             print(f"   💸 Amount: {amount} ETH")
-            print(f"   🔗 Real token flow: Optimism ETH → zkEVM ETH via LayerZero OFT")
+            print(f"   🔗 Real token flow: Optimism ETH → Base Sepolia ETH via LayerZero OFT")
             
             # Step 1: If NFT ownership of Product ID = buyer (will be checked after transfer)
             # Step 2: Collect collateral amount to seller and transporter
@@ -408,7 +408,7 @@ class CrossChainPurchaseService:
             # Execute real ETH transfer from buyer chain to manufacturer chain
             transfer_result = await token_bridge_service.transfer_eth_cross_chain(
                 from_chain="optimism_sepolia",  # Buyer chain
-                to_chain="zkevm_cardona",       # Manufacturer chain
+                to_chain="base_sepolia",       # Manufacturer chain
                 from_address=buyer,
                 to_address=seller,
                 amount_eth=amount,
@@ -436,7 +436,7 @@ class CrossChainPurchaseService:
                     "layerzero_tx": transfer_result["layerzero_transaction_hash"],
                     "gas_costs": transfer_result["gas_used"],
                     "source_chain": "optimism_sepolia",
-                    "target_chain": "zkevm_cardona",
+                    "target_chain": "base_sepolia",
                     "real_token_transfer": True,
                     "transfer_method": "LayerZero_OFT"
                 }
@@ -469,7 +469,7 @@ class CrossChainPurchaseService:
     async def _execute_cross_chain_nft_transfer(self, product: Dict[str, Any], from_owner: str, to_owner: str, escrow_id: str) -> Dict[str, Any]:
         """
         Step 8-10: Execute cross-chain NFT ownership transfer - REAL CONTRACT VERSION
-        Hub (Polygon) → Manufacturer Chain (zkEVM Cardona) via fxPortal
+        Hub (Polygon) → Manufacturer Chain (Base Sepolia) via fxPortal
         """
         try:
             token_id = product["token_id"]
@@ -590,7 +590,7 @@ class CrossChainPurchaseService:
                         },
                         "verification_hash": verification_hash,
                         "source_chain": "polygon_pos",
-                        "target_chain": "zkevm_cardona",
+                        "target_chain": "base_sepolia",
                         "status": "completed",
                         "timestamp": time.time(),
                         "real_contract_call": True
@@ -732,29 +732,21 @@ class CrossChainPurchaseService:
             return {"success": False, "error": str(e)}
 
     async def get_purchase_status(self, purchase_id: str) -> Dict[str, Any]:
-        """Get comprehensive purchase status across all chains"""
+        """Get detailed status of a purchase order"""
         try:
             # Get purchase record
             purchase = await self.database.purchases.find_one({"purchase_id": purchase_id})
             if not purchase:
                 return {"success": False, "error": "Purchase not found"}
             
-            # Get escrow status
+            # Get escrow record
             escrow = await self.database.escrows.find_one({"purchase_id": purchase_id})
-            
-            # Get NFT transfer status
-            nft_transfer = await self.database.nft_transfers.find_one({"escrow_id": escrow.get("escrow_id", "")})
-            
-            # Get incentive status
-            incentive = await self.database.incentives.find_one({"purchase_id": purchase_id})
             
             return {
                 "success": True,
                 "purchase": purchase,
-                "escrow_status": escrow.get("status", "unknown") if escrow else "not_found",
-                "nft_transfer_status": nft_transfer.get("status", "unknown") if nft_transfer else "not_found",
-                "incentive_awarded": bool(incentive),
-                "cross_chain_complete": bool(escrow and nft_transfer and escrow.get("status") == "completed")
+                "escrow": escrow,
+                "timestamp": time.time()
             }
             
         except Exception as e:

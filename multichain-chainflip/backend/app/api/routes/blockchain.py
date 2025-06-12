@@ -744,10 +744,10 @@ async def mint_product(
             "chainflip_version": "2.0",
             "mint_timestamp": current_timestamp,
             "mint_date_formatted": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_timestamp)),
-            "blockchain": "zkEVM Cardona"
+            "blockchain": "Base Sepolia"
         }
         
-        print(f"🏭 Minting enhanced product NFT on zkEVM Cardona...")
+        print(f"🏭 Minting enhanced product NFT on Base Sepolia...")
         print(f"📄 Enhanced Metadata with Image/Video CIDs:")
         print(f"   🖼️ Image CID: {image_cid}")
         print(f"   🎥 Video CID: {video_cid}")
@@ -817,7 +817,7 @@ async def buy_product_from_marketplace(
     Algorithm 5: Post Supply Chain Management for NFT-Based Product Sale
     Combined with Algorithm 1: Payment Release and Incentive Mechanism
     
-    Cross-chain flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (zkEVM Cardona)
+    Cross-chain flow: Buyer (Optimism Sepolia) → Hub (Polygon PoS) → Manufacturer (Base Sepolia)
     Bridges: LayerZero (Buyer→Hub) + fxPortal (Hub→Manufacturer)
     """
     try:
@@ -825,7 +825,7 @@ async def buy_product_from_marketplace(
         print(f"   📦 Product ID: {buy_data.product_id}")
         print(f"   👤 Buyer: {buy_data.buyer}")
         print(f"   💰 Price: {buy_data.price} ETH")
-        print(f"   🔗 Cross-chain flow: Optimism Sepolia → Polygon Hub → zkEVM Cardona")
+        print(f"   🔗 Cross-chain flow: Optimism Sepolia → Polygon Hub → Base Sepolia")
         
         # Initialize cross-chain purchase service
         from app.services.crosschain_purchase_service import crosschain_purchase_service
@@ -852,7 +852,7 @@ async def buy_product_from_marketplace(
             cross_chain_details = result.get("cross_chain_details", {
                 "buyer_chain": "optimism_sepolia",
                 "hub_chain": "polygon_pos",
-                "manufacturer_chain": "zkevm_cardona",
+                "manufacturer_chain": "base_sepolia",
                 "bridges_used": ["LayerZero", "fxPortal"],
                 "layerzero_tx": result.get("cross_chain_details", {}).get("layerzero_tx", "N/A"),
                 "fxportal_tx": result.get("cross_chain_details", {}).get("fxportal_tx", "N/A"),
@@ -929,171 +929,73 @@ async def initiate_product_purchase(
         if authenticity_status != "Product is Authentic":
             return {
                 "success": False,
-                "status": "Product Verification Failed",
-                "reason": authenticity_status
+                "error": f"Product authenticity verification failed: {authenticity_status}",
+                "verification_status": authenticity_status
             }
         
-        # Get product details for purchase
-        product = await blockchain_service.get_product_by_token_id(purchase_data.product_id)
-        if not product:
-            raise HTTPException(status_code=404, detail="Product not found")
+        # TODO: Implement actual purchase logic
+        # This would involve smart contract interaction
         
-        # Get product price
-        product_price = 0.001  # Default price
-        if product.get("price"):
-            product_price = float(product["price"])
-        elif product.get("metadata", {}).get("price_eth"):
-            product_price = float(product["metadata"]["price_eth"])
-        elif product.get("mint_params", {}).get("price"):
-            product_price = float(product["mint_params"]["price"])
-        
-        # Generate purchase ID
-        purchase_id = f"PURCHASE-QR-{purchase_data.product_id}-{int(time.time())}"
-        
-        # Create purchase record with QR verification
-        purchase_record = {
-            "purchase_id": purchase_id,
-            "product_id": purchase_data.product_id,
-            "buyer": purchase_data.buyer,
-            "seller": product.get("current_owner", product.get("manufacturer", "")),
-            "price_eth": product_price,
-            "payment_method": "ETH",
-            "status": "initiated_with_qr_verification",
-            "qr_verification_data": purchase_data.qr_verification_data,
-            "authenticity_status": authenticity_status,
-            "purchase_timestamp": time.time(),
-            "purchase_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "cross_chain": True,
-            "verification_required": True
-        }
-        
-        # Store purchase record
-        await blockchain_service.database.purchases.insert_one(purchase_record)
-        
-        result = {
+        return {
             "success": True,
-            "status": "Purchase Initiated with QR Verification",
             "product_id": purchase_data.product_id,
             "buyer": purchase_data.buyer,
-            "purchase_id": purchase_id,
+            "purchase_status": "initiated",
             "verification_status": authenticity_status,
-            "price_eth": product_price,
-            "next_step": "Awaiting payment confirmation and ownership transfer"
+            "message": "Product purchase initiated successfully"
         }
         
-        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/delivery/confirm")
-async def confirm_delivery_and_process_payment(
-    delivery_data: Dict[str, Any],
-    blockchain_service: BlockchainService = Depends(get_blockchain_service)
-):
-    """
-    Algorithm 1: Payment Release and Incentive Mechanism
-    Process delivery confirmation and release payments with incentives
-    """
-    try:
-        print(f"📦 Delivery confirmation received:")
-        print(f"   📋 Purchase ID: {delivery_data.get('purchase_id')}")
-        print(f"   🚛 Transporter: {delivery_data.get('transporter', 'N/A')}")
-        print(f"   ✅ Status: {delivery_data.get('delivery_status', 'delivered')}")
-        
-        # Initialize cross-chain purchase service
-        from app.services.crosschain_purchase_service import crosschain_purchase_service
-        await crosschain_purchase_service.initialize()
-        
-        # Process delivery confirmation with Algorithm 1
-        result = await crosschain_purchase_service.process_delivery_confirmation_and_payment_release(delivery_data)
-        
-        if result["success"]:
-            return {
-                "success": True,
-                "status": result["status"],
-                "incentive_awarded": result.get("incentive_awarded", False),
-                "payment_released": result.get("payment_released", False),
-                "algorithm": "Algorithm 1: Payment Release and Incentive Mechanism"
-            }
-        else:
-            return {
-                "success": False,
-                "status": result["status"],
-                "reason": result.get("reason", "Unknown error"),
-                "algorithm": "Algorithm 1: Payment Release and Incentive Mechanism"
-            }
-        
-    except Exception as e:
-        print(f"❌ Delivery confirmation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Delivery confirmation failed: {str(e)}")
+# ==========================================
+# CROSS-CHAIN STATISTICS AND MONITORING
+# ==========================================
 
-@router.get("/purchase/{purchase_id}/status")
-async def get_cross_chain_purchase_status(
-    purchase_id: str,
-    blockchain_service: BlockchainService = Depends(get_blockchain_service)
-):
-    """Get comprehensive cross-chain purchase status"""
+@router.get("/cross-chain/statistics")
+async def get_cross_chain_statistics():
+    """Get cross-chain operation statistics"""
     try:
-        # Initialize cross-chain purchase service
         from app.services.crosschain_purchase_service import crosschain_purchase_service
         await crosschain_purchase_service.initialize()
         
-        # Get purchase status across all chains
-        status = await crosschain_purchase_service.get_purchase_status(purchase_id)
+        database = crosschain_purchase_service.database
         
-        if status["success"]:
-            return {
-                "success": True,
-                "purchase_id": purchase_id,
-                "purchase_details": status["purchase"],
-                "escrow_status": status["escrow_status"],
-                "nft_transfer_status": status["nft_transfer_status"],
-                "incentive_awarded": status["incentive_awarded"],
-                "cross_chain_complete": status["cross_chain_complete"],
-                "algorithms_applied": ["Algorithm 1", "Algorithm 5"]
+        # Cross-chain purchase statistics
+        total_purchases = await database.purchases.count_documents({"cross_chain": True})
+        successful_purchases = await database.purchases.count_documents({"status": "completed", "cross_chain": True})
+        
+        # Chain usage statistics
+        chain_stats = {}
+        for chain in ["optimism_sepolia", "polygon_pos", "base_sepolia", "arbitrum_sepolia"]:
+            purchases_as_source = await database.escrows.count_documents({"source_chain": chain})
+            purchases_as_target = await database.escrows.count_documents({"target_chain": chain})
+            chain_stats[chain] = {
+                "as_source": purchases_as_source,
+                "as_target": purchases_as_target,
+                "total_involvement": purchases_as_source + purchases_as_target
             }
-        else:
-            raise HTTPException(status_code=404, detail=status["error"])
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Purchase status error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get purchase status: {str(e)}")
-
-@router.get("/cross-chain/stats")
-async def get_cross_chain_statistics(
-    blockchain_service: BlockchainService = Depends(get_blockchain_service)
-):
-    """Get cross-chain purchase and payment statistics"""
-    try:
-        # Initialize cross-chain purchase service
-        from app.services.crosschain_purchase_service import crosschain_purchase_service
-        await crosschain_purchase_service.initialize()
-        
-        # Get statistics from database
-        total_purchases = await crosschain_purchase_service.database.purchases.count_documents({"cross_chain_details": {"$exists": True}})
-        completed_escrows = await crosschain_purchase_service.database.escrows.count_documents({"status": "completed"})
-        total_incentives = await crosschain_purchase_service.database.incentives.count_documents({})
-        
-        # Get incentive statistics
-        incentive_pipeline = [{"$group": {"_id": None, "total_incentives": {"$sum": "$amount_eth"}}}]
-        incentive_result = crosschain_purchase_service.database.incentives.aggregate(incentive_pipeline)
-        total_incentive_amount = 0
-        async for result in incentive_result:
-            total_incentive_amount = result.get("total_incentives", 0)
+        # Bridge usage statistics
+        layerzero_transfers = await database.token_transfers.count_documents({"transfer_method": "LayerZero_OFT"})
+        fxportal_transfers = await database.nft_transfers.count_documents({"source_chain": "polygon_pos"})
         
         return {
-            "cross_chain_purchases": total_purchases,
-            "completed_escrows": completed_escrows,
-            "success_rate": (completed_escrows / total_purchases * 100) if total_purchases > 0 else 0,
-            "total_incentives_awarded": total_incentives,
-            "total_incentive_amount_eth": total_incentive_amount,
-            "chains_involved": {
-                "buyer_chain": "Optimism Sepolia (11155420)",
-                "hub_chain": "Polygon PoS (80002)",
-                "manufacturer_chain": "zkEVM Cardona (2442)",
-                "transporter_chain": "Arbitrum Sepolia (421614)"
+            "cross_chain_overview": {
+                "total_cross_chain_purchases": total_purchases,
+                "successful_purchases": successful_purchases,
+                "success_rate": (successful_purchases / total_purchases * 100) if total_purchases > 0 else 0
+            },
+            "chain_usage": chain_stats,
+            "bridge_usage": {
+                "layerzero_oft_transfers": layerzero_transfers,
+                "fxportal_nft_transfers": fxportal_transfers
+            },
+            "architecture": {
+                "buyer_chain": "Optimism Sepolia",
+                "hub_chain": "Polygon PoS Hub",
+                "manufacturer_chain": "Base Sepolia (84532)",
+                "transporter_chain": "Arbitrum Sepolia"
             },
             "bridges_used": ["LayerZero", "fxPortal"],
             "algorithms_implemented": ["Algorithm 1: Payment Release and Incentive Mechanism", "Algorithm 5: Post Supply Chain Management"]
@@ -1342,7 +1244,7 @@ async def get_contract_account_balances():
             "chains_connected": {
                 "optimism_sepolia": crosschain_purchase_service.optimism_web3.is_connected() if crosschain_purchase_service.optimism_web3 else False,
                 "polygon_pos": crosschain_purchase_service.polygon_web3.is_connected() if crosschain_purchase_service.polygon_web3 else False,
-                "zkevm_cardona": crosschain_purchase_service.zkevm_web3.is_connected() if crosschain_purchase_service.zkevm_web3 else False,
+                "base_sepolia": crosschain_purchase_service.base_sepolia_web3.is_connected() if crosschain_purchase_service.base_sepolia_web3 else False,
                 "arbitrum_sepolia": crosschain_purchase_service.arbitrum_web3.is_connected() if crosschain_purchase_service.arbitrum_web3 else False
             }
         }
@@ -1420,7 +1322,7 @@ async def test_fxportal_bridge():
             "test": "fxportal_bridge",
             "timestamp": int(time.time()),
             "source_chain": "polygon_pos",
-            "target_chain": "zkevm_cardona"
+            "target_chain": "base_sepolia"
         }
         
         # Test payload
@@ -1542,8 +1444,3 @@ async def sync_cross_chain_data(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-# Helper imports
-import time
-from app.core.config import get_settings
-settings = get_settings()

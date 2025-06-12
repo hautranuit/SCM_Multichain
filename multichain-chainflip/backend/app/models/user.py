@@ -88,7 +88,7 @@ class AdminStats(BaseModel):
 
 # L2 blockchain assignments based on role
 L2_BLOCKCHAIN_MAPPING = {
-    "manufacturer": "2442",  # L2 CDK Manufacturer Chain
-    "transporter": "2443",   # L2 CDK Transporter Chain  
-    "buyer": "2444"          # L2 CDK Buyer Chain
+    "manufacturer": "84532",  # Base Sepolia Manufacturer Chain
+    "transporter": "421614",   # Arbitrum Sepolia Transporter Chain  
+    "buyer": "11155420"          # Optimism Sepolia Buyer Chain
 }

@@ -59,13 +59,13 @@ async def register_participant(participant_data: ParticipantCreate):
         
         # Auto-approve based on role and chain
         if participant_data.role == ParticipantRole.MANUFACTURER:
-            if participant_data.chain_id == settings.zkevm_cardona_chain_id:
-                # Manufacturers on zkEVM Cardona need manual approval
+            if participant_data.chain_id == settings.base_sepolia_chain_id:
+                # Manufacturers on Base Sepolia need manual approval
                 participant.status = ParticipantStatus.PENDING
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail="Manufacturers can only register on zkEVM Cardona chain"
+                    detail="Manufacturers can only register on Base Sepolia chain"
                 )
         
         # Store in database
@@ -136,10 +136,10 @@ async def verify_participant_role(
         if chain_id is not None:
             chain_match = participant.get("chain_id") == chain_id
         
-        # Special check for manufacturers on zkEVM Cardona
+        # Special check for manufacturers on Base Sepolia
         if required_role == ParticipantRole.MANUFACTURER:
-            if chain_id == settings.zkevm_cardona_chain_id:
-                chain_match = participant.get("chain_id") == settings.zkevm_cardona_chain_id
+            if chain_id == settings.base_sepolia_chain_id:
+                chain_match = participant.get("chain_id") == settings.base_sepolia_chain_id
             else:
                 return RoleVerificationResponse(
                     wallet_address=wallet_address,
@@ -147,7 +147,7 @@ async def verify_participant_role(
                     participant_role=ParticipantRole(participant.get("role")),
                     participant_status=ParticipantStatus(participant.get("status")),
                     chain_id=participant.get("chain_id"),
-                    message="Manufacturing only allowed on zkEVM Cardona chain"
+                    message="Manufacturing only allowed on Base Sepolia chain"
                 )
         
         has_role = has_required_role and chain_match
@@ -361,8 +361,8 @@ async def _validate_role_requirements(participant_data: ParticipantCreate) -> Di
     if participant_data.role == ParticipantRole.MANUFACTURER:
         if not participant_data.manufacturer_license:
             return {"valid": False, "error": "Manufacturing license required for manufacturer role"}
-        if participant_data.chain_id != settings.zkevm_cardona_chain_id:
-            return {"valid": False, "error": "Manufacturers must register on zkEVM Cardona chain"}
+        if participant_data.chain_id != settings.base_sepolia_chain_id:
+            return {"valid": False, "error": "Manufacturers must register on Base Sepolia chain"}
     
     elif participant_data.role == ParticipantRole.TRANSPORTER:
         if not participant_data.transport_license:

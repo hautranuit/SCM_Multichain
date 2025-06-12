@@ -290,8 +290,8 @@ class EncryptionService:
             "manufacturer": product_data.get("manufacturerID", ""),
             
             # Blockchain info
-            "blockchain": "zkEVM Cardona",
-            "chain_id": 2442,
+            "blockchain": "Base Sepolia",
+            "chain_id": 84532,
             
             # Verification
             "ipfs_url": f"https://w3s.link/ipfs/{metadata_cid}",

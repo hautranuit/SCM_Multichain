@@ -172,13 +172,13 @@ class RealWETHBridgeService:
                     "https://polygon-amoy.drpc.org"
                 ]
             },
-            "zkevm_cardona": {
-                "address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",  # zkEVM Cardona WETH
-                "rpc": settings.zkevm_cardona_rpc,
-                "chain_id": 2442,
-                "layerzero_chain_id": 10158,
+            "base_sepolia": {
+                "address": "0x4200000000000000000000000000000000000006",  # Base Sepolia WETH
+                "rpc": settings.base_sepolia_rpc,
+                "chain_id": 84532,
+                "layerzero_chain_id": 40245,
                 "alternative_rpcs": [
-                    "https://polygon-zkevm-cardona.drpc.org"
+                    "https://base-sepolia.drpc.org"
                 ]
             }
         }
@@ -188,7 +188,7 @@ class RealWETHBridgeService:
             "optimism_sepolia": "0xA4f7a7A48cC8C16D35c7F6944E7610694F5BEB26",
             "arbitrum_sepolia": "0x217e72E43e9375c1121ca36dcAc3fe878901836D",
             "polygon_pos": "0x72a336eAAC8186906F1Ee85dDF00C7d6b91257A43",
-            "zkevm_cardona": "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476"  # FxPortal for zkEVM
+            "base_sepolia": "0xd3c6396D0212Edd8424bd6544E7DF8BA74c16476"  # FxPortal for Base Sepolia
         }
         
         # Contract instances
@@ -338,8 +338,8 @@ class RealWETHBridgeService:
                 debug_info["block_explorer_check"] = f"https://sepolia.arbiscan.io/tx/{tx_hash}"
             elif chain_name == "polygon_pos":
                 debug_info["block_explorer_check"] = f"https://amoy.polygonscan.com/tx/{tx_hash}"
-            elif chain_name == "zkevm_cardona":
-                debug_info["block_explorer_check"] = f"https://cardona-zkevm.polygonscan.com/tx/{tx_hash}"
+            elif chain_name == "base_sepolia":
+                debug_info["block_explorer_check"] = f"https://sepolia.basescan.org/tx/{tx_hash}"
             
             print(f"🌐 Check on block explorer: {debug_info['block_explorer_check']}")
             
@@ -818,104 +818,98 @@ class RealWETHBridgeService:
             if not collect_result["success"]:
                 return {"success": False, "error": f"Failed to collect user ETH: {collect_result['error']}"}
             
-            # STEP 2: Execute transfer based on type
+            # STEP 2: Execute transfer (cross-chain or same-chain)
             if is_cross_chain:
-                print(f"\n🌉 === STEP 2: CROSS-CHAIN BRIDGE FROM {from_chain.upper()} TO {to_chain.upper()} ===")
-                bridge_result = await self._bridge_eth_cross_chain_simplified(
+                # Cross-chain transfer
+                transfer_result = await self._bridge_eth_cross_chain_simplified(
                     source_web3, target_web3, from_chain, to_chain, to_address, amount_wei
                 )
-                if not bridge_result["success"]:
-                    # ROLLBACK: Return ETH to user if bridge fails
-                    print(f"\n🔄 === ROLLBACK: BRIDGE FAILED ===")
-                    rollback_result = await self._return_eth_to_user(source_web3, from_chain, from_address, amount_wei)
-                    error_msg = f"Cross-chain bridge failed: {bridge_result['error']}"
-                    if rollback_result["success"]:
-                        error_msg += f" (ETH returned to user: {rollback_result['transaction_hash']})"
-                    return {"success": False, "error": error_msg}
-                    
-                transfer_result = bridge_result
             else:
-                print(f"\n💸 === STEP 2: SAME-CHAIN ETH TRANSFER ON {from_chain.upper()} ===")
-                # For same-chain, directly send ETH from bridge service to recipient
-                print(f"   Bridge service already has ETH from user, sending directly to recipient")
+                # Same-chain transfer (wrap → transfer → unwrap)
                 transfer_result = await self._send_eth_to_recipient(source_web3, from_chain, to_address, amount_wei)
-                if not transfer_result["success"]:
-                    # ROLLBACK: Return ETH to user if transfer fails
-                    print(f"\n🔄 === ROLLBACK: TRANSFER FAILED ===")
-                    rollback_result = await self._return_eth_to_user(source_web3, from_chain, from_address, amount_wei)
-                    error_msg = f"ETH transfer failed: {transfer_result['error']}"
-                    if rollback_result["success"]:
-                        error_msg += f" (ETH returned to user: {rollback_result['transaction_hash']})"
-                    return {"success": False, "error": error_msg}
             
-            # STEP 3: Record transfer in database
-            print(f"\n📊 === STEP 3: RECORD TRANSFER ===")
-            transfer_record = {
-                "transfer_id": f"REAL-TRANSFER-{escrow_id}-{int(time.time())}",
-                "escrow_id": escrow_id,
-                "from_chain": from_chain,
-                "to_chain": to_chain,
-                "from_address": from_address,
-                "to_address": to_address,
-                "amount_eth": float(amount_eth),  # Convert Decimal to float for MongoDB
-                "amount_wei": amount_wei,
-                "is_cross_chain": is_cross_chain,
-                "user_collection_tx": collect_result.get("transaction_hash"),  # NEW: Track user payment
-                "wrap_tx": None,  # No longer needed - simplified flow
-                "transfer_tx": transfer_result.get("transaction_hash"),
-                "bridge_tx": transfer_result.get("bridge_transaction_hash") if is_cross_chain else None,
-                "status": "completed",
-                "timestamp": time.time(),
-                "real_transfer": True,
-                "user_eth_collected": True,  # NEW: Confirm user paid
-                "bridge_type": "cross_chain_eth" if is_cross_chain else "same_chain_eth",  # Updated
-                "gas_used_total": (collect_result.get("gas_used", 0) + transfer_result.get("gas_used", 0)),
-                "confirmation_times": {
-                    "collection_time": collect_result.get("confirmation_time", 0),
-                    "transfer_time": transfer_result.get("confirmation_time", 0)
-                },
-                "deep_debug": {
-                    "collection_debug": collect_result,
-                    "transfer_debug": transfer_result.get("deep_debug", {})
+            # STEP 3: Handle transfer result
+            if transfer_result["success"]:
+                print(f"✅ === TRANSFER COMPLETED SUCCESSFULLY ===")
+                
+                # Store comprehensive transfer record
+                transfer_record = {
+                    "transfer_id": f"WETH-{int(time.time())}-{from_chain}-{to_chain}",
+                    "escrow_id": escrow_id,
+                    "from_chain": from_chain,
+                    "to_chain": to_chain,
+                    "from_address": from_address,
+                    "to_address": to_address,
+                    "amount_eth": amount_eth,
+                    "amount_wei": amount_wei,
+                    "is_cross_chain": is_cross_chain,
+                    "real_transfer": True,
+                    "user_eth_collected": True,
+                    "collection_transaction": collect_result["transaction_hash"],
+                    "transfer_transaction": transfer_result["transaction_hash"],
+                    "gas_used": {
+                        "collection": collect_result.get("gas_used", 0),
+                        "transfer": transfer_result.get("gas_used", 0)
+                    },
+                    "confirmation_times": {
+                        "collection": 0,  # Already completed
+                        "transfer": transfer_result.get("confirmation_time", 0)
+                    },
+                    "status": "completed",
+                    "timestamp": time.time(),
+                    "deep_debug": {
+                        "collection_debug": {"status": "success"},
+                        "transfer_debug": transfer_result.get("deep_debug", {})
+                    }
                 }
-            }
-            
-            # Convert all Decimal objects to float for MongoDB compatibility
-            transfer_record = convert_decimals_to_float(transfer_record)
-            
-            await self.database.token_transfers.insert_one(transfer_record)
-            
-            print(f"\n✅ === TRANSFER COMPLETED SUCCESSFULLY ===")
-            print(f"🆔 Transfer ID: {transfer_record['transfer_id']}")
-            print(f"💸 User Payment TX: {collect_result.get('transaction_hash')}")
-            print(f"🔗 Transfer TX: {transfer_result.get('transaction_hash')}")
-            if is_cross_chain and transfer_result.get("bridge_transaction_hash"):
-                print(f"🌉 Bridge TX: {transfer_result.get('bridge_transaction_hash')}")
-            print(f"⛽ Total Gas: {transfer_record['gas_used_total']}")
-            print(f"💰 User Paid: {float(amount_eth)} ETH (CONFIRMED)")
-            print(f"🎯 Simplified Flow: User → Bridge → Recipient (No WETH needed!)")
-            
-            response_data = {
-                "success": True,
-                "transfer_id": transfer_record["transfer_id"],
-                "user_payment_hash": collect_result.get("transaction_hash"),  # NEW
-                "transfer_transaction_hash": transfer_result.get("transaction_hash"),
-                "bridge_transaction_hash": transfer_result.get("bridge_transaction_hash") if is_cross_chain else None,
-                "amount_transferred": float(amount_eth),  # Convert Decimal to float
-                "actual_token_movement": True,
-                "user_eth_collected": True,  # NEW: Confirm user actually paid
-                "is_cross_chain": is_cross_chain,
-                "gas_used": {
-                    "collection_gas": collect_result.get("gas_used", 0),
-                    "transfer_gas": transfer_result.get("gas_used", 0)
-                },
-                "confirmation_times": transfer_record["confirmation_times"],
-                "blockchain_verified": True,
-                "deep_debug_info": transfer_record["deep_debug"]
-            }
-            
-            # Convert all Decimal objects to float for API response
-            return convert_decimals_to_float(response_data)
+                
+                # Convert all Decimal objects to float for MongoDB
+                transfer_record = convert_decimals_to_float(transfer_record)
+                
+                # Store in database
+                await self.database.token_transfers.insert_one(transfer_record)
+                
+                print(f"💾 Transfer record saved to database")
+                print(f"   Collection TX: {collect_result['transaction_hash']}")
+                print(f"   Transfer TX: {transfer_result['transaction_hash']}")
+                print(f"   User paid: {amount_eth} ETH")
+                print(f"   Recipient received: {amount_eth} ETH")
+                
+                # Prepare API response
+                response_data = {
+                    "success": True,
+                    "transfer_id": transfer_record["transfer_id"],
+                    "wrap_transaction_hash": collect_result["transaction_hash"],  # User payment collection
+                    "layerzero_transaction_hash": transfer_result["transaction_hash"],  # Actual transfer/bridge
+                    "collection_transaction_hash": collect_result["transaction_hash"],
+                    "amount_transferred": Decimal(str(amount_eth)),  # Convert to Decimal first
+                    "actual_token_movement": True,
+                    "user_eth_collected": True,  # NEW: Confirm user actually paid
+                    "is_cross_chain": is_cross_chain,
+                    "gas_used": {
+                        "collection_gas": collect_result.get("gas_used", 0),
+                        "transfer_gas": transfer_result.get("gas_used", 0)
+                    },
+                    "confirmation_times": transfer_record["confirmation_times"],
+                    "blockchain_verified": True,
+                    "deep_debug_info": transfer_record["deep_debug"]
+                }
+                
+                # Convert all Decimal objects to float for API response
+                return convert_decimals_to_float(response_data)
+                
+            else:
+                print(f"❌ Transfer failed, returning ETH to user...")
+                # Return ETH to user on failure
+                rollback_result = await self._return_eth_to_user(source_web3, from_chain, from_address, amount_wei)
+                
+                error_msg = f"Transfer failed: {transfer_result['error']}"
+                if rollback_result["success"]:
+                    error_msg += f". ETH returned to user: {rollback_result['transaction_hash']}"
+                else:
+                    error_msg += f". Failed to return ETH: {rollback_result['error']}"
+                
+                return {"success": False, "error": error_msg}
             
         except Exception as e:
             print(f"❌ Real cross-chain transfer error: {e}")
