@@ -1,6 +1,7 @@
 """
 Official LayerZero OFT Bridge Service
 Uses official @layerzerolabs/oft-evm interfaces to eliminate the 0x3ee5aeb5 error
+Updated with NEW contracts that include deposit/withdraw functionality
 """
 import asyncio
 import json
@@ -85,6 +86,30 @@ OFFICIAL_LAYERZERO_OFT_ABI = [
         "stateMutability": "view",
         "type": "function"
     },
+    # NEW: Deposit function - Users can deposit ETH to get cfWETH
+    {
+        "inputs": [],
+        "name": "deposit",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    # NEW: Withdraw function - Users can withdraw cfWETH to get ETH
+    {
+        "inputs": [{"name": "amount", "type": "uint256"}],
+        "name": "withdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    # NEW: Get contract ETH balance
+    {
+        "inputs": [],
+        "name": "getContractBalance",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
     # Standard ERC20 and OFT functions
     {
         "inputs": [{"name": "account", "type": "address"}],
@@ -135,7 +160,7 @@ OFFICIAL_LAYERZERO_OFT_ABI = [
         "stateMutability": "view",
         "type": "function"
     },
-    # Minting functions (if needed for initial token supply)
+    # Admin mint function (for initial setup only)
     {
         "inputs": [
             {"name": "to", "type": "address"},
@@ -155,31 +180,31 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # Official LayerZero V2 OFT Configuration (TO BE UPDATED AFTER DEPLOYMENT)
+        # Official LayerZero V2 OFT Configuration (UPDATED WITH NEW DEPLOYED ADDRESSES - V2 WITH DEPOSIT/WITHDRAW)
         self.oft_contracts = {
             "optimism_sepolia": {
-                "address": "",  # UPDATE AFTER DEPLOYMENT
+                "address": "0x25409B7ee450493248fD003A759304FF7f748c53",
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
                 "layerzero_eid": 40232,
                 "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
             },
             "arbitrum_sepolia": {
-                "address": "",  # UPDATE AFTER DEPLOYMENT
+                "address": "0x75d2E18211390A8f2bdA96BB4Bd2D45ba77d5baD",
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,
                 "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "polygon_amoy": {
-                "address": "",  # UPDATE AFTER DEPLOYMENT
+                "address": "0x9f57e36F79aD26421A6aE29AC0f2AD67430d8608",
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
                 "layerzero_eid": 40267,
                 "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
             },
             "zkevm_cardona": {
-                "address": "",  # UPDATE AFTER DEPLOYMENT
+                "address": "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
                 "layerzero_eid": 40158,
@@ -209,6 +234,7 @@ class LayerZeroOFTBridgeService:
         
         print("✅ Official LayerZero OFT Bridge Service initialized")
         print("🌉 Using @layerzerolabs/oft-evm official interface")
+        print("✨ NEW: Contracts include deposit/withdraw functionality!")
         
     async def _initialize_connections(self):
         """Initialize Web3 connections and official OFT contract instances"""
@@ -229,6 +255,7 @@ class LayerZeroOFTBridgeService:
                         )
                         self.oft_instances[chain_name] = oft_contract
                         print(f"✅ Connected to {chain_name} - Official OFT contract ready at {config['address']}")
+                        print(f"   ✨ NEW: Supports deposit() and withdraw() functions")
                     else:
                         print(f"⚠️ Connected to {chain_name} - Contract address not configured yet")
                         print(f"   Deploy contract first: npx hardhat run scripts/deploy-official-oft.js --network {chain_name.replace('_', '')}")
@@ -241,6 +268,84 @@ class LayerZeroOFTBridgeService:
                     
             except Exception as e:
                 print(f"⚠️ Error initializing {chain_name}: {e}")
+
+    async def deposit_eth_for_tokens(
+        self,
+        chain: str,
+        user_address: str,
+        amount_eth: float
+    ) -> Dict[str, Any]:
+        """
+        NEW FUNCTION: Deposit ETH to get cfWETH tokens (1:1 ratio)
+        """
+        try:
+            print(f"\n💰 === DEPOSITING ETH FOR cfWETH TOKENS ===")
+            print(f"🌐 Chain: {chain}")
+            print(f"👤 User: {user_address}")
+            print(f"💸 Amount: {amount_eth} ETH")
+            
+            # Get Web3 and contract instances
+            web3 = self.web3_connections.get(chain)
+            oft_contract = self.oft_instances.get(chain)
+            
+            if not web3 or not oft_contract:
+                return {"success": False, "error": f"Chain {chain} not available"}
+            
+            # Get user account for signing
+            from app.services.multi_account_manager import address_key_manager
+            user_account_info = address_key_manager.get_account_info_for_address(user_address)
+            if not user_account_info:
+                return {"success": False, "error": f"No private key available for user address {user_address}"}
+            
+            user_account = user_account_info['account']
+            amount_wei = Web3.to_wei(amount_eth, 'ether')
+            
+            # Check user ETH balance
+            eth_balance = web3.eth.get_balance(user_account.address)
+            if eth_balance < amount_wei:
+                return {"success": False, "error": f"Insufficient ETH balance. Have: {Web3.from_wei(eth_balance, 'ether')} ETH, Need: {amount_eth} ETH"}
+            
+            # Build deposit transaction
+            nonce = web3.eth.get_transaction_count(user_account.address)
+            
+            transaction = oft_contract.functions.deposit().build_transaction({
+                'from': user_account.address,
+                'value': amount_wei,
+                'gas': 100000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            })
+            
+            # Sign and send transaction
+            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 Deposit transaction sent: {tx_hash.hex()}")
+            
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                # Check new cfWETH balance
+                new_balance = oft_contract.functions.balanceOf(user_account.address).call()
+                new_balance_eth = float(Web3.from_wei(new_balance, 'ether'))
+                
+                print(f"✅ ETH deposit successful!")
+                print(f"💳 New cfWETH balance: {new_balance_eth} cfWETH")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "amount_deposited": amount_eth,
+                    "new_cfweth_balance": new_balance_eth,
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber
+                }
+            else:
+                return {"success": False, "error": "Deposit transaction failed"}
+                
+        except Exception as e:
+            print(f"❌ ETH deposit error: {e}")
+            return {"success": False, "error": str(e)}
 
     async def estimate_oft_transfer_fee(
         self, 
@@ -309,7 +414,7 @@ class LayerZeroOFTBridgeService:
                     "native_fee_eth": native_fee_eth,
                     "lz_token_fee": lz_token_fee,
                     "total_cost_eth": amount_eth + native_fee_eth,
-                    "bridge_type": "Official LayerZero V2 OFT",
+                    "bridge_type": "Official LayerZero V2 OFT with Deposit/Withdraw",
                     "from_chain": from_chain,
                     "to_chain": to_chain,
                     "amount_eth": amount_eth,
@@ -332,13 +437,15 @@ class LayerZeroOFTBridgeService:
     ) -> Dict[str, Any]:
         """
         Execute LayerZero OFT cross-chain ETH transfer using official interface
+        NEW: Automatically handles ETH deposit to get cfWETH tokens
         """
         try:
-            print(f"\n🌉 === OFFICIAL LAYERZERO OFT CROSS-CHAIN TRANSFER ===")
+            print(f"\n🌉 === OFFICIAL LAYERZERO OFT CROSS-CHAIN TRANSFER V2 ===")
             print(f"📤 From: {from_chain} ({from_address})")
             print(f"📥 To: {to_chain} ({to_address})")
             print(f"💰 Amount: {amount_eth} ETH")
             print(f"🔗 Escrow ID: {escrow_id}")
+            print(f"✨ NEW: Auto deposit ETH → cfWETH if needed")
             
             # Get Web3 instances
             source_web3 = self.web3_connections.get(from_chain)
@@ -377,36 +484,32 @@ class LayerZeroOFTBridgeService:
             
             user_account = user_account_info['account']
             
-            # STEP 1: Check token balance and mint if needed
+            # STEP 1: Check token balance and deposit ETH if needed
             print(f"\n💰 === STEP 1: CHECK TOKEN BALANCE ===")
             oft_contract = self.oft_instances[from_chain]
             
-            # Check current OFT balance
+            # Check current cfWETH balance
             oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
             oft_balance_eth = float(Web3.from_wei(oft_balance, 'ether'))
             
-            print(f"💳 User OFT balance: {oft_balance_eth} cfWETH")
+            print(f"💳 User cfWETH balance: {oft_balance_eth} cfWETH")
             print(f"🎯 Required amount: {amount_eth} cfWETH")
             
             if oft_balance_eth < amount_eth:
                 needed_amount = amount_eth - oft_balance_eth
-                print(f"⚠️ Insufficient OFT balance. Need to mint {needed_amount} cfWETH")
+                print(f"⚠️ Insufficient cfWETH balance. Need to deposit {needed_amount} ETH")
                 
-                # Mint tokens to user (if contract allows it)
-                try:
-                    mint_result = await self._mint_oft_tokens(
-                        source_web3, from_chain, user_account, needed_amount
-                    )
+                # NEW: Use deposit function instead of mint
+                deposit_result = await self.deposit_eth_for_tokens(
+                    from_chain, from_address, needed_amount
+                )
+                
+                if not deposit_result["success"]:
+                    return {"success": False, "error": f"Failed to deposit ETH for cfWETH tokens: {deposit_result['error']}"}
                     
-                    if not mint_result["success"]:
-                        return {"success": False, "error": f"Failed to mint OFT tokens: {mint_result['error']}"}
-                        
-                    print(f"✅ Successfully minted {needed_amount} cfWETH tokens!")
-                    
-                except Exception as mint_error:
-                    return {"success": False, "error": f"Token minting failed: {mint_error}"}
+                print(f"✅ Successfully deposited {needed_amount} ETH for cfWETH tokens!")
             else:
-                print(f"✅ Sufficient OFT tokens available for transfer")
+                print(f"✅ Sufficient cfWETH tokens available for transfer")
             
             # STEP 2: Execute LayerZero OFT transfer
             print(f"\n🚀 === STEP 2: EXECUTE OFFICIAL LAYERZERO OFT TRANSFER ===")
@@ -426,7 +529,7 @@ class LayerZeroOFTBridgeService:
                 "from_address": from_address,
                 "to_address": to_address,
                 "amount_eth": amount_eth,
-                "bridge_type": "official_layerzero_oft",
+                "bridge_type": "official_layerzero_oft_v2",
                 "status": "completed",
                 "oft_transaction_hash": oft_result.get("transaction_hash"),
                 "layerzero_eid_source": source_config['layerzero_eid'],
@@ -435,7 +538,8 @@ class LayerZeroOFTBridgeService:
                 "timestamp": time.time(),
                 "block_number_source": oft_result.get("block_number"),
                 "gas_used": oft_result.get("gas_used"),
-                "interface_used": "official_layerzero_v2_oft"
+                "interface_used": "official_layerzero_v2_oft_with_deposit_withdraw",
+                "deposit_enabled": True
             }
             
             # Convert Decimal objects for MongoDB
@@ -448,76 +552,28 @@ class LayerZeroOFTBridgeService:
             except Exception as e:
                 print(f"⚠️ Warning: Failed to record transfer in database: {e}")
             
-            print(f"\n🎉 === OFFICIAL LAYERZERO OFT TRANSFER COMPLETED ===")
+            print(f"\n🎉 === OFFICIAL LAYERZERO OFT TRANSFER V2 COMPLETED ===")
             print(f"✅ Official interface transfer successful!")
             print(f"🔗 Source TX: {oft_result.get('transaction_hash')}")
             print(f"💰 Amount bridged: {amount_eth} ETH")
-            print(f"🌉 Bridge type: Official LayerZero V2 OFT")
+            print(f"🌉 Bridge type: Official LayerZero V2 OFT with Deposit/Withdraw")
             
             return {
                 "success": True,
                 "transfer_id": escrow_id,
-                "bridge_type": "official_layerzero_oft",
+                "bridge_type": "official_layerzero_oft_v2",
                 "amount_transferred": amount_eth,
                 "oft_transaction_hash": oft_result.get("transaction_hash"),
                 "native_fee_paid": oft_result.get("native_fee_paid"),
                 "layerzero_guid": oft_result.get("layerzero_guid"),
-                "message": "Official LayerZero OFT transfer completed successfully",
+                "message": "Official LayerZero OFT V2 transfer completed successfully",
                 "is_decentralized": True,
-                "interface_used": "official_layerzero_v2_oft"
+                "interface_used": "official_layerzero_v2_oft_with_deposit_withdraw",
+                "deposit_enabled": True
             }
             
         except Exception as e:
             print(f"❌ Official LayerZero OFT transfer error: {e}")
-            return {"success": False, "error": str(e)}
-
-    async def _mint_oft_tokens(
-        self,
-        web3: Web3,
-        chain_name: str, 
-        user_account,
-        amount_eth: float
-    ) -> Dict[str, Any]:
-        """Mint OFT tokens for testing (if contract allows minting)"""
-        try:
-            oft_contract = self.oft_instances[chain_name]
-            amount_wei = Web3.to_wei(amount_eth, 'ether')
-            
-            print(f"🪙 Minting {amount_eth} cfWETH tokens on {chain_name}")
-            
-            # Build mint transaction
-            nonce = web3.eth.get_transaction_count(user_account.address)
-            
-            transaction = oft_contract.functions.mint(
-                user_account.address,
-                amount_wei
-            ).build_transaction({
-                'from': user_account.address,
-                'gas': 200000,
-                'gasPrice': web3.eth.gas_price,
-                'nonce': nonce,
-                'chainId': web3.eth.chain_id
-            })
-            
-            # Sign and send transaction
-            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
-            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
-            
-            if receipt.status == 1:
-                print(f"✅ Minted {amount_eth} cfWETH tokens successfully!")
-                return {
-                    "success": True,
-                    "transaction_hash": tx_hash.hex(),
-                    "amount_minted": amount_eth,
-                    "gas_used": receipt.gasUsed,
-                    "block_number": receipt.blockNumber
-                }
-            else:
-                return {"success": False, "error": "Mint transaction failed"}
-                
-        except Exception as e:
-            print(f"❌ Token minting error: {e}")
             return {"success": False, "error": str(e)}
 
     async def _execute_official_oft_send(
@@ -628,7 +684,7 @@ class LayerZeroOFTBridgeService:
                     "native_fee_paid": float(Web3.from_wei(native_fee, 'ether')),
                     "layerzero_guid": layerzero_guid,
                     "destination_eid": target_config['layerzero_eid'],
-                    "interface_used": "official_layerzero_v2_oft"
+                    "interface_used": "official_layerzero_v2_oft_with_deposit_withdraw"
                 }
             else:
                 return {"success": False, "error": f"Transaction failed - Receipt status: {receipt.status}"}

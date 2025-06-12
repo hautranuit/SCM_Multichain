@@ -3,12 +3,12 @@
 
 const { ethers } = require("hardhat");
 
-// Contract addresses (UPDATE AFTER DEPLOYMENT)
+// Contract addresses (UPDATED WITH NEW DEPLOYED ADDRESSES - V2 WITH DEPOSIT/WITHDRAW)
 const DEPLOYED_CONTRACTS = {
-    optimismSepolia: "", // Fill after deployment
-    arbitrumSepolia: "", // Fill after deployment  
-    amoy: "",            // Fill after deployment
-    cardona: ""          // Fill after deployment
+    optimismSepolia: "0x25409B7ee450493248fD003A759304FF7f748c53",
+    arbitrumSepolia: "0x75d2E18211390A8f2bdA96BB4Bd2D45ba77d5baD",
+    amoy: "0x9f57e36F79aD26421A6aE29AC0f2AD67430d8608",
+    cardona: "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9"
 };
 
 // Official LayerZero V2 Endpoint IDs
@@ -26,6 +26,7 @@ function addressToBytes32(address) {
 
 async function main() {
     console.log("🔗 Setting up Official LayerZero V2 OFT Peer Connections...");
+    console.log("✨ NEW CONTRACTS WITH DEPOSIT/WITHDRAW FUNCTIONALITY");
     
     const [deployer] = await ethers.getSigners();
     const currentNetwork = hre.network.name;
@@ -43,9 +44,20 @@ async function main() {
     
     console.log(`   Current Contract: ${currentContractAddress}`);
     
-    // Get contract instance
-    const ChainFlipOFT = await ethers.getContractFactory("ChainFlipOFT");
-    const oft = ChainFlipOFT.attach(currentContractAddress);
+    // Get contract instance - Try both contract names
+    let oft;
+    try {
+        const ChainFlipOFT = await ethers.getContractFactory("ChainFlipOFT");
+        oft = ChainFlipOFT.attach(currentContractAddress);
+    } catch (error) {
+        try {
+            const SimpleChainFlipOFT = await ethers.getContractFactory("SimpleChainFlipOFT");
+            oft = SimpleChainFlipOFT.attach(currentContractAddress);
+        } catch (error2) {
+            console.log(`❌ Contract factory not found. Tried ChainFlipOFT and SimpleChainFlipOFT`);
+            return;
+        }
+    }
     
     // Set peers for all other networks
     console.log("\n🔗 Setting peer connections...");
@@ -119,7 +131,11 @@ async function main() {
         }
     });
     
-    console.log("\n⚠️ Important: Update DEPLOYED_CONTRACTS with actual deployed addresses before running!");
+    console.log("\n✨ NEW FEATURES AVAILABLE:");
+    console.log("   • Users can deposit ETH → get cfWETH tokens");
+    console.log("   • Users can withdraw cfWETH → get ETH back");
+    console.log("   • No more minting restrictions!");
+    console.log("   • True decentralized ETH bridging");
 }
 
 main()

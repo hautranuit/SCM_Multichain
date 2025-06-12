@@ -52,7 +52,7 @@ async function main() {
     console.log("\n🔨 Deploying ChainFlipOFT...");
     console.log("🔧 Using official LayerZero V2 interface...");
     
-    const ChainFlipOFT = await ethers.getContractFactory("SimpleChainFlipOFT");
+    const ChainFlipOFT = await ethers.getContractFactory("ChainFlipOFT");
     const oft = await ChainFlipOFT.deploy(
         "ChainFLIP WETH",              // Token name
         "cfWETH",                      // Token symbol
