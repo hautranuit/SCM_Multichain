@@ -209,51 +209,51 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # LayerZero OFT Configuration (FINAL FIXED CONTRACTS - JUNE 2025 - ALL QUOTESEND FIXED)
+        # Official LayerZero V2 OFT Configuration (FIXED INTERFACE - JUNE 2025)
         self.oft_contracts = {
             "optimism_sepolia": {
-                "address": "0x1A3F3924662aaa4f5122cD2B2EDff614Cf1d6eb0",  # ✅ FINAL FIXED CONTRACT
+                "address": "0x1208F8F0E40381F14E41621906D13C9c3CaAa061",  # ✅ OFFICIAL V2 CONTRACT
                 "weth_address": "0x4200000000000000000000000000000000000006",
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
-                "layerzero_eid": 40232,  # LayerZero V2 Endpoint ID
-                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # MATCHED: Endpoint from deployed contract
+                "layerzero_eid": 40232,
+                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
                 "alternative_rpcs": [
                     "https://opt-sepolia.g.alchemy.com/v2/demo",
                     "https://sepolia.optimism.io/rpc"
                 ]
             },
             "arbitrum_sepolia": {
-                "address": "0x35F63413FC7d0BE3f3e5f819BDd32b867A92d966",  # ✅ FINAL FIXED CONTRACT
+                "address": "0x9928C61fd391F2cf7a5cA267ffFEAac89C21201a",  # ✅ OFFICIAL V2 CONTRACT
                 "weth_address": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
-                "layerzero_eid": 40231,  # LayerZero V2 Endpoint ID
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",  # MATCHED: Official 2025 V2 endpoint
+                "layerzero_eid": 40231,
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
                 "alternative_rpcs": [
                     "https://arbitrum-sepolia.drpc.org",
                     "https://arb-sepolia.g.alchemy.com/v2/demo"
                 ]
             },
             "polygon_pos": {
-                "address": "0x7793D6Af377548082833E341Fb93681B531C656B",  # ✅ FINAL FIXED CONTRACT
+                "address": "0x56BB1Ce5412855A4c60289D609E6714F1d91a9F9",  # ✅ OFFICIAL V2 CONTRACT
                 "weth_address": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
-                "layerzero_eid": 40313,  # Updated EID for 2025
-                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",  # MATCHED: Same as Optimism (cross-compatible)
+                "layerzero_eid": 40313,
+                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
                 "alternative_rpcs": [
                     "https://polygon-amoy.g.alchemy.com/v2/demo",
                     "https://polygon-amoy.drpc.org"
                 ]
             },
             "zkevm_cardona": {
-                "address": "0x736A068c7d2124D21026d86ee9F23F0A2d1dA5A4",  # ✅ FINAL FIXED CONTRACT
+                "address": "0x771E03B23E1C64d673c648cB23f41B6BE0146932",  # ✅ OFFICIAL V2 CONTRACT
                 "weth_address": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
                 "rpc": settings.zkevm_cardona_rpc,
                 "chain_id": 2442,
-                "layerzero_eid": 40158,  # CORRECTED: Use EID that matches contract quoteSend logic
-                "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",  # Estimated
+                "layerzero_eid": 40158,
+                "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",
                 "alternative_rpcs": [
                     "https://polygon-zkevm-cardona.drpc.org"
                 ]
@@ -1166,7 +1166,7 @@ class LayerZeroOFTBridgeService:
         to_address: str, 
         amount_wei: int
     ) -> Dict[str, Any]:
-        """Execute LayerZero OFT send transaction using direct send approach (no fee quote)"""
+        """Execute LayerZero OFT send transaction using official V2 struct-based interface"""
         try:
             # Try adaptive method first
             adaptive_result = await self._execute_oft_send_adaptive(
