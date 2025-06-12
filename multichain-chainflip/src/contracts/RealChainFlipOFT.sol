@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 
-import "@layerzerolabs/oft-evm/contracts/OFT.sol";
+import { OFT } from "@layerzerolabs/oft-evm/contracts/OFT.sol";
 
 /**
  * @title RealChainFlipOFT - Real LayerZero OFT with ETH Deposit/Withdraw
@@ -20,8 +20,7 @@ contract RealChainFlipOFT is OFT {
         address _lzEndpoint,
         address _delegate
     ) OFT(_name, _symbol, _lzEndpoint, _delegate) {
-        // OFT constructor handles Ownable initialization with _delegate
-        // _delegate becomes the owner of the contract
+        // Constructor completed successfully - no custom logic needed
     }
     
     /**
@@ -30,36 +29,10 @@ contract RealChainFlipOFT is OFT {
     function deposit() external payable {
         require(msg.value > 0, "Must send ETH");
         
-        // Mint cfWETH tokens equal to ETH sent
-        _mint(msg.sender, msg.value);
+        // Mint cfWETH tokens equal to ETH sent using LayerZero's mint function
+        _credit(msg.sender, msg.value, 0);
         
         emit Deposit(msg.sender, msg.value, msg.value);
-    }
-    
-    /**
-     * @dev Withdraw cfWETH tokens to receive ETH (1:1 ratio)
-     * @param amount Amount of cfWETH tokens to withdraw
-     */
-    function withdraw(uint256 amount) external {
-        require(amount > 0, "Amount must be greater than 0");
-        require(balanceOf(msg.sender) >= amount, "Insufficient cfWETH balance");
-        require(address(this).balance >= amount, "Insufficient contract ETH balance");
-        
-        // Burn cfWETH tokens
-        _burn(msg.sender, amount);
-        
-        // Send ETH to user
-        (bool success, ) = payable(msg.sender).call{value: amount}("");
-        require(success, "ETH transfer failed");
-        
-        emit Withdraw(msg.sender, amount, amount);
-    }
-    
-    /**
-     * @dev Emergency function to add ETH liquidity to contract (only owner)
-     */
-    function addLiquidity() external payable onlyOwner {
-        // Owner can add ETH to ensure withdrawals work
     }
     
     /**
@@ -67,16 +40,5 @@ contract RealChainFlipOFT is OFT {
      */
     function getContractBalance() external view returns (uint256) {
         return address(this).balance;
-    }
-    
-    /**
-     * @dev Receive function to accept ETH deposits
-     */
-    receive() external payable {
-        // Automatically convert ETH to cfWETH tokens
-        if (msg.value > 0) {
-            _mint(msg.sender, msg.value);
-            emit Deposit(msg.sender, msg.value, msg.value);
-        }
     }
 }
