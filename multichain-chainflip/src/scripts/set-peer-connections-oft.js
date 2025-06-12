@@ -1,15 +1,15 @@
-// LayerZero V2 Peer Connection Setup on OFT Contracts (CORRECTED)
-// Sets peer connections directly on ChainFlipOFT contracts, not wrappers
+// LayerZero V2 Peer Connection Setup on Fresh OFT Contracts (UPDATED)
+// Sets peer connections directly on ChainFlipOFT contracts with direct deployer ownership
 
 const hre = require("hardhat");
 const { ethers } = require("hardhat");
 
-// ChainFlipOFT Contract addresses (these should have peer connections)
+// ChainFlipOFT Contract addresses (UPDATED - Fresh deployments with direct deployer ownership)
 const OFT_CONTRACTS = {
-    optimismSepolia: "0x6478eAB366A16d96ae910fd16F6770DDa1845648",
-    arbitrumSepolia: "0x441C06d8548De93d64072F781e15E16A7c316b67",
-    amoy: "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4",
-    baseSepolia: "0xdAd142646292A550008B44D968764c52eF1C3f67"
+    optimismSepolia: "0x76D43CEC28775032A7EC8895ad178c660246c8Ec",     // ✅ Fresh deployment - owned by deployer
+    arbitrumSepolia: "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9",     // ✅ Fresh deployment - owned by deployer  
+    amoy: "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73",              // ✅ Fresh deployment - owned by deployer
+    baseSepolia: "0xdAd142646292A550008B44D968764c52eF1C3f67"          // ✅ Original - working perfectly
 };
 
 // LayerZero Endpoint IDs for V2

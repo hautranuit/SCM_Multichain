@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import asyncio
+import time
 from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
 
 router = APIRouter()
@@ -184,32 +185,149 @@ async def get_layerzero_status():
         print(f"❌ API: Status check error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.get("/networks")
-async def get_supported_networks():
+@router.post("/test-transfer")
+async def test_cross_chain_transfer():
     """
-    Get list of supported networks for LayerZero OFT transfers
+    Test cross-chain transfer: 0.01 ETH from OP Sepolia to Base Sepolia
+    Using the exact addresses specified by the user
     """
     try:
-        networks = []
-        for chain_name, config in layerzero_oft_bridge_service.oft_contracts.items():
-            network_info = {
-                "name": chain_name,
-                "chain_id": config["chain_id"],
-                "layerzero_eid": config["layerzero_eid"],
-                "rpc_url": config["rpc"],
-                "oft_contract": config.get("oft_address"),
-                "wrapper_contract": config.get("wrapper_address"),
-                "layerzero_endpoint": config.get("layerzero_endpoint")
-            }
-            networks.append(network_info)
+        print(f"🧪 API: Testing cross-chain transfer")
         
-        return {
-            "success": True,
-            "message": "Supported LayerZero OFT networks",
-            "networks": networks,
-            "total_networks": len(networks)
+        # Fixed test parameters as requested by user
+        test_request = {
+            "from_chain": "optimism_sepolia",
+            "to_chain": "base_sepolia", 
+            "from_address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",  # OP Sepolia
+            "to_address": "0x28918ecf013F32fAf45e05d62B4D9b207FCae784",    # Base Sepolia
+            "amount_eth": 0.01,
+            "escrow_id": f"test-transfer-{int(time.time())}"
         }
         
+        print(f"📤 From: {test_request['from_chain']} ({test_request['from_address']})")
+        print(f"📥 To: {test_request['to_chain']} ({test_request['to_address']})")
+        print(f"💰 Amount: {test_request['amount_eth']} ETH")
+        
+        # Execute the transfer
+        result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
+            from_chain=test_request["from_chain"],
+            to_chain=test_request["to_chain"],
+            from_address=test_request["from_address"],
+            to_address=test_request["to_address"],
+            amount_eth=test_request["amount_eth"],
+            escrow_id=test_request["escrow_id"]
+        )
+        
+        if result["success"]:
+            print(f"✅ API: Test transfer successful!")
+            return {
+                "success": True,
+                "message": "Test cross-chain transfer completed successfully",
+                "test_parameters": test_request,
+                "result": result
+            }
+        else:
+            print(f"❌ API: Test transfer failed: {result.get('error')}")
+            raise HTTPException(status_code=400, detail=result.get("error"))
+            
     except Exception as e:
-        print(f"❌ API: Networks list error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        print(f"❌ API: Test transfer error: {e}")
+        raise HTTPException(status_code=500, detail=f"Test transfer error: {str(e)}")
+
+@router.post("/test-transfer-arb-base")
+async def test_cross_chain_transfer_arb_base():
+    """
+    Test cross-chain transfer: Arbitrum Sepolia → Base Sepolia
+    Alternative pathway that might have better LayerZero support
+    """
+    try:
+        print(f"🧪 API: Testing Arbitrum → Base transfer")
+        
+        # Use Arbitrum to Base pathway
+        test_request = {
+            "from_chain": "arbitrum_sepolia", 
+            "to_chain": "base_sepolia",
+            "from_address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",  # Same test address
+            "to_address": "0x28918ecf013F32fAf45e05d62B4D9b207FCae784",    # Same target
+            "amount_eth": 0.001,
+            "escrow_id": f"arb-base-test-{int(time.time())}"
+        }
+        
+        print(f"📤 From: {test_request['from_chain']} ({test_request['from_address']})")
+        print(f"📥 To: {test_request['to_chain']} ({test_request['to_address']})")
+        print(f"💰 Amount: {test_request['amount_eth']} ETH")
+        
+        # Execute the transfer
+        result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
+            from_chain=test_request["from_chain"],
+            to_chain=test_request["to_chain"],
+            from_address=test_request["from_address"],
+            to_address=test_request["to_address"],
+            amount_eth=test_request["amount_eth"],
+            escrow_id=test_request["escrow_id"]
+        )
+        
+        if result["success"]:
+            print(f"✅ API: Arbitrum → Base transfer successful!")
+            return {
+                "success": True,
+                "message": "Arbitrum → Base cross-chain transfer completed successfully",
+                "test_parameters": test_request,
+                "result": result
+            }
+        else:
+            print(f"❌ API: Arbitrum → Base transfer failed: {result.get('error')}")
+            raise HTTPException(status_code=400, detail=result.get("error"))
+            
+    except Exception as e:
+        print(f"❌ API: Arbitrum → Base transfer error: {e}")
+        raise HTTPException(status_code=500, detail=f"Arbitrum → Base transfer error: {str(e)}")
+
+@router.post("/test-transfer-base-arb")
+async def test_cross_chain_transfer_base_arb():
+    """
+    Test cross-chain transfer: Base Sepolia → Arbitrum Sepolia
+    Reverse direction test
+    """
+    try:
+        print(f"🧪 API: Testing Base → Arbitrum transfer")
+        
+        # Use Base to Arbitrum pathway  
+        test_request = {
+            "from_chain": "base_sepolia",
+            "to_chain": "arbitrum_sepolia", 
+            "from_address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",  # Same test address
+            "to_address": "0x28918ecf013F32fAf45e05d62B4D9b207FCae784",    # Same target
+            "amount_eth": 0.001,
+            "escrow_id": f"base-arb-test-{int(time.time())}"
+        }
+        
+        print(f"📤 From: {test_request['from_chain']} ({test_request['from_address']})")
+        print(f"📥 To: {test_request['to_chain']} ({test_request['to_address']})")
+        print(f"💰 Amount: {test_request['amount_eth']} ETH")
+        
+        # Execute the transfer
+        result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
+            from_chain=test_request["from_chain"],
+            to_chain=test_request["to_chain"],
+            from_address=test_request["from_address"],
+            to_address=test_request["to_address"],
+            amount_eth=test_request["amount_eth"],
+            escrow_id=test_request["escrow_id"]
+        )
+        
+        if result["success"]:
+            print(f"✅ API: Base → Arbitrum transfer successful!")
+            return {
+                "success": True,
+                "message": "Base → Arbitrum cross-chain transfer completed successfully",
+                "test_parameters": test_request,
+                "result": result
+            }
+        else:
+            print(f"❌ API: Base → Arbitrum transfer failed: {result.get('error')}")
+            raise HTTPException(status_code=400, detail=result.get("error"))
+            
+    except Exception as e:
+        print(f"❌ API: Base → Arbitrum transfer error: {e}")
+        raise HTTPException(status_code=500, detail=f"Base → Arbitrum transfer error: {str(e)}")

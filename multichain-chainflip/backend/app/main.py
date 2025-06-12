@@ -66,6 +66,11 @@ async def startup_event():
     fl_service = FederatedLearningService()
     await fl_service.initialize()
     
+    # Initialize LayerZero OFT Bridge Service
+    from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+    await layerzero_oft_bridge_service.initialize()
+    print("🌉 LayerZero OFT Bridge Service initialized")
+    
     print("✅ ChainFLIP Backend Initialized Successfully")
 
 @app.on_event("shutdown")
