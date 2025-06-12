@@ -73,6 +73,32 @@ contract ETHWrapper {
     }
     
     /**
+     * @dev Set LayerZero peer for cross-chain transfers
+     * Only deployer can call this function
+     * @param _eid LayerZero endpoint ID
+     * @param _peer Peer address in bytes32 format
+     */
+    function setPeer(uint32 _eid, bytes32 _peer) external {
+        require(msg.sender == tx.origin, "Only EOA can set peers"); // Simple access control
+        cfWETH.setPeer(_eid, _peer);
+    }
+    
+    /**
+     * @dev Get LayerZero peer for endpoint
+     * @param _eid LayerZero endpoint ID
+     */
+    function getPeer(uint32 _eid) external view returns (bytes32) {
+        return cfWETH.peers(_eid);
+    }
+    
+    /**
+     * @dev Get the OFT contract address
+     */
+    function getOFTAddress() external view returns (address) {
+        return address(cfWETH);
+    }
+    
+    /**
      * @dev Receive function to accept ETH deposits
      */
     receive() external payable {

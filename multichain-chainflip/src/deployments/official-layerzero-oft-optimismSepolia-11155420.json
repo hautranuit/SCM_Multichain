@@ -1,18 +1,16 @@
 {
   "network": "optimismSepolia",
   "chainId": "11155420",
-  "deployment_type": "Official LayerZero V2 OFT",
-  "contract_name": "ChainFlipOFT",
-  "deployment_purpose": "Fix LayerZero interface mismatch error ('0x3ee5aeb5')",
+  "deployment_type": "Separated Architecture: ChainFlipOFT + ETHWrapper",
+  "contract_name": "ChainFlipOFT + ETHWrapper",
+  "deployment_purpose": "Separated LayerZero bridge with dedicated deposit/withdraw logic and peer management",
   "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-  "oft_contract": "0x25409B7ee450493248fD003A759304FF7f748c53",
-  "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
+  "oft_contract": "0x6478eAB366A16d96ae910fd16F6770DDa1845648",
+  "wrapper_contract": "0x5428793EBd36693c993D6B3f8f2641C46121ec29",
+  "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
   "layerzero_eid": 40232,
   "token_name": "ChainFLIP WETH",
   "token_symbol": "cfWETH",
-  "deployment_timestamp": "2025-06-12T06:39:33.985Z",
-  "transaction_hash": "0xe3e7917a0ba2bf895855e19941d7e08c466d0e8b0dc993c16865c69a856e2505",
-  "gas_used": "pending_confirmation",
-  "block_number": "pending_confirmation",
-  "interface": "Official LayerZero V2 OFT (@layerzerolabs/oft-evm)"
+  "deployment_timestamp": "2025-06-12T10:02:10.977Z",
+  "interface": "Separated: LayerZero OFT + ETH Wrapper with Peer Management"
 }

@@ -1,32 +1,41 @@
-// Official LayerZero V2 OFT Peer Connection Setup
-// Configure peer connections between deployed OFT contracts
+// LayerZero V2 OFT Peer Connection Setup for Separated Architecture
+// Configure peer connections between ChainFlipOFT contracts (for cross-chain transfers)
+// ETHWrapper contracts handle deposit/withdraw on each chain
 
 const { ethers } = require("hardhat");
 
-// Contract addresses (UPDATED WITH NEW DEPLOYED ADDRESSES - V2 WITH DEPOSIT/WITHDRAW)
-const DEPLOYED_CONTRACTS = {
-    optimismSepolia: "0x25409B7ee450493248fD003A759304FF7f748c53",
-    arbitrumSepolia: "0x75d2E18211390A8f2bdA96BB4Bd2D45ba77d5baD",
-    amoy: "0x9f57e36F79aD26421A6aE29AC0f2AD67430d8608",
-    cardona: "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9"
+// ChainFlipOFT Contract addresses (For LayerZero cross-chain transfers)
+const OFT_CONTRACTS = {
+    optimismSepolia: "0x2c97B9855D7096348aeAdc3e67f93B93828f91b3",
+    arbitrumSepolia: "0xd14651Bc6DFb5B3bf42027A715F37C47C061239c", 
+    amoy: "0xCC2d10e405096f40ea658C493625f15bE22A942F"
+    // cardona: Will be replaced with a better supported network
 };
 
-// Official LayerZero V2 Endpoint IDs
+// ETHWrapper Contract addresses (For ETH deposit/withdraw)
+const WRAPPER_CONTRACTS = {
+    optimismSepolia: "0x2AeF441a83347b9370511437D475bc028745FC5F",
+    arbitrumSepolia: "0x42F6D4BFD27330865C7F32De63301a27b6dD65FC",
+    amoy: "0x9E4B5C5EcD7f80064c7061Ef6871078702E2DC56"
+    // cardona: Will be replaced with a better supported network
+};
+
+// Official LayerZero V2 Endpoint IDs (Cardona removed due to poor support)
 const LAYERZERO_EIDS = {
     optimismSepolia: 40232,
     arbitrumSepolia: 40231,
-    amoy: 40267,
-    cardona: 40158
+    amoy: 40267
+    // cardona: 40158 - Removed due to LayerZero V2 compatibility issues
 };
 
-// Convert address to bytes32 (for LayerZero peer setting)
+// Convert address to bytes32 (for LayerZero peer setting) - Ethers v5 compatible
 function addressToBytes32(address) {
-    return ethers.zeroPadValue(address.toLowerCase(), 32);
+    return ethers.utils.hexZeroPad(address.toLowerCase(), 32);
 }
 
 async function main() {
-    console.log("🔗 Setting up Official LayerZero V2 OFT Peer Connections...");
-    console.log("✨ NEW CONTRACTS WITH DEPOSIT/WITHDRAW FUNCTIONALITY");
+    console.log("🔗 Setting up LayerZero V2 Peer Connections for Separated Architecture...");
+    console.log("✨ ChainFlipOFT (LayerZero) + ETHWrapper (Deposit/Withdraw)");
     
     const [deployer] = await ethers.getSigners();
     const currentNetwork = hre.network.name;
@@ -34,24 +43,27 @@ async function main() {
     console.log(`\n📊 Current Network: ${currentNetwork}`);
     console.log(`   Deployer: ${deployer.address}`);
     
-    // Get current contract address
-    const currentContractAddress = DEPLOYED_CONTRACTS[currentNetwork];
-    if (!currentContractAddress) {
-        console.log(`❌ No contract address configured for ${currentNetwork}`);
-        console.log("Please update DEPLOYED_CONTRACTS with your deployed addresses");
+    // Get current OFT contract address (for LayerZero peer connections)
+    const currentOftAddress = OFT_CONTRACTS[currentNetwork];
+    const currentWrapperAddress = WRAPPER_CONTRACTS[currentNetwork];
+    
+    if (!currentOftAddress) {
+        console.log(`❌ No OFT contract address configured for ${currentNetwork}`);
+        console.log("Please update OFT_CONTRACTS with your deployed addresses");
         return;
     }
     
-    console.log(`   Current Contract: ${currentContractAddress}`);
+    console.log(`   ChainFlipOFT: ${currentOftAddress}`);
+    console.log(`   ETHWrapper: ${currentWrapperAddress}`);
     
-    // Get contract instance
+    // Get OFT contract instance for peer connections
     let oft;
     try {
-        const RealChainFlipOFT = await ethers.getContractFactory("RealChainFlipOFT");
-        oft = RealChainFlipOFT.attach(currentContractAddress);
-        console.log(`   ✅ Connected to RealChainFlipOFT contract`);
+        const ChainFlipOFT = await ethers.getContractFactory("ChainFlipOFT");
+        oft = ChainFlipOFT.attach(currentOftAddress);
+        console.log(`   ✅ Connected to ChainFlipOFT contract`);
     } catch (error) {
-        console.log(`❌ Contract factory 'RealChainFlipOFT' not found: ${error.message}`);
+        console.log(`❌ Contract factory 'ChainFlipOFT' not found: ${error.message}`);
         console.log("Make sure your contract is compiled: npx hardhat compile");
         return;
     }
@@ -59,7 +71,7 @@ async function main() {
     // Set peers for all other networks
     console.log("\n🔗 Setting peer connections...");
     
-    for (const [networkName, contractAddress] of Object.entries(DEPLOYED_CONTRACTS)) {
+    for (const [networkName, contractAddress] of Object.entries(OFT_CONTRACTS)) {
         if (networkName === currentNetwork || !contractAddress) {
             continue; // Skip current network and empty addresses
         }
@@ -69,7 +81,7 @@ async function main() {
         
         console.log(`\n📡 Setting peer: ${networkName}`);
         console.log(`   EID: ${peerEid}`);
-        console.log(`   Address: ${contractAddress}`);
+        console.log(`   OFT Address: ${contractAddress}`);
         console.log(`   Bytes32: ${peerBytes32}`);
         
         try {
@@ -96,7 +108,7 @@ async function main() {
     
     // Verify all peer connections
     console.log("\n🔍 Verifying peer connections...");
-    for (const [networkName, contractAddress] of Object.entries(DEPLOYED_CONTRACTS)) {
+    for (const [networkName, contractAddress] of Object.entries(OFT_CONTRACTS)) {
         if (networkName === currentNetwork || !contractAddress) {
             continue;
         }
@@ -122,17 +134,18 @@ async function main() {
     console.log("Next: Run this script on other networks to set bidirectional connections");
     
     console.log("\n🔗 Commands to run on other networks:");
-    Object.keys(DEPLOYED_CONTRACTS).forEach(network => {
+    Object.keys(OFT_CONTRACTS).forEach(network => {
         if (network !== currentNetwork) {
             console.log(`   npx hardhat run scripts/set-peer-connections.js --network ${network}`);
         }
     });
     
-    console.log("\n✨ NEW FEATURES AVAILABLE:");
-    console.log("   • Users can deposit ETH → get cfWETH tokens");
-    console.log("   • Users can withdraw cfWETH → get ETH back");
-    console.log("   • No more minting restrictions!");
-    console.log("   • True decentralized ETH bridging");
+    console.log("\n✨ SEPARATED ARCHITECTURE FEATURES:");
+    console.log("   • ChainFlipOFT: Cross-chain transfers via LayerZero V2");
+    console.log("   • ETHWrapper: Deposit ETH → get cfWETH tokens");
+    console.log("   • ETHWrapper: Withdraw cfWETH → get ETH back");
+    console.log("   • Clean architecture with separated concerns");
+    console.log("   • True decentralized ETH bridging across 3 networks");
 }
 
 main()

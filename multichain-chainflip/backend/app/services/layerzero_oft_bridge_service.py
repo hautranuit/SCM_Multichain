@@ -180,36 +180,33 @@ class LayerZeroOFTBridgeService:
         # Multi-chain Web3 connections
         self.web3_connections = {}
         
-        # Official LayerZero V2 OFT Configuration (UPDATED WITH NEW DEPLOYED ADDRESSES - V2 WITH DEPOSIT/WITHDRAW)
+        # Separated Architecture Configuration: ChainFlipOFT + ETHWrapper (UPDATED ADDRESSES)
         self.oft_contracts = {
             "optimism_sepolia": {
-                "address": "0x25409B7ee450493248fD003A759304FF7f748c53",
+                "oft_address": "0x6478eAB366A16d96ae910fd16F6770DDa1845648",
+                "wrapper_address": "0x5428793EBd36693c993D6B3f8f2641C46121ec29",
                 "rpc": settings.optimism_sepolia_rpc,
                 "chain_id": 11155420,
                 "layerzero_eid": 40232,
-                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "arbitrum_sepolia": {
-                "address": "0x75d2E18211390A8f2bdA96BB4Bd2D45ba77d5baD",
+                "oft_address": "0x441C06d8548De93d64072F781e15E16A7c316b67",
+                "wrapper_address": "0x5952569276eA7f7eF95B910EAd0a67067A518188",
                 "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,
                 "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             },
             "polygon_amoy": {
-                "address": "0x9f57e36F79aD26421A6aE29AC0f2AD67430d8608",
+                "oft_address": "0x865F1Dac1d8E17f492FFce578095b49f3D604ad4",
+                "wrapper_address": "0xA471c665263928021AF5aa7852724b6f757005e1",
                 "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
                 "layerzero_eid": 40267,
-                "layerzero_endpoint": "0x6Ac7bdc07A0583A362F1497252872AE6c0A5F5B8",
-            },
-            "zkevm_cardona": {
-                "address": "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9",
-                "rpc": settings.zkevm_cardona_rpc,
-                "chain_id": 2442,
-                "layerzero_eid": 40158,
-                "layerzero_endpoint": "0x6098e96a28E02f27B1e6BD381f870F1C8Bd169d3",
+                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
             }
+            # Cardona removed due to LayerZero V2 compatibility issues
         }
         
         # Contract instances
