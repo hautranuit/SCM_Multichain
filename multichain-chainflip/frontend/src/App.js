@@ -18,6 +18,8 @@ import QRScanner from './components/QRScanner';
 import Analytics from './components/Analytics';
 import ConsensusManagement from './components/ConsensusManagement';
 import TokenBridge from './components/TokenBridge';
+import SupplyChainOrchestrator from './components/SupplyChainOrchestrator';
+import TransporterRegistration from './components/TransporterRegistration';
 
 // Auth Pages
 const LoginPage = () => {
@@ -203,6 +205,26 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/supply-chain" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <SupplyChainOrchestrator />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/transporter-registration" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <TransporterRegistration />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -238,6 +260,8 @@ const AppLayout = ({ children, backendStatus }) => {
 
     const otherItems = [
       { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
+      { id: 'supply-chain', name: 'Supply Chain', icon: '🏭', path: '/supply-chain' },
+      { id: 'transporter-registration', name: 'Transporter Registration', icon: '🚛', path: '/transporter-registration' },
       { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
       { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
       { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },

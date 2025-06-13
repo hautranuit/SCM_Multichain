@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -92,6 +92,7 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"]
 app.include_router(qr_routes.router, prefix="/api/qr", tags=["qr-codes"])
 app.include_router(token_bridge.router, prefix="/api/token-bridge", tags=["token-bridge"])
 app.include_router(layerzero_oft.router, prefix="/api/layerzero-oft", tags=["layerzero-oft"])
+app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["supply-chain"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)
@@ -312,7 +313,12 @@ async def root():
             "Network status monitoring",
             "Role-based access control",
             "Bridge connectivity testing",
-            "Comprehensive analytics"
+            "Comprehensive analytics",
+            "Supply chain orchestration",
+            "Hub-coordinated cross-chain purchases",
+            "Reputation-based transporter selection",
+            "Distance-based delivery assignment",
+            "Simplified consensus validation"
         ],
         "endpoints": {
             "auth": "/api/auth/*",
@@ -325,6 +331,7 @@ async def root():
             "qr_codes": "/api/qr/*",
             "token_bridge": "/api/token-bridge/*",
             "layerzero_oft": "/api/layerzero-oft/*",
+            "supply_chain": "/api/supply-chain/*",
             "network_status": "/api/network-status",
             "health": "/api/health"
         }
@@ -389,6 +396,14 @@ async def unified_startup_event():
             logger.info("✅ LayerZero OFT bridge service initialized")
         except Exception as e:
             logger.warning(f"LayerZero OFT bridge service initialization warning: {e}")
+        
+        # Initialize Supply Chain Orchestrator (new)
+        try:
+            from app.services.supply_chain_orchestrator import supply_chain_orchestrator
+            await supply_chain_orchestrator.initialize()
+            logger.info("✅ Supply Chain Orchestrator initialized")
+        except Exception as e:
+            logger.warning(f"Supply Chain Orchestrator initialization warning: {e}")
         
         # Initialize FL service (from app/main.py)
         try:
