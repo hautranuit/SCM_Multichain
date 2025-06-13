@@ -291,25 +291,21 @@ class LayerZeroOFTBridgeService:
         recipient_bytes32 = bytes.fromhex(recipient_clean)
         
         # LayerZero V2 extraOptions formats based on official documentation
+        # 🎉 WORKING FORMAT IDENTIFIED: correct_v2_format
         self.extraoptions_formats = [
-            ("empty", b''),  # Completely empty (most basic)
-            
-            # Correct LayerZero V2 ExecutorLzReceiveOption format
-            # Format: 0x0003 (type) + 0x0100 (subtype) + gas_limit(16bytes) + value(16bytes)
-            ("executor_lzreceive_200k", bytes.fromhex("0003010000000000000000000000000000000000000000000000000000000000030d400000000000000000000000000000000000000000000000000000000000000000")),
-            
-            # Alternative format: 0x0003 (type) + gas_limit(4bytes)
-            ("simple_executor_200k", bytes.fromhex("000300030d40")),
-            
-            # LayerZero V2 correct format from documentation 
+            # ✅ WORKING: LayerZero V2 correct format from documentation 
             # 0x0003 (ExecutorLzReceiveOption) + 0x0100 + gas_limit + value
             ("correct_v2_format", bytes.fromhex("0003010011010000000000000000000000000000ea60")),
             
-            # Very minimal format
+            ("empty", b''),  # Completely empty (most basic)
+            
+            # Alternative formats for fallback
+            ("executor_lzreceive_200k", bytes.fromhex("0003010000000000000000000000000000000000000000000000000000000000030d400000000000000000000000000000000000000000000000000000000000000000")),
+            ("simple_executor_200k", bytes.fromhex("000300030d40")),
             ("minimal_gas", bytes.fromhex("00030001")),
         ]
         
-        # Start with the first format (empty)
+        # Start with the working format (correct_v2_format)
         extra_options = self.extraoptions_formats[0][1]
         format_name = self.extraoptions_formats[0][0]
         
@@ -795,8 +791,21 @@ class LayerZeroOFTBridgeService:
             if not oft_result["success"]:
                 return {"success": False, "error": f"Failed to execute OFT transfer: {oft_result['error']}"}
             
-            # STEP 3: Record transfer in database
-            print(f"\n📊 === STEP 3: RECORD TRANSFER ===")
+            # STEP 3: Auto-convert cfWETH to ETH for recipient
+            print(f"\n🔄 === STEP 3: AUTO-CONVERT cfWETH TO ETH ===")
+            conversion_result = await self._auto_convert_cfweth_to_eth(
+                to_chain, to_address, amount_eth
+            )
+            
+            if conversion_result["success"]:
+                print(f"✅ Auto-conversion successful: {amount_eth} cfWETH → ETH")
+                print(f"🔗 Conversion TX: {conversion_result.get('transaction_hash')}")
+            else:
+                print(f"⚠️ Auto-conversion failed: {conversion_result.get('error')}")
+                print(f"💡 User can manually convert cfWETH to ETH later")
+
+            # STEP 4: Record transfer in database
+            print(f"\n📊 === STEP 4: RECORD TRANSFER ===")
             transfer_record = {
                 "transfer_id": escrow_id,
                 "from_chain": from_chain,
@@ -813,7 +822,9 @@ class LayerZeroOFTBridgeService:
                 "timestamp": time.time(),
                 "block_number_source": oft_result.get("block_number"),
                 "gas_used": oft_result.get("gas_used"),
-                "interface_used": "corrected_oft_wrapper_architecture"
+                "interface_used": "corrected_oft_wrapper_architecture",
+                "auto_conversion": conversion_result.get("success", False),
+                "conversion_tx": conversion_result.get("transaction_hash")
             }
             
             # Convert Decimal objects for MongoDB
@@ -840,8 +851,10 @@ class LayerZeroOFTBridgeService:
                 "transaction_hash": oft_result.get("transaction_hash"),
                 "native_fee_paid": oft_result.get("native_fee_paid"),
                 "layerzero_guid": oft_result.get("layerzero_guid"),
-                "message": "LayerZero OFT V2 transfer completed (corrected architecture)",
-                "interface_used": "corrected_oft_wrapper_architecture"
+                "message": "LayerZero OFT V2 transfer completed with auto-conversion to ETH",
+                "interface_used": "corrected_oft_wrapper_architecture",
+                "auto_conversion": conversion_result.get("success", False),
+                "conversion_tx": conversion_result.get("transaction_hash")
             }
             
         except Exception as e:
@@ -894,15 +907,26 @@ class LayerZeroOFTBridgeService:
                 return {"success": False, "error": f"Cannot verify peer connections: {peer_error}"}
             
             # Check user token balance
+            # Check user token balance and ETH balance
             user_balance = oft_contract.functions.balanceOf(user_account.address).call()
             user_balance_eth = float(Web3.from_wei(user_balance, 'ether'))
             transfer_amount_eth = float(Web3.from_wei(amount_wei, 'ether'))
             
-            print(f"\n💰 User balance: {user_balance_eth} cfWETH")
-            print(f"💸 Transfer amount: {transfer_amount_eth} cfWETH")
+            # Check ETH balance for gas fees
+            eth_balance = web3.eth.get_balance(user_account.address)
+            eth_balance_eth = float(Web3.from_wei(eth_balance, 'ether'))
+            
+            print(f"\n💰 Balance Check:")
+            print(f"   cfWETH balance: {user_balance_eth} cfWETH")
+            print(f"   ETH balance: {eth_balance_eth} ETH")
+            print(f"   Transfer amount: {transfer_amount_eth} cfWETH")
+            print(f"   LayerZero fee: {Web3.from_wei(fixed_fee_wei, 'ether')} ETH")
             
             if user_balance < amount_wei:
-                return {"success": False, "error": f"Insufficient balance. Have: {user_balance_eth}, Need: {transfer_amount_eth}"}
+                return {"success": False, "error": f"Insufficient cfWETH balance. Have: {user_balance_eth}, Need: {transfer_amount_eth}"}
+            
+            if eth_balance < fixed_fee_wei:
+                return {"success": False, "error": f"Insufficient ETH for LayerZero fee. Have: {eth_balance_eth}, Need: {Web3.from_wei(fixed_fee_wei, 'ether')} ETH"}
             
             # Use auto-format detection send param creation
             print(f"\n🔧 === CREATING SEND PARAM WITH AUTO-FORMAT DETECTION ===")
@@ -910,10 +934,9 @@ class LayerZeroOFTBridgeService:
             
             # Auto-detect working extraOptions format
             print(f"\n💰 === AUTO-DETECTING WORKING EXTRAOPTIONS FORMAT ===")
-            messaging_fee = (fixed_fee_wei, 0)  # Default fee
             
             working_send_param, working_fee, working_format = self._try_alternative_extraoptions(
-                oft_contract, send_param, messaging_fee, user_account.address, fixed_fee_wei
+                oft_contract, send_param, (fixed_fee_wei, 0), user_account.address, fixed_fee_wei
             )
             
             if working_send_param is None:
@@ -927,12 +950,16 @@ class LayerZeroOFTBridgeService:
             
             print(f"🎉 Found working format: {working_format}")
             send_param = working_send_param
-            messaging_fee = working_fee
             
-            # Update fee if needed
-            if working_fee[0] > fixed_fee_wei:
-                fixed_fee_wei = working_fee[0]
-                print(f"💰 Updated fee to: {Web3.from_wei(fixed_fee_wei, 'ether')} ETH")
+            # Use the exact fee from quoteSend
+            actual_fee_wei = working_fee[0]
+            print(f"💰 Using actual quoteSend fee: {Web3.from_wei(actual_fee_wei, 'ether')} ETH")
+            
+            # Check ETH balance against actual fee
+            if eth_balance < actual_fee_wei:
+                return {"success": False, "error": f"Insufficient ETH for actual LayerZero fee. Have: {eth_balance_eth}, Need: {Web3.from_wei(actual_fee_wei, 'ether')} ETH"}
+            
+            messaging_fee = working_fee
             
             # Execute the transaction with working configuration
             print(f"\n📤 === EXECUTING TRANSACTION WITH {working_format.upper()} FORMAT ===")
@@ -944,15 +971,15 @@ class LayerZeroOFTBridgeService:
                 user_account.address  # refundAddress
             ).build_transaction({
                 'from': user_account.address,
-                'value': fixed_fee_wei,
-                'gas': 1000000,  # Increased gas for DVN operations
+                'value': actual_fee_wei,  # Use exact fee from quoteSend
+                'gas': 2000000,  # Increased gas for complex LayerZero operations
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': web3.eth.chain_id
             })
             
-            print(f"💰 Auto-detected transaction details:")
-            print(f"   Value: {Web3.from_wei(transaction['value'], 'ether')} ETH")
+            print(f"💰 Transaction details:")
+            print(f"   Value (LayerZero fee): {Web3.from_wei(transaction['value'], 'ether')} ETH")
             print(f"   Gas: {transaction['gas']}")
             print(f"   Format: {working_format}")
             
@@ -962,10 +989,17 @@ class LayerZeroOFTBridgeService:
             tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             print(f"📤 {working_format} transaction sent: {tx_hash.hex()}")
             
-            # Wait for receipt
+            # Wait for receipt with enhanced debugging
             print(f"⏳ Waiting for {working_format} transaction confirmation...")
             try:
                 receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+                
+                print(f"📋 Transaction Receipt Details:")
+                print(f"   Status: {receipt.status}")
+                print(f"   Gas Used: {receipt.gasUsed}")
+                print(f"   Gas Limit: {transaction['gas']}")
+                print(f"   Block Number: {receipt.blockNumber}")
+                print(f"   Logs Count: {len(receipt.logs)}")
                 
                 if receipt.status == 1:
                     print(f"✅ {working_format} OFT send successful!")
@@ -975,14 +1009,26 @@ class LayerZeroOFTBridgeService:
                         "transaction_hash": tx_hash.hex(),
                         "gas_used": receipt.gasUsed,
                         "block_number": receipt.blockNumber,
-                        "native_fee_paid": float(Web3.from_wei(fixed_fee_wei, 'ether')),
+                        "native_fee_paid": float(Web3.from_wei(actual_fee_wei, 'ether')),
                         "destination_eid": target_config['layerzero_eid'],
                         "interface_used": "auto_detected_extraoptions",
                         "extraoptions_format": working_format,
                         "resolution": "extraOptions format auto-detection successful"
                     }
                 else:
-                    return {"success": False, "error": f"{working_format} transaction failed - Receipt status: {receipt.status}"}
+                    print(f"❌ {working_format} transaction REVERTED!")
+                    print(f"   Potential causes:")
+                    print(f"   1. Out of gas (used: {receipt.gasUsed}/{transaction['gas']})")
+                    print(f"   2. Insufficient balance or allowance")
+                    print(f"   3. Peer connection mismatch")
+                    print(f"   4. Insufficient LayerZero fee")
+                    
+                    # Check if transaction ran out of gas
+                    gas_used_percentage = (receipt.gasUsed / transaction['gas']) * 100
+                    if gas_used_percentage > 90:
+                        return {"success": False, "error": f"{working_format} transaction failed - Likely out of gas (used {gas_used_percentage:.1f}% of limit)"}
+                    else:
+                        return {"success": False, "error": f"{working_format} transaction failed - Receipt status: {receipt.status}. Gas used: {receipt.gasUsed}/{transaction['gas']} ({gas_used_percentage:.1f}%)"}
                     
             except Exception as receipt_error:
                 return {"success": False, "error": f"{working_format} transaction receipt error: {receipt_error}"}
@@ -992,6 +1038,186 @@ class LayerZeroOFTBridgeService:
             import traceback
             print(f"🔍 Full error traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
+
+    def _get_revert_reason(self, web3: Web3, tx_hash: str) -> str:
+        """Get the revert reason for a failed transaction"""
+        try:
+            tx = web3.eth.get_transaction(tx_hash)
+            
+            # Try to call the transaction to get revert reason
+            try:
+                web3.eth.call(tx, tx['blockNumber'])
+                return "Transaction succeeded when replayed"
+            except Exception as revert_error:
+                error_msg = str(revert_error)
+                if "revert" in error_msg.lower():
+                    return f"Revert reason: {error_msg}"
+                return f"Call failed: {error_msg}"
+        except Exception as e:
+            return f"Could not determine revert reason: {e}"
+
+    async def _auto_convert_cfweth_to_eth(
+        self,
+        chain: str,
+        recipient_address: str,
+        amount_eth: float
+    ) -> Dict[str, Any]:
+        """
+        Automatically convert cfWETH to ETH for the recipient after successful bridge
+        """
+        try:
+            print(f"🔄 Auto-converting {amount_eth} cfWETH → ETH for {recipient_address}")
+            
+            # Get Web3 and wrapper contract
+            web3 = self.web3_connections.get(chain)
+            wrapper_contract = self.wrapper_instances.get(chain)
+            
+            if not web3 or not wrapper_contract:
+                return {"success": False, "error": f"Chain {chain} not available or wrapper not configured"}
+            
+            # Check if recipient has cfWETH balance
+            oft_contract = self.oft_instances.get(chain)
+            if not oft_contract:
+                return {"success": False, "error": f"OFT contract not available for {chain}"}
+            
+            cfweth_balance = oft_contract.functions.balanceOf(recipient_address).call()
+            cfweth_balance_eth = float(Web3.from_wei(cfweth_balance, 'ether'))
+            
+            print(f"💰 Recipient cfWETH balance: {cfweth_balance_eth} cfWETH")
+            
+            if cfweth_balance_eth < amount_eth:
+                return {"success": False, "error": f"Insufficient cfWETH balance for conversion. Have: {cfweth_balance_eth}, Need: {amount_eth}"}
+            
+            # Use deployer account to perform conversion on behalf of recipient
+            amount_wei = Web3.to_wei(amount_eth, 'ether')
+            
+            # First, transfer cfWETH from recipient to deployer
+            print(f"📤 Step 1: Transfer cfWETH from recipient to deployer for conversion")
+            
+            # Get recipient account info for signing
+            from app.services.multi_account_manager import address_key_manager
+            recipient_account_info = address_key_manager.get_account_info_for_address(recipient_address)
+            
+            if not recipient_account_info:
+                print(f"⚠️ No private key for recipient. Using deployer to mint and convert directly.")
+                # Alternative: Deployer mints equivalent ETH directly to recipient
+                return await self._deployer_direct_eth_transfer(web3, recipient_address, amount_eth)
+            
+            recipient_account = recipient_account_info['account']
+            
+            # Transfer cfWETH from recipient to deployer
+            nonce = web3.eth.get_transaction_count(recipient_account.address)
+            
+            transfer_tx = oft_contract.functions.transfer(
+                self.current_account.address,  # deployer
+                amount_wei
+            ).build_transaction({
+                'from': recipient_account.address,
+                'gas': 100000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            })
+            
+            signed_transfer = web3.eth.account.sign_transaction(transfer_tx, recipient_account.key)
+            transfer_hash = web3.eth.send_raw_transaction(signed_transfer.raw_transaction)
+            transfer_receipt = web3.eth.wait_for_transaction_receipt(transfer_hash, timeout=300)
+            
+            if transfer_receipt.status != 1:
+                return {"success": False, "error": "Failed to transfer cfWETH to deployer for conversion"}
+            
+            print(f"✅ cfWETH transferred to deployer: {transfer_hash.hex()}")
+            
+            # Step 2: Deployer withdraws cfWETH to get ETH
+            print(f"💰 Step 2: Deployer withdraws cfWETH to ETH")
+            
+            deployer_nonce = web3.eth.get_transaction_count(self.current_account.address)
+            
+            withdraw_tx = wrapper_contract.functions.withdraw(amount_wei).build_transaction({
+                'from': self.current_account.address,
+                'gas': 150000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': deployer_nonce,
+                'chainId': web3.eth.chain_id
+            })
+            
+            signed_withdraw = web3.eth.account.sign_transaction(withdraw_tx, self.current_account.key)
+            withdraw_hash = web3.eth.send_raw_transaction(signed_withdraw.raw_transaction)
+            withdraw_receipt = web3.eth.wait_for_transaction_receipt(withdraw_hash, timeout=300)
+            
+            if withdraw_receipt.status != 1:
+                return {"success": False, "error": "Failed to withdraw cfWETH to ETH"}
+            
+            print(f"✅ cfWETH withdrawn to ETH: {withdraw_hash.hex()}")
+            
+            # Step 3: Send ETH to recipient
+            print(f"📤 Step 3: Send ETH to recipient")
+            
+            final_nonce = web3.eth.get_transaction_count(self.current_account.address)
+            
+            eth_transfer_tx = {
+                'to': recipient_address,
+                'value': amount_wei,
+                'gas': 21000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': final_nonce,
+                'chainId': web3.eth.chain_id
+            }
+            
+            signed_eth_transfer = web3.eth.account.sign_transaction(eth_transfer_tx, self.current_account.key)
+            eth_hash = web3.eth.send_raw_transaction(signed_eth_transfer.raw_transaction)
+            eth_receipt = web3.eth.wait_for_transaction_receipt(eth_hash, timeout=300)
+            
+            if eth_receipt.status == 1:
+                print(f"✅ Auto-conversion complete: {amount_eth} ETH sent to {recipient_address}")
+                return {
+                    "success": True,
+                    "transaction_hash": eth_hash.hex(),
+                    "amount_converted": amount_eth,
+                    "conversion_steps": {
+                        "cfweth_transfer": transfer_hash.hex(),
+                        "cfweth_withdraw": withdraw_hash.hex(), 
+                        "eth_transfer": eth_hash.hex()
+                    }
+                }
+            else:
+                return {"success": False, "error": "Failed to send ETH to recipient"}
+                
+        except Exception as e:
+            print(f"❌ Auto-conversion error: {e}")
+            return {"success": False, "error": f"Auto-conversion failed: {str(e)}"}
+
+    async def _deployer_direct_eth_transfer(self, web3: Web3, recipient_address: str, amount_eth: float) -> Dict[str, Any]:
+        """Fallback: Deployer sends ETH directly to recipient"""
+        try:
+            amount_wei = Web3.to_wei(amount_eth, 'ether')
+            nonce = web3.eth.get_transaction_count(self.current_account.address)
+            
+            tx = {
+                'to': recipient_address,
+                'value': amount_wei,
+                'gas': 21000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            }
+            
+            signed_tx = web3.eth.account.sign_transaction(tx, self.current_account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "amount_converted": amount_eth,
+                    "method": "direct_eth_transfer"
+                }
+            else:
+                return {"success": False, "error": "Direct ETH transfer failed"}
+                
+        except Exception as e:
+            return {"success": False, "error": f"Direct ETH transfer error: {str(e)}"}
 
     async def _execute_oft_send(
         self,
