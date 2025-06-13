@@ -1,0 +1,12 @@
+{
+  "name": "layerzero-setup",
+  "version": "1.0.0",
+  "description": "LayerZero Infrastructure Setup Script",
+  "main": "setup_layerzero_infrastructure.js",
+  "dependencies": {
+    "ethers": "^6.14.3"
+  },
+  "scripts": {
+    "setup": "node setup_layerzero_infrastructure.js"
+  }
+}

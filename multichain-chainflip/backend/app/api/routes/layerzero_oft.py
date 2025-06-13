@@ -283,30 +283,31 @@ async def test_cross_chain_transfer_arb_base():
         print(f"❌ API: Arbitrum → Base transfer error: {e}")
         raise HTTPException(status_code=500, detail=f"Arbitrum → Base transfer error: {str(e)}")
 
-@router.post("/test-transfer-base-arb")
-async def test_cross_chain_transfer_base_arb():
+@router.post("/test-enhanced-infrastructure")
+async def test_enhanced_infrastructure_transfer():
     """
-    Test cross-chain transfer: Base Sepolia → Arbitrum Sepolia
-    Reverse direction test
+    Test cross-chain transfer with enhanced DVN/Executor infrastructure
+    Uses the properly configured LayerZero V2 infrastructure
     """
     try:
-        print(f"🧪 API: Testing Base → Arbitrum transfer")
+        print(f"🚀 API: Testing enhanced infrastructure transfer")
         
-        # Use Base to Arbitrum pathway  
+        # Test with enhanced infrastructure
         test_request = {
-            "from_chain": "base_sepolia",
-            "to_chain": "arbitrum_sepolia", 
-            "from_address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",  # Same test address
-            "to_address": "0x28918ecf013F32fAf45e05d62B4D9b207FCae784",    # Same target
+            "from_chain": "arbitrum_sepolia",
+            "to_chain": "base_sepolia",
+            "from_address": "0xc6A050a538a9E857B4DCb4A33436280c202F6941",
+            "to_address": "0x28918ecf013F32fAf45e05d62B4D9b207FCae784",
             "amount_eth": 0.001,
-            "escrow_id": f"base-arb-test-{int(time.time())}"
+            "escrow_id": f"enhanced-infra-{int(time.time())}"
         }
         
         print(f"📤 From: {test_request['from_chain']} ({test_request['from_address']})")
         print(f"📥 To: {test_request['to_chain']} ({test_request['to_address']})")
         print(f"💰 Amount: {test_request['amount_eth']} ETH")
+        print(f"🔧 Using: Enhanced DVN/Executor infrastructure")
         
-        # Execute the transfer
+        # Execute with enhanced infrastructure
         result = await layerzero_oft_bridge_service.transfer_eth_layerzero_oft(
             from_chain=test_request["from_chain"],
             to_chain=test_request["to_chain"],
@@ -317,17 +318,66 @@ async def test_cross_chain_transfer_base_arb():
         )
         
         if result["success"]:
-            print(f"✅ API: Base → Arbitrum transfer successful!")
+            print(f"✅ API: Enhanced infrastructure transfer successful!")
             return {
                 "success": True,
-                "message": "Base → Arbitrum cross-chain transfer completed successfully",
+                "message": "Enhanced infrastructure transfer completed successfully",
+                "infrastructure": "Enhanced DVN/Executor configuration",
                 "test_parameters": test_request,
                 "result": result
             }
         else:
-            print(f"❌ API: Base → Arbitrum transfer failed: {result.get('error')}")
+            print(f"❌ API: Enhanced infrastructure transfer failed: {result.get('error')}")
             raise HTTPException(status_code=400, detail=result.get("error"))
             
     except Exception as e:
-        print(f"❌ API: Base → Arbitrum transfer error: {e}")
-        raise HTTPException(status_code=500, detail=f"Base → Arbitrum transfer error: {str(e)}")
+        print(f"❌ API: Enhanced infrastructure transfer error: {e}")
+        raise HTTPException(status_code=500, detail=f"Enhanced infrastructure transfer error: {str(e)}")
+
+@router.get("/infrastructure-status")
+async def get_infrastructure_status():
+    """
+    Get detailed LayerZero infrastructure status for all networks
+    """
+    try:
+        # Get infrastructure status from the service
+        networks = []
+        
+        for chain_name, config in layerzero_oft_bridge_service.oft_contracts.items():
+            network_info = {
+                "chain": chain_name,
+                "chain_id": config["chain_id"],
+                "layerzero_eid": config["layerzero_eid"],
+                "oft_contract": config.get("oft_address"),
+                "infrastructure": {
+                    "endpoint": config.get("endpoint"),
+                    "send_lib": config.get("send_lib"),
+                    "receive_lib": config.get("receive_lib"),
+                    "executor": config.get("executor"),
+                    "dvn": config.get("dvn")
+                },
+                "rpc_url": config.get("rpc"),
+                "status": "configured" if all([
+                    config.get("send_lib"),
+                    config.get("receive_lib"),
+                    config.get("executor"),
+                    config.get("dvn")
+                ]) else "partial_config"
+            }
+            networks.append(network_info)
+        
+        return {
+            "success": True,
+            "message": "LayerZero infrastructure status",
+            "infrastructure_version": "Enhanced DVN/Executor Configuration",
+            "setup_required": "Run setup_layerzero_infrastructure.js if transfers fail",
+            "networks": networks,
+            "test_endpoints": [
+                "/test-enhanced-infrastructure - Test with enhanced config",
+                "/test-transfer-arb-base - Alternative pathway test"
+            ]
+        }
+        
+    except Exception as e:
+        print(f"❌ API: Infrastructure status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Infrastructure status error: {str(e)}")

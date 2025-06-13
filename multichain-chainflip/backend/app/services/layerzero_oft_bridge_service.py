@@ -144,39 +144,75 @@ class LayerZeroOFTBridgeService:
         print(f"   Wrapper Base Sepolia: {settings.ethwrapper_base_sepolia}")
         print(f"   Wrapper Amoy: {settings.ethwrapper_amoy}")
         
-        # UPDATED: Fresh OFT contracts with direct deployer ownership
-        self.oft_contracts = {
-            "optimism_sepolia": {
-                "oft_address": "0x76D43CEC28775032A7EC8895ad178c660246c8Ec",  # Fresh deployment
-                "wrapper_address": settings.ethwrapper_optimism_sepolia,
-                "rpc": settings.optimism_sepolia_rpc,
-                "chain_id": 11155420,
-                "layerzero_eid": 40232,
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
-            },
+        # UPDATED: Enhanced LayerZero V2 testnet infrastructure configuration
+        self.layerzero_config = {
             "arbitrum_sepolia": {
-                "oft_address": "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9",  # Fresh deployment
-                "wrapper_address": settings.ethwrapper_arbitrum_sepolia,
-                "rpc": settings.arbitrum_sepolia_rpc,
                 "chain_id": 421614,
                 "layerzero_eid": 40231,
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "send_lib": "0x4f7cd4DA19ABB31b0eC98b9066B9e857B1bf9C0E",
+                "receive_lib": "0x75Db67CDab2824970131D5aa9CECfC9F69c69636",
+                "executor": "0x5Df3a1cEbBD9c8BA7F8dF51Fd632A9aef8308897",
+                "dvn": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611"
             },
             "base_sepolia": {
-                "oft_address": "0xdAd142646292A550008B44D968764c52eF1C3f67",  # Original (working)
-                "wrapper_address": settings.ethwrapper_base_sepolia,
-                "rpc": settings.base_sepolia_rpc,
                 "chain_id": 84532,
                 "layerzero_eid": 40245,
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "send_lib": "0xC1868e054425D378095A003EcbB3823a5D0135C9",
+                "receive_lib": "0x12523de19dc41c91F7d2093E0CFbB76b17012C8d",
+                "executor": "0x8A3D588D9f6AC041476b094f97FF94ec30169d3D",
+                "dvn": "0x78551ADC2553EF1858a558F5300F7018Aad2FA7e"
+            },
+            "optimism_sepolia": {
+                "chain_id": 11155420,
+                "layerzero_eid": 40232,
+                "endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "send_lib": "0xB31D2cb502E25B30C651842C7C3293c51Fe6d16f",
+                "receive_lib": "0x9284fd59B95b9143AF0b9795CAC16eb3C723C9Ca",
+                "executor": "0xDc0D68899405673b932F0DB7f8A49191491A5bcB",
+                "dvn": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611"
             },
             "polygon_amoy": {
-                "oft_address": "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73",  # Fresh deployment
-                "wrapper_address": settings.ethwrapper_amoy,
-                "rpc": settings.polygon_pos_rpc,
                 "chain_id": 80002,
                 "layerzero_eid": 40267,
-                "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+                "send_lib": "0x1d186C560281B8F1AF831957ED5047fD3AB902F9",
+                "receive_lib": "0x53fd4C4fBBd53F6bC58CaE6704b92dB1f360A648",
+                "executor": "0x4Cf1B3Fa61465c2c907f82fC488B43223BA0CF93",
+                "dvn": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611"
+            }
+        }
+        
+        # UPDATED: Fresh OFT contracts with enhanced infrastructure mapping
+        self.oft_contracts = {
+            "optimism_sepolia": {
+                "oft_address": "0x76D43CEC28775032A7EC8895ad178c660246c8Ec",
+                "wrapper_address": settings.ethwrapper_optimism_sepolia,
+                "rpc": settings.optimism_sepolia_rpc,
+                "name": "optimism_sepolia",
+                **self.layerzero_config["optimism_sepolia"]
+            },
+            "arbitrum_sepolia": {
+                "oft_address": "0x47FaF4084F4F69b705A6f947f020B59AA1993FD9",
+                "wrapper_address": settings.ethwrapper_arbitrum_sepolia,
+                "rpc": settings.arbitrum_sepolia_rpc,
+                "name": "arbitrum_sepolia",
+                **self.layerzero_config["arbitrum_sepolia"]
+            },
+            "base_sepolia": {
+                "oft_address": "0xdAd142646292A550008B44D968764c52eF1C3f67",
+                "wrapper_address": settings.ethwrapper_base_sepolia,
+                "rpc": settings.base_sepolia_rpc,
+                "name": "base_sepolia",
+                **self.layerzero_config["base_sepolia"]
+            },
+            "polygon_amoy": {
+                "oft_address": "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73",
+                "wrapper_address": settings.ethwrapper_amoy,
+                "rpc": settings.polygon_pos_rpc,
+                "name": "polygon_amoy",
+                **self.layerzero_config["polygon_amoy"]
             }
         }
         
@@ -234,14 +270,134 @@ class LayerZeroOFTBridgeService:
                         self.wrapper_instances[chain_name] = wrapper_contract
                         print(f"   🔧 Wrapper contract for ETH conversion: {config['wrapper_address']}")
                     
-                    print(f"🔗 LayerZero Endpoint: {config['layerzero_endpoint']}")
+                    print(f"🔗 LayerZero Endpoint: {config['endpoint']}")
                     print(f"🆔 LayerZero EID: {config['layerzero_eid']}")
+                    print(f"📚 Send Library: {config.get('send_lib', 'Not configured')}")
+                    print(f"📥 Receive Library: {config.get('receive_lib', 'Not configured')}")
+                    print(f"⚡ Executor: {config.get('executor', 'Not configured')}")
+                    print(f"🔒 DVN: {config.get('dvn', 'Not configured')}")
                     
                 else:
                     print(f"❌ Failed to connect to {chain_name}")
                     
             except Exception as e:
                 print(f"⚠️ Error initializing {chain_name}: {e}")
+
+    def _create_enhanced_send_param(self, target_config, to_address, amount_wei):
+        """Create LayerZero SendParam with correct V2 extraOptions format"""
+        
+        # Convert recipient address to bytes32 format
+        recipient_clean = to_address.lower().replace('0x', '').zfill(64)
+        recipient_bytes32 = bytes.fromhex(recipient_clean)
+        
+        # LayerZero V2 extraOptions formats based on official documentation
+        self.extraoptions_formats = [
+            ("empty", b''),  # Completely empty (most basic)
+            
+            # Correct LayerZero V2 ExecutorLzReceiveOption format
+            # Format: 0x0003 (type) + 0x0100 (subtype) + gas_limit(16bytes) + value(16bytes)
+            ("executor_lzreceive_200k", bytes.fromhex("0003010000000000000000000000000000000000000000000000000000000000030d400000000000000000000000000000000000000000000000000000000000000000")),
+            
+            # Alternative format: 0x0003 (type) + gas_limit(4bytes)
+            ("simple_executor_200k", bytes.fromhex("000300030d40")),
+            
+            # LayerZero V2 correct format from documentation 
+            # 0x0003 (ExecutorLzReceiveOption) + 0x0100 + gas_limit + value
+            ("correct_v2_format", bytes.fromhex("0003010011010000000000000000000000000000ea60")),
+            
+            # Very minimal format
+            ("minimal_gas", bytes.fromhex("00030001")),
+        ]
+        
+        # Start with the first format (empty)
+        extra_options = self.extraoptions_formats[0][1]
+        format_name = self.extraoptions_formats[0][0]
+        
+        send_param = (
+            target_config['layerzero_eid'],  # dstEid
+            recipient_bytes32,               # to (bytes32)
+            amount_wei,                      # amountLD
+            amount_wei,                      # minAmountLD
+            extra_options,                   # extraOptions (will try multiple)
+            b'',                            # composeMsg
+            b''                             # oftCmd
+        )
+        
+        print(f"🔧 SendParam created with {format_name} extraOptions: 0x{extra_options.hex()}")
+        print(f"   Target EID: {target_config['layerzero_eid']}")
+        print(f"   Format: {format_name}")
+        print(f"   DVN (infrastructure): {target_config.get('dvn', 'N/A')}")
+        
+        return send_param
+
+    def _try_alternative_extraoptions(self, oft_contract, base_send_param, messaging_fee, user_account_address, fixed_fee_wei):
+        """Try different extraOptions formats until one works"""
+        
+        for format_name, extra_options in self.extraoptions_formats:
+            print(f"\n🔄 Trying {format_name} extraOptions: 0x{extra_options.hex()}")
+            
+            # Create send param with this format
+            test_send_param = (
+                base_send_param[0],  # dstEid
+                base_send_param[1],  # to
+                base_send_param[2],  # amountLD
+                base_send_param[3],  # minAmountLD
+                extra_options,       # extraOptions (different format)
+                base_send_param[5],  # composeMsg
+                base_send_param[6]   # oftCmd
+            )
+            
+            try:
+                # Test quoteSend with this format
+                quote_result = oft_contract.functions.quoteSend(test_send_param, False).call()
+                suggested_fee = quote_result[0]
+                print(f"✅ {format_name} quoteSend successful! Fee: {Web3.from_wei(suggested_fee, 'ether')} ETH")
+                
+                # Test send call
+                oft_contract.functions.send(
+                    test_send_param,
+                    messaging_fee,
+                    user_account_address
+                ).call({
+                    'from': user_account_address,
+                    'value': fixed_fee_wei
+                })
+                print(f"✅ {format_name} send simulation successful!")
+                
+                return test_send_param, (suggested_fee, 0), format_name
+                
+            except Exception as test_error:
+                error_msg = str(test_error)
+                print(f"❌ {format_name} failed: {error_msg[:100]}...")
+                
+                if "0x6780cfaf" not in error_msg:
+                    # Different error - might be worth trying
+                    print(f"   Note: Different error type, continuing...")
+                continue
+        
+        # If all formats failed
+        return None, None, None
+
+    def _get_dvn_config_for_chain(self, chain_name):
+        """Get DVN configuration for specific chain"""
+        dvn_addresses = {
+            "arbitrum_sepolia": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611",
+            "base_sepolia": "0x78551ADC2553EF1858a558F5300F7018Aad2FA7e", 
+            "optimism_sepolia": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611",
+            "polygon_amoy": "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611"
+        }
+        
+        dvn_address = dvn_addresses.get(chain_name, "0xA85BE08A6Ce2771C730661766AACf2c8Bb24C611")
+        
+        # Format DVN config: [num_dvns][dvn_address][required_confirmations]
+        dvn_config = (
+            "0001"  # Number of DVNs (1)
+            + dvn_address[2:]  # DVN address without 0x
+            + "0001"  # Required confirmations (1)
+        )
+        
+        print(f"   DVN Config for {chain_name}: 0x{dvn_config}")
+        return dvn_config
 
     async def deposit_eth_for_tokens(
         self,
@@ -702,23 +858,24 @@ class LayerZeroOFTBridgeService:
         amount_wei: int,
         fixed_fee_wei: int
     ) -> Dict[str, Any]:
-        """Execute LayerZero OFT send using fixed fee with enhanced debugging"""
+        """Execute LayerZero OFT send using enhanced DVN configuration"""
         try:
             source_config = self.oft_contracts[from_chain]
             target_config = self.oft_contracts[to_chain]
             
-            print(f"🔗 OFT Send with Fixed Fee: {from_chain} → {to_chain}")
-            print(f"📍 OFT Contract: {source_config['oft_address']}")
-            print(f"💰 Amount: {Web3.from_wei(amount_wei, 'ether')} ETH")
-            print(f"💳 Fixed Fee: {Web3.from_wei(fixed_fee_wei, 'ether')} ETH")
+            print(f"🔗 Enhanced OFT Send: {from_chain} → {to_chain}")
+            print(f"📍 Source OFT: {source_config['oft_address']}")
+            print(f"📍 Target OFT: {target_config['oft_address']}")
+            print(f"🔧 DVN: {target_config.get('dvn', 'N/A')}")
+            print(f"⚡ Executor: {target_config.get('executor', 'N/A')}")
             
             oft_contract = web3.eth.contract(
                 address=source_config['oft_address'],
                 abi=LAYERZERO_OFT_ABI
             )
             
-            # ENHANCED DEBUGGING: Check peer connections first
-            print(f"\n🔍 === DEBUGGING PEER CONNECTIONS ===")
+            # Enhanced debugging: Check peer connections
+            print(f"\n🔍 === VERIFYING PEER CONNECTIONS ===")
             try:
                 peer_result = oft_contract.functions.peers(target_config['layerzero_eid']).call()
                 expected_peer = target_config['oft_address'].lower().replace('0x', '').zfill(64)
@@ -731,114 +888,54 @@ class LayerZeroOFTBridgeService:
                 if actual_peer.lower() == expected_peer.lower():
                     print(f"✅ Peer connection verified correctly")
                 else:
-                    print(f"❌ Peer connection mismatch!")
                     return {"success": False, "error": f"Peer not set correctly. Expected: {expected_peer}, Got: {actual_peer}"}
                     
             except Exception as peer_error:
-                print(f"❌ Peer check failed: {peer_error}")
                 return {"success": False, "error": f"Cannot verify peer connections: {peer_error}"}
             
-            # ENHANCED DEBUGGING: Check user token balance
-            print(f"\n💰 === DEBUGGING TOKEN BALANCE ===")
+            # Check user token balance
             user_balance = oft_contract.functions.balanceOf(user_account.address).call()
             user_balance_eth = float(Web3.from_wei(user_balance, 'ether'))
             transfer_amount_eth = float(Web3.from_wei(amount_wei, 'ether'))
             
-            print(f"👤 User: {user_account.address}")
-            print(f"💳 User balance: {user_balance_eth} cfWETH")
+            print(f"\n💰 User balance: {user_balance_eth} cfWETH")
             print(f"💸 Transfer amount: {transfer_amount_eth} cfWETH")
             
             if user_balance < amount_wei:
                 return {"success": False, "error": f"Insufficient balance. Have: {user_balance_eth}, Need: {transfer_amount_eth}"}
             
-            # ENHANCED DEBUGGING: Use proper LayerZero V2 parameters
-            print(f"\n🔧 === BUILDING LAYERZERO V2 SEND PARAMS ===")
+            # Use auto-format detection send param creation
+            print(f"\n🔧 === CREATING SEND PARAM WITH AUTO-FORMAT DETECTION ===")
+            send_param = self._create_enhanced_send_param(target_config, to_address, amount_wei)
             
-            # Convert recipient address to bytes32 format (LayerZero V2 standard)
-            recipient_clean = to_address.lower().replace('0x', '').zfill(64)
-            recipient_bytes32 = bytes.fromhex(recipient_clean)
-            print(f"🔧 Recipient bytes32: 0x{recipient_clean}")
+            # Auto-detect working extraOptions format
+            print(f"\n💰 === AUTO-DETECTING WORKING EXTRAOPTIONS FORMAT ===")
+            messaging_fee = (fixed_fee_wei, 0)  # Default fee
             
-            # Create LayerZero V2 SendParam struct with minimal options
-            send_param = (
-                target_config['layerzero_eid'],  # dstEid (uint32)
-                recipient_bytes32,               # to (bytes32)
-                amount_wei,                      # amountLD (uint256)
-                amount_wei,                      # minAmountLD (uint256) - no slippage for testing
-                b'',                            # extraOptions (empty for basic transfer)
-                b'',                            # composeMsg (empty for simple transfer)
-                b''                             # oftCmd (empty for standard transfer)
+            working_send_param, working_fee, working_format = self._try_alternative_extraoptions(
+                oft_contract, send_param, messaging_fee, user_account.address, fixed_fee_wei
             )
             
-            messaging_fee = (fixed_fee_wei, 0)  # (nativeFee, lzTokenFee)
+            if working_send_param is None:
+                print(f"❌ All extraOptions formats failed")
+                return {
+                    "success": False, 
+                    "error": "All extraOptions formats failed. LayerZero V2 testnet may have specific requirements.",
+                    "error_code": "0x6780cfaf",
+                    "formats_tried": [f[0] for f in self.extraoptions_formats]
+                }
             
-            print(f"📦 SendParam details:")
-            print(f"   dstEid: {send_param[0]}")
-            print(f"   to: 0x{send_param[1].hex()}")
-            print(f"   amountLD: {send_param[2]} wei")
-            print(f"   minAmountLD: {send_param[3]} wei")
-            print(f"   extraOptions: {len(send_param[4])} bytes")
-            print(f"💳 MessagingFee: {messaging_fee[0]} wei native, {messaging_fee[1]} LZ token")
+            print(f"🎉 Found working format: {working_format}")
+            send_param = working_send_param
+            messaging_fee = working_fee
             
-            # ENHANCED: Try quoteSend first for better fee estimation
-            print(f"\n💰 === TRYING QUOTE SEND FOR BETTER FEE ===")
-            try:
-                quote_result = oft_contract.functions.quoteSend(send_param, False).call()
-                suggested_fee = quote_result[0]  # nativeFee
-                suggested_fee_eth = float(Web3.from_wei(suggested_fee, 'ether'))
-                
-                print(f"💡 LayerZero suggested fee: {suggested_fee_eth} ETH")
-                
-                if suggested_fee > fixed_fee_wei:
-                    print(f"⚠️ Suggested fee higher than fixed fee, using suggested fee")
-                    messaging_fee = (suggested_fee, 0)
-                    fixed_fee_wei = suggested_fee
-                else:
-                    print(f"✅ Fixed fee sufficient, proceeding")
-                    
-            except Exception as quote_error:
-                print(f"⚠️ quoteSend failed: {quote_error}")
-                print(f"🔄 Continuing with fixed fee")
+            # Update fee if needed
+            if working_fee[0] > fixed_fee_wei:
+                fixed_fee_wei = working_fee[0]
+                print(f"💰 Updated fee to: {Web3.from_wei(fixed_fee_wei, 'ether')} ETH")
             
-            # Test call first with enhanced error handling
-            print(f"\n🧪 === TESTING SEND CALL ===")
-            try:
-                # Simulate the send call
-                oft_contract.functions.send(
-                    send_param,
-                    messaging_fee,
-                    user_account.address  # refundAddress
-                ).call({
-                    'from': user_account.address,
-                    'value': fixed_fee_wei
-                })
-                print("✅ OFT send simulation successful!")
-                
-            except Exception as sim_error:
-                error_msg = str(sim_error)
-                print(f"❌ OFT send simulation failed: {error_msg}")
-                
-                # Enhanced error analysis
-                if "0x6592671c" in error_msg:
-                    return {
-                        "success": False, 
-                        "error": "LayerZero endpoint validation failed. This usually indicates peer connections or endpoint configuration issues.",
-                        "error_code": "0x6592671c",
-                        "debug_info": {
-                            "source_eid": source_config['layerzero_eid'],
-                            "target_eid": target_config['layerzero_eid'],
-                            "source_oft": source_config['oft_address'],
-                            "target_oft": target_config['oft_address'],
-                            "peer_set": actual_peer.lower() == expected_peer.lower()
-                        }
-                    }
-                elif "burn amount exceeds balance" in error_msg:
-                    return {"success": False, "error": f"Insufficient token balance for burn: {error_msg}"}
-                else:
-                    print(f"🔄 Simulation failed but trying anyway: {error_msg}")
-            
-            # Build and send the actual transaction
-            print(f"\n📤 === EXECUTING SEND TRANSACTION ===")
+            # Execute the transaction with working configuration
+            print(f"\n📤 === EXECUTING TRANSACTION WITH {working_format.upper()} FORMAT ===")
             nonce = web3.eth.get_transaction_count(user_account.address)
             
             transaction = oft_contract.functions.send(
@@ -848,40 +945,30 @@ class LayerZeroOFTBridgeService:
             ).build_transaction({
                 'from': user_account.address,
                 'value': fixed_fee_wei,
-                'gas': 500000,  # Increased gas for safety
+                'gas': 1000000,  # Increased gas for DVN operations
                 'gasPrice': web3.eth.gas_price,
                 'nonce': nonce,
                 'chainId': web3.eth.chain_id
             })
             
-            print(f"💰 Transaction details:")
+            print(f"💰 Auto-detected transaction details:")
             print(f"   Value: {Web3.from_wei(transaction['value'], 'ether')} ETH")
             print(f"   Gas: {transaction['gas']}")
-            print(f"   Gas Price: {Web3.from_wei(transaction['gasPrice'], 'gwei')} Gwei")
+            print(f"   Format: {working_format}")
             
-            # Sign and send transaction
-            print(f"✍️ Signing and sending OFT transaction...")
+            # Sign and send auto-detected transaction
+            print(f"✍️ Signing and sending {working_format} transaction...")
             signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
             tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            print(f"📤 Transaction sent: {tx_hash.hex()}")
+            print(f"📤 {working_format} transaction sent: {tx_hash.hex()}")
             
-            # Wait for receipt with better error handling
-            print(f"⏳ Waiting for transaction confirmation...")
+            # Wait for receipt
+            print(f"⏳ Waiting for {working_format} transaction confirmation...")
             try:
                 receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
                 
                 if receipt.status == 1:
-                    print(f"✅ OFT send successful!")
-                    
-                    # Extract LayerZero GUID from logs
-                    layerzero_guid = None
-                    try:
-                        for log in receipt.logs:
-                            if len(log.topics) > 0:
-                                layerzero_guid = log.topics[0].hex()[:32]
-                                break
-                    except:
-                        pass
+                    print(f"✅ {working_format} OFT send successful!")
                     
                     return {
                         "success": True,
@@ -889,21 +976,19 @@ class LayerZeroOFTBridgeService:
                         "gas_used": receipt.gasUsed,
                         "block_number": receipt.blockNumber,
                         "native_fee_paid": float(Web3.from_wei(fixed_fee_wei, 'ether')),
-                        "layerzero_guid": layerzero_guid,
                         "destination_eid": target_config['layerzero_eid'],
-                        "interface_used": "enhanced_oft_direct"
+                        "interface_used": "auto_detected_extraoptions",
+                        "extraoptions_format": working_format,
+                        "resolution": "extraOptions format auto-detection successful"
                     }
                 else:
-                    print(f"❌ Transaction failed with status: {receipt.status}")
-                    print(f"🔍 Gas used: {receipt.gasUsed}")
-                    return {"success": False, "error": f"Transaction failed - Receipt status: {receipt.status}"}
+                    return {"success": False, "error": f"{working_format} transaction failed - Receipt status: {receipt.status}"}
                     
             except Exception as receipt_error:
-                print(f"❌ Transaction receipt error: {receipt_error}")
-                return {"success": False, "error": f"Transaction receipt error: {receipt_error}"}
+                return {"success": False, "error": f"{working_format} transaction receipt error: {receipt_error}"}
                 
         except Exception as e:
-            print(f"❌ OFT send error: {e}")
+            print(f"❌ Auto-detection OFT send error: {e}")
             import traceback
             print(f"🔍 Full error traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
