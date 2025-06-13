@@ -105,6 +105,48 @@ LAYERZERO_OFT_ABI = [
         "outputs": [{"name": "", "type": "address"}],
         "stateMutability": "view",
         "type": "function"
+    },
+    # Standard ERC20 functions for auto-conversion feature
+    {
+        "inputs": [
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"}
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "from", "type": "address"},
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"}
+        ],
+        "name": "transferFrom",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "spender", "type": "address"},
+            {"name": "amount", "type": "uint256"}
+        ],
+        "name": "approve",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "owner", "type": "address"},
+            {"name": "spender", "type": "address"}
+        ],
+        "name": "allowance",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
     }
 ]
 
@@ -240,6 +282,13 @@ class LayerZeroOFTBridgeService:
         print("✅ LayerZero OFT Bridge Service initialized")
         print("🔧 CORRECTED: OFT contracts for LayerZero, Wrapper for ETH conversion")
         print("⚠️ NOTE: Peer connections must be set on OFT contracts!")
+
+    async def get_database(self):
+        """Get database instance, initialize if needed"""
+        if self.database is None:
+            from app.core.database import get_database as core_get_database
+            self.database = await core_get_database()
+        return self.database
         
     async def _initialize_connections(self):
         """Initialize Web3 connections and contract instances"""
@@ -600,12 +649,15 @@ class LayerZeroOFTBridgeService:
             print(f"📍 Recipient bytes32: 0x{recipient_clean}")
             
             # Create LayerZero V2 SendParam struct with proper structure
+            # Use the working extraOptions format that works for actual transfers
+            working_extra_options = bytes.fromhex('0003010011010000000000000000000000000000ea60')
+            
             send_param = (
                 target_config['layerzero_eid'],  # dstEid (uint32)
                 recipient_bytes32,               # to (bytes32) - properly formatted
                 amount_wei,                      # amountLD (uint256)
                 int(amount_wei * 0.98),         # minAmountLD (uint256) - 2% slippage
-                b'',                            # extraOptions (bytes) - empty for basic transfer
+                working_extra_options,          # extraOptions (bytes) - use working format
                 b'',                            # composeMsg (bytes) - empty for simple transfer
                 b''                             # oftCmd (bytes) - empty for standard transfer
             )
@@ -791,18 +843,33 @@ class LayerZeroOFTBridgeService:
             if not oft_result["success"]:
                 return {"success": False, "error": f"Failed to execute OFT transfer: {oft_result['error']}"}
             
-            # STEP 3: Auto-convert cfWETH to ETH for recipient
-            print(f"\n🔄 === STEP 3: AUTO-CONVERT cfWETH TO ETH ===")
-            conversion_result = await self._auto_convert_cfweth_to_eth(
-                to_chain, to_address, amount_eth
+            # STEP 3: Wait for LayerZero settlement and auto-convert cfWETH to ETH
+            print(f"\n🔄 === STEP 3: WAIT FOR LAYERZERO SETTLEMENT & AUTO-CONVERT ===")
+            print(f"⏳ Waiting for LayerZero transfer to settle on {to_chain}...")
+            
+            # Wait for LayerZero transfer to complete on destination chain
+            settlement_result = await self._wait_for_layerzero_settlement(
+                to_chain, to_address, amount_eth, timeout_seconds=300
             )
             
-            if conversion_result["success"]:
-                print(f"✅ Auto-conversion successful: {amount_eth} cfWETH → ETH")
-                print(f"🔗 Conversion TX: {conversion_result.get('transaction_hash')}")
+            if settlement_result["success"]:
+                print(f"✅ LayerZero transfer settled! Final balance: {settlement_result['final_balance']} cfWETH")
+                
+                # Now attempt auto-conversion with correct balance
+                conversion_result = await self._auto_convert_cfweth_to_eth(
+                    to_chain, to_address, amount_eth
+                )
+                
+                if conversion_result["success"]:
+                    print(f"✅ Auto-conversion successful: {amount_eth} cfWETH → ETH")
+                    print(f"🔗 Conversion TX: {conversion_result.get('transaction_hash')}")
+                else:
+                    print(f"⚠️ Auto-conversion failed: {conversion_result.get('error')}")
+                    print(f"💡 User can manually convert cfWETH to ETH later")
             else:
-                print(f"⚠️ Auto-conversion failed: {conversion_result.get('error')}")
-                print(f"💡 User can manually convert cfWETH to ETH later")
+                print(f"⚠️ LayerZero settlement timeout: {settlement_result.get('error')}")
+                print(f"💡 Tokens may still arrive later. User can manually convert when ready.")
+                conversion_result = {"success": False, "error": "LayerZero settlement timeout"}
 
             # STEP 4: Record transfer in database
             print(f"\n📊 === STEP 4: RECORD TRANSFER ===")
@@ -1075,18 +1142,26 @@ class LayerZeroOFTBridgeService:
             if not web3 or not wrapper_contract:
                 return {"success": False, "error": f"Chain {chain} not available or wrapper not configured"}
             
-            # Check if recipient has cfWETH balance
+            # Check if recipient has cfWETH balance (with fresh check after settlement)
             oft_contract = self.oft_instances.get(chain)
             if not oft_contract:
                 return {"success": False, "error": f"OFT contract not available for {chain}"}
             
+            # Add small delay to ensure balance is current after settlement
+            import asyncio
+            await asyncio.sleep(2)
+            
+            # Get fresh balance
             cfweth_balance = oft_contract.functions.balanceOf(recipient_address).call()
             cfweth_balance_eth = float(Web3.from_wei(cfweth_balance, 'ether'))
             
-            print(f"💰 Recipient cfWETH balance: {cfweth_balance_eth} cfWETH")
+            print(f"💰 Recipient cfWETH balance (post-settlement): {cfweth_balance_eth} cfWETH")
+            print(f"🎯 Required for conversion: {amount_eth} cfWETH")
             
             if cfweth_balance_eth < amount_eth:
                 return {"success": False, "error": f"Insufficient cfWETH balance for conversion. Have: {cfweth_balance_eth}, Need: {amount_eth}"}
+            
+            print(f"✅ Sufficient balance available for auto-conversion")
             
             # Use deployer account to perform conversion on behalf of recipient
             amount_wei = Web3.to_wei(amount_eth, 'ether')
@@ -1218,6 +1293,86 @@ class LayerZeroOFTBridgeService:
                 
         except Exception as e:
             return {"success": False, "error": f"Direct ETH transfer error: {str(e)}"}
+
+    async def _wait_for_layerzero_settlement(
+        self,
+        destination_chain: str,
+        recipient_address: str,
+        expected_amount_eth: float,
+        timeout_seconds: int = 300
+    ) -> Dict[str, Any]:
+        """
+        Wait for LayerZero transfer to settle on destination chain
+        Polls the recipient's cfWETH balance until it increases by the expected amount
+        """
+        try:
+            import asyncio
+            
+            # Get destination chain Web3 and OFT contract
+            dest_web3 = self.web3_connections.get(destination_chain)
+            dest_oft_contract = self.oft_instances.get(destination_chain)
+            
+            if not dest_web3 or not dest_oft_contract:
+                return {"success": False, "error": f"Destination chain {destination_chain} not available"}
+            
+            # Get initial balance
+            initial_balance_wei = dest_oft_contract.functions.balanceOf(recipient_address).call()
+            initial_balance_eth = float(Web3.from_wei(initial_balance_wei, 'ether'))
+            
+            expected_final_balance_eth = initial_balance_eth + expected_amount_eth
+            expected_final_balance_wei = Web3.to_wei(expected_final_balance_eth, 'ether')
+            
+            print(f"🔍 Settlement Monitor:")
+            print(f"   Initial balance: {initial_balance_eth} cfWETH")
+            print(f"   Expected amount: {expected_amount_eth} cfWETH")
+            print(f"   Target balance: {expected_final_balance_eth} cfWETH")
+            print(f"   Timeout: {timeout_seconds} seconds")
+            
+            # Poll for balance change
+            start_time = asyncio.get_event_loop().time()
+            poll_interval = 10  # Check every 10 seconds
+            
+            while True:
+                current_time = asyncio.get_event_loop().time()
+                elapsed = current_time - start_time
+                
+                if elapsed > timeout_seconds:
+                    return {
+                        "success": False,
+                        "error": f"Timeout after {timeout_seconds}s. Balance: {initial_balance_eth} → (no change)",
+                        "initial_balance": initial_balance_eth,
+                        "final_balance": initial_balance_eth,
+                        "elapsed_seconds": elapsed
+                    }
+                
+                # Check current balance
+                current_balance_wei = dest_oft_contract.functions.balanceOf(recipient_address).call()
+                current_balance_eth = float(Web3.from_wei(current_balance_wei, 'ether'))
+                
+                print(f"⏳ [{elapsed:.0f}s] Checking balance: {current_balance_eth} cfWETH (target: {expected_final_balance_eth})")
+                
+                # Check if balance has increased sufficiently
+                balance_increase = current_balance_eth - initial_balance_eth
+                
+                if balance_increase >= (expected_amount_eth * 0.99):  # Allow for small rounding differences
+                    print(f"✅ LayerZero settlement detected!")
+                    print(f"   Balance increase: {balance_increase} cfWETH")
+                    print(f"   Settlement time: {elapsed:.1f} seconds")
+                    
+                    return {
+                        "success": True,
+                        "initial_balance": initial_balance_eth,
+                        "final_balance": current_balance_eth,
+                        "balance_increase": balance_increase,
+                        "settlement_time_seconds": elapsed
+                    }
+                
+                # Wait before next poll
+                await asyncio.sleep(poll_interval)
+                
+        except Exception as e:
+            print(f"❌ Settlement monitoring error: {e}")
+            return {"success": False, "error": f"Settlement monitoring failed: {str(e)}"}
 
     async def _execute_oft_send(
         self,

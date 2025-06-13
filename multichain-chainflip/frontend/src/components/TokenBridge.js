@@ -1,10 +1,10 @@
 /**
- * Token Bridge Component for Cross-Chain ETH Transfers
- * Integrates with LayerZero OFT contracts for real ETH bridging
+ * Token Bridge Component for Cross-Chain ETH Transfers with LayerZero V2 OFT
+ * Integrates with LayerZero OFT contracts for real ETH bridging with auto-conversion
  */
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowRight, Wallet, DollarSign, Clock, CheckCircle, AlertCircle, Activity, RefreshCw } from 'lucide-react';
+import { ArrowRight, Wallet, DollarSign, Clock, CheckCircle, AlertCircle, Activity, RefreshCw, Link, Zap } from 'lucide-react';
 
 const TokenBridge = () => {
   const { user, userRole } = useAuth();
@@ -12,8 +12,8 @@ const TokenBridge = () => {
   const [balances, setBalances] = useState({});
   const [transfers, setTransfers] = useState([]);
   const [transferForm, setTransferForm] = useState({
-    from_chain: '',
-    to_chain: '',
+    from_chain: 'arbitrum_sepolia', // Pre-select working source chain
+    to_chain: 'base_sepolia',       // Pre-select working destination chain
     from_address: user?.wallet_address || '',
     to_address: '',
     amount_eth: '',
@@ -22,32 +22,41 @@ const TokenBridge = () => {
   const [feeEstimate, setFeeEstimate] = useState(null);
   const [transferResult, setTransferResult] = useState(null);
   const [activeTransfers, setActiveTransfers] = useState({});
+  const [infrastructureStatus, setInfrastructureStatus] = useState(null);
 
-  // Chain configurations
+  // LayerZero Chain configurations - Updated to match working transfers
   const chains = {
-    optimism_sepolia: {
-      name: 'Optimism Sepolia',
-      role: 'Buyer Chain',
-      color: '#ff0420',
-      icon: '🔴'
-    },
-    polygon_pos: {
-      name: 'Polygon PoS',
-      role: 'Hub Chain',
-      color: '#8247e5',
-      icon: '🟣'
+    arbitrum_sepolia: {
+      name: 'Arbitrum Sepolia',
+      role: 'Source Chain (Working)',
+      color: '#28a2d8',
+      icon: '🔵',
+      layerzero_eid: 40231,
+      chain_id: 421614
     },
     base_sepolia: {
       name: 'Base Sepolia',
-      role: 'Manufacturer Chain',
+      role: 'Destination Chain (Working)', 
       color: '#0052ff',
-      icon: '🔷'
+      icon: '🔷',
+      layerzero_eid: 40245,
+      chain_id: 84532
     },
-    arbitrum_sepolia: {
-      name: 'Arbitrum Sepolia',
-      role: 'Transporter Chain',
-      color: '#28a2d8',
-      icon: '🔵'
+    optimism_sepolia: {
+      name: 'Optimism Sepolia',
+      role: 'Alternative Chain (Needs Setup)',
+      color: '#ff0420',
+      icon: '🔴',
+      layerzero_eid: 40232,
+      chain_id: 11155420
+    },
+    polygon_amoy: {
+      name: 'Polygon Amoy',
+      role: 'Hub Chain (Needs Setup)',
+      color: '#8247e5',
+      icon: '🟣',
+      layerzero_eid: 40267,
+      chain_id: 80002
     }
   };
 
@@ -74,12 +83,12 @@ const TokenBridge = () => {
       if (purpose) {
         // Show a message about the purpose
         setTimeout(() => {
-          alert(`🌉 Token Bridge\n\nPurpose: ${purpose}\n\nThe form has been pre-filled with the transfer details.`);
+          alert(`🌉 LayerZero Bridge\n\nPurpose: ${purpose}\n\nThe form has been pre-filled with the transfer details.`);
         }, 500);
       }
     }
 
-    fetchBalances();
+    fetchInfrastructureStatus();
     fetchTransfers();
     // Poll for updates every 30 seconds
     const interval = setInterval(() => {
@@ -95,41 +104,19 @@ const TokenBridge = () => {
     }
   }, [transferForm.from_chain, transferForm.to_chain, transferForm.amount_eth]);
 
-  const fetchBalances = async () => {
+  const fetchInfrastructureStatus = async () => {
     try {
-      const chainKeys = Object.keys(chains);
-      const balancePromises = chainKeys.map(async (chainName) => {
-        try {
-          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/token-bridge/balance`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chain_name: chainName,
-              address: user?.wallet_address || transferForm.from_address
-            })
-          });
-          const data = await response.json();
-          return { chainName, ...data };
-        } catch (error) {
-          console.error(`Error fetching balance for ${chainName}:`, error);
-          return { chainName, success: false, error: error.message };
-        }
-      });
-
-      const results = await Promise.all(balancePromises);
-      const balanceMap = {};
-      results.forEach(result => {
-        balanceMap[result.chainName] = result;
-      });
-      setBalances(balanceMap);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/infrastructure-status`);
+      const data = await response.json();
+      setInfrastructureStatus(data);
     } catch (error) {
-      console.error('Error fetching balances:', error);
+      console.error('Error fetching infrastructure status:', error);
     }
   };
 
   const fetchTransfers = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/token-bridge/transfers?limit=20`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/transfers?limit=20`);
       const data = await response.json();
       if (data.success) {
         setTransfers(data.transfers || []);
@@ -141,7 +128,7 @@ const TokenBridge = () => {
 
   const estimateTransferFee = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/token-bridge/estimate-fee`, {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/estimate-fee`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,13 +151,13 @@ const TokenBridge = () => {
     setTransferResult(null);
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/token-bridge/transfer`, {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...transferForm,
           amount_eth: parseFloat(transferForm.amount_eth),
-          escrow_id: transferForm.escrow_id || `BRIDGE-${Date.now()}-${user?.id || 'user'}`
+          escrow_id: transferForm.escrow_id || `LZ-BRIDGE-${Date.now()}-${user?.id || 'user'}`
         })
       });
       const data = await response.json();
@@ -181,11 +168,13 @@ const TokenBridge = () => {
         // Add to active transfers for tracking
         setActiveTransfers(prev => ({
           ...prev,
-          [data.transfer_id]: {
+          [data.result?.transfer_id || data.transfer_id]: {
             ...transferForm,
-            transfer_id: data.transfer_id,
+            transfer_id: data.result?.transfer_id || data.transfer_id,
             status: 'processing',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            auto_conversion: data.result?.auto_conversion || false,
+            conversion_tx: data.result?.conversion_tx
           }
         }));
         
@@ -201,12 +190,30 @@ const TokenBridge = () => {
         
         // Refresh data
         setTimeout(() => {
-          fetchBalances();
           fetchTransfers();
         }, 2000);
       }
     } catch (error) {
       console.error('Transfer error:', error);
+      setTransferResult({ success: false, error: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const testEnhancedInfrastructure = async () => {
+    setLoading(true);
+    setTransferResult(null);
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/test-enhanced-infrastructure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      setTransferResult(data);
+    } catch (error) {
+      console.error('Test error:', error);
       setTransferResult({ success: false, error: error.message });
     } finally {
       setLoading(false);
@@ -219,8 +226,8 @@ const TokenBridge = () => {
 
     for (const transferId of activeIds) {
       try {
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/token-bridge/status/${transferId}`, {
-          method: 'POST'
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/layerzero-oft/status/${transferId}`, {
+          method: 'GET'
         });
         const data = await response.json();
         
@@ -252,62 +259,77 @@ const TokenBridge = () => {
     return balance ? parseFloat(balance).toFixed(4) : '0.0000';
   };
 
+  const getBlockExplorerUrl = (txHash, chainKey) => {
+    const explorers = {
+      arbitrum_sepolia: `https://sepolia.arbiscan.io/tx/${txHash}`,
+      base_sepolia: `https://sepolia.basescan.org/tx/${txHash}`,
+      optimism_sepolia: `https://sepolia.etherscan.io/tx/${txHash}`,
+      polygon_amoy: `https://amoy.polygonscan.com/tx/${txHash}`
+    };
+    return explorers[chainKey] || '#';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">🌉 Token Bridge</h1>
+            <h1 className="text-2xl font-bold text-gray-900">🌉 LayerZero Bridge</h1>
             <p className="text-gray-600 mt-1">
-              Cross-chain ETH transfers using LayerZero OFT technology
+              Cross-chain ETH transfers with automatic cfWETH → ETH conversion
             </p>
           </div>
-          <button
-            onClick={() => {
-              fetchBalances();
-              fetchTransfers();
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                fetchInfrastructureStatus();
+                fetchTransfers();
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+            <button
+              onClick={testEnhancedInfrastructure}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4" />
+              Test Transfer
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Balance Overview */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h2 className="text-lg font-semibold mb-4 flex items-center">
-          <Wallet className="w-5 h-5 mr-2" />
-          Chain Balances
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(chains).map(([chainKey, chain]) => {
-            const balance = balances[chainKey];
-            return (
+      {/* Infrastructure Status */}
+      {infrastructureStatus && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <Activity className="w-5 h-5 mr-2" />
+            LayerZero Infrastructure Status
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(infrastructureStatus.chains || {}).map(([chainKey, status]) => (
               <div key={chainKey} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xl">{chain.icon}</span>
+                  <span className="text-xl">{chains[chainKey]?.icon}</span>
                   <div className={`w-3 h-3 rounded-full ${
-                    balance?.success ? 'bg-green-500' : 'bg-red-500'
+                    status.status === 'operational' ? 'bg-green-500' : 'bg-red-500'
                   }`} />
                 </div>
-                <h3 className="font-medium text-sm text-gray-900">{chain.name}</h3>
-                <p className="text-xs text-gray-500 mb-2">{chain.role}</p>
-                <div className="text-lg font-bold">
-                  {balance?.success ? `${formatBalance(balance.eth_balance)} ETH` : 'N/A'}
+                <h3 className="font-medium text-sm text-gray-900">{chains[chainKey]?.name}</h3>
+                <p className="text-xs text-gray-500 mb-2">EID: {chains[chainKey]?.layerzero_eid}</p>
+                <div className="text-xs text-gray-600">
+                  <div>OFT: {formatAddress(status.oft_address)}</div>
+                  <div>Status: {status.status}</div>
                 </div>
-                {balance?.weth_balance && (
-                  <div className="text-sm text-gray-600">
-                    WETH: {formatBalance(balance.weth_balance)}
-                  </div>
-                )}
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Transfer Form */}
       <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -330,9 +352,9 @@ const TokenBridge = () => {
                 required
               >
                 <option value="">Select source chain</option>
-                {getChainOptions().map(({ key, name, role, icon }) => (
+                {getChainOptions().map(({ key, name, role, icon, layerzero_eid }) => (
                   <option key={key} value={key}>
-                    {icon} {name} ({role})
+                    {icon} {name} (EID: {layerzero_eid})
                   </option>
                 ))}
               </select>
@@ -349,9 +371,9 @@ const TokenBridge = () => {
                 required
               >
                 <option value="">Select destination chain</option>
-                {getChainOptions(transferForm.from_chain).map(({ key, name, role, icon }) => (
+                {getChainOptions(transferForm.from_chain).map(({ key, name, role, icon, layerzero_eid }) => (
                   <option key={key} value={key}>
-                    {icon} {name} ({role})
+                    {icon} {name} (EID: {layerzero_eid})
                   </option>
                 ))}
               </select>
@@ -424,23 +446,19 @@ const TokenBridge = () => {
           {/* Fee Estimate */}
           {feeEstimate && transferForm.amount_eth && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">Fee Estimate</h3>
+              <h3 className="font-medium text-blue-900 mb-2">LayerZero Fee Estimate</h3>
               {feeEstimate.success ? (
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span>Gas Fee:</span>
-                    <span>{feeEstimate.estimated_gas_fee?.toFixed(4) || '0.0000'} ETH</span>
+                    <span>LayerZero Fee:</span>
+                    <span>{feeEstimate.layerzero_fee?.toFixed(6) || '0.000000'} ETH</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>LayerZero Fee:</span>
-                    <span>{feeEstimate.layerzero_fee?.toFixed(4) || '0.0000'} ETH</span>
-                  </div>
-                  <div className="flex justify-between font-medium border-t pt-1">
-                    <span>Total Fee:</span>
-                    <span>{feeEstimate.total_fee_eth?.toFixed(4) || '0.0000'} ETH</span>
+                    <span>Gas Estimate:</span>
+                    <span>{feeEstimate.estimated_gas || 'N/A'}</span>
                   </div>
                   <div className="text-xs text-blue-600">
-                    Total Cost: {(parseFloat(transferForm.amount_eth) + (feeEstimate.total_fee_eth || 0)).toFixed(4)} ETH
+                    Total Cost: {(parseFloat(transferForm.amount_eth) + (feeEstimate.layerzero_fee || 0)).toFixed(6)} ETH
                   </div>
                 </div>
               ) : (
@@ -465,7 +483,7 @@ const TokenBridge = () => {
             ) : (
               <>
                 <ArrowRight className="w-4 h-4 mr-2" />
-                Execute Transfer
+                Execute LayerZero Transfer
               </>
             )}
           </button>
@@ -487,22 +505,66 @@ const TokenBridge = () => {
               <h3 className={`font-medium ${
                 transferResult.success ? 'text-green-800' : 'text-red-800'
               }`}>
-                {transferResult.success ? 'Transfer Initiated!' : 'Transfer Failed'}
+                {transferResult.success ? 'Transfer Completed!' : 'Transfer Failed'}
               </h3>
             </div>
             <div className={`mt-2 text-sm ${
               transferResult.success ? 'text-green-700' : 'text-red-700'
             }`}>
               {transferResult.success ? (
-                <div>
-                  <div>Transfer ID: {transferResult.transfer_id}</div>
-                  <div>Amount: {transferResult.amount_transferred} ETH</div>
-                  {transferResult.wrap_transaction_hash && (
-                    <div>Wrap TX: {formatAddress(transferResult.wrap_transaction_hash)}</div>
+                <div className="space-y-2">
+                  <div>Transfer ID: {transferResult.result?.transfer_id || transferResult.transfer_id}</div>
+                  <div>Amount: {transferResult.result?.amount_transferred || transferResult.amount_transferred} ETH</div>
+                  
+                  {/* Bridge Transaction */}
+                  {transferResult.result?.transaction_hash && (
+                    <div className="flex items-center gap-2">
+                      <span>Bridge TX:</span>
+                      <a 
+                        href={getBlockExplorerUrl(transferResult.result.transaction_hash, transferForm.from_chain)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 hover:text-green-800 underline flex items-center gap-1"
+                      >
+                        {formatAddress(transferResult.result.transaction_hash)}
+                        <Link className="w-3 h-3" />
+                      </a>
+                    </div>
                   )}
-                  {transferResult.layerzero_transaction_hash && (
-                    <div>LayerZero TX: {formatAddress(transferResult.layerzero_transaction_hash)}</div>
+                  
+                  {/* Auto-Conversion Status */}
+                  {transferResult.result?.auto_conversion && (
+                    <>
+                      <div className="font-medium text-green-800 mt-3">
+                        ✅ Auto-Conversion: cfWETH → ETH
+                      </div>
+                      {transferResult.result?.conversion_tx && (
+                        <div className="flex items-center gap-2">
+                          <span>Conversion TX:</span>
+                          <a 
+                            href={getBlockExplorerUrl(transferResult.result.conversion_tx, transferForm.to_chain)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-600 hover:text-green-800 underline flex items-center gap-1"
+                          >
+                            {formatAddress(transferResult.result.conversion_tx)}
+                            <Link className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </>
                   )}
+                  
+                  {/* LayerZero Details */}
+                  {transferResult.result?.layerzero_guid && (
+                    <div className="text-xs text-green-600 mt-2">
+                      LayerZero GUID: {transferResult.result.layerzero_guid}
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-green-600 mt-2">
+                    {transferResult.result?.message || transferResult.message}
+                  </div>
                 </div>
               ) : (
                 <div>Error: {transferResult.error}</div>
@@ -529,6 +591,9 @@ const TokenBridge = () => {
                     {chains[transfer.to_chain]?.icon} {chains[transfer.to_chain]?.name}
                   </div>
                   <div className="text-sm text-gray-600">{transfer.amount_eth} ETH</div>
+                  {transfer.auto_conversion && (
+                    <div className="text-xs text-green-600">Auto-conversion enabled</div>
+                  )}
                 </div>
                 <div className="flex items-center text-yellow-600">
                   <Activity className="w-4 h-4 mr-1 animate-spin" />
@@ -544,11 +609,11 @@ const TokenBridge = () => {
       <div className="bg-white p-6 rounded-lg shadow-sm border">
         <h2 className="text-lg font-semibold mb-4 flex items-center">
           <Activity className="w-5 h-5 mr-2" />
-          Recent Transfers
+          Recent LayerZero Transfers
         </h2>
         {transfers.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            No transfers found. Execute your first cross-chain transfer above.
+            No transfers found. Execute your first LayerZero cross-chain transfer above.
           </div>
         ) : (
           <div className="space-y-3">
@@ -572,6 +637,12 @@ const TokenBridge = () => {
                   <div className="text-sm text-gray-600">
                     {transfer.amount_eth} ETH • {formatAddress(transfer.from_address)} → {formatAddress(transfer.to_address)}
                   </div>
+                  {transfer.auto_conversion && (
+                    <div className="text-xs text-green-600 flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Auto-converted to ETH
+                    </div>
+                  )}
                   {transfer.timestamp && (
                     <div className="text-xs text-gray-500">
                       {new Date(transfer.timestamp * 1000).toLocaleString()}

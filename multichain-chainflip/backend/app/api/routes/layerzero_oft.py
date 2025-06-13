@@ -371,6 +371,15 @@ async def get_infrastructure_status():
             "message": "LayerZero infrastructure status",
             "infrastructure_version": "Enhanced DVN/Executor Configuration",
             "setup_required": "Run setup_layerzero_infrastructure.js if transfers fail",
+            "chains": {
+                chain_name: {
+                    "status": "operational" if config.get("oft_address") else "not_configured",
+                    "oft_address": config.get("oft_address"),
+                    "layerzero_eid": config.get("layerzero_eid"),
+                    "chain_id": config.get("chain_id")
+                }
+                for chain_name, config in layerzero_oft_bridge_service.oft_contracts.items()
+            },
             "networks": networks,
             "test_endpoints": [
                 "/test-enhanced-infrastructure - Test with enhanced config",
@@ -381,3 +390,71 @@ async def get_infrastructure_status():
     except Exception as e:
         print(f"❌ API: Infrastructure status error: {e}")
         raise HTTPException(status_code=500, detail=f"Infrastructure status error: {str(e)}")
+
+@router.get("/transfers")
+async def get_layerzero_transfers(limit: int = 20, offset: int = 0):
+    """
+    Get LayerZero transfer history
+    """
+    try:
+        # Get database
+        database = await layerzero_oft_bridge_service.get_database()
+        
+        # Query transfers from database
+        cursor = database.transfers.find(
+            {"bridge_type": {"$regex": "layerzero"}},
+            sort=[("timestamp", -1)],
+            limit=limit,
+            skip=offset
+        )
+        
+        transfers = []
+        async for transfer in cursor:
+            # Convert ObjectId to string if present
+            if "_id" in transfer:
+                del transfer["_id"]
+            transfers.append(transfer)
+        
+        return {
+            "success": True,
+            "transfers": transfers,
+            "count": len(transfers),
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        print(f"❌ API: Get transfers error: {e}")
+        raise HTTPException(status_code=500, detail=f"Get transfers error: {str(e)}")
+
+@router.get("/status/{transfer_id}")
+async def get_transfer_status(transfer_id: str):
+    """
+    Get status of a specific LayerZero transfer
+    """
+    try:
+        # Get database
+        database = await layerzero_oft_bridge_service.get_database()
+        
+        # Query specific transfer
+        transfer = await database.transfers.find_one({"transfer_id": transfer_id})
+        
+        if not transfer:
+            raise HTTPException(status_code=404, detail="Transfer not found")
+        
+        # Convert ObjectId to string if present
+        if "_id" in transfer:
+            del transfer["_id"]
+        
+        return {
+            "success": True,
+            "transfer": transfer,
+            "status": transfer.get("status", "unknown"),
+            "transfer_id": transfer_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ API: Get transfer status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Get transfer status error: {str(e)}")
