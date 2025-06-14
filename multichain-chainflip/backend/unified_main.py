@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, nft_transfers
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -93,6 +93,7 @@ app.include_router(qr_routes.router, prefix="/api/qr", tags=["qr-codes"])
 app.include_router(token_bridge.router, prefix="/api/token-bridge", tags=["token-bridge"])
 app.include_router(layerzero_oft.router, prefix="/api/layerzero-oft", tags=["layerzero-oft"])
 app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["supply-chain"])
+app.include_router(nft_transfers.router, prefix="/api/supply-chain", tags=["NFT Transfers"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)

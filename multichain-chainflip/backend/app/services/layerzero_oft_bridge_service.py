@@ -1294,6 +1294,149 @@ class LayerZeroOFTBridgeService:
         except Exception as e:
             return {"success": False, "error": f"Direct ETH transfer error: {str(e)}"}
 
+    async def send_cross_chain_message(
+        self,
+        source_chain: str,
+        target_chain: str,
+        message_data: Dict,
+        recipient_address: str
+    ) -> Dict[str, Any]:
+        """
+        Send custom cross-chain message using LayerZero OFT contracts
+        This method is specifically for supply chain coordination messages
+        """
+        try:
+            print(f"\n🌐 === SENDING CROSS-CHAIN MESSAGE VIA LAYERZERO ===")
+            print(f"📤 From: {source_chain}")
+            print(f"📥 To: {target_chain}")
+            print(f"👤 Recipient: {recipient_address}")
+            print(f"📋 Message Type: {message_data.get('type', 'Unknown')}")
+            
+            # Get Web3 instances and configurations
+            source_web3 = self.web3_connections.get(source_chain)
+            if not source_web3:
+                return {"success": False, "error": f"Source chain {source_chain} not connected"}
+            
+            source_config = self.oft_contracts[source_chain]
+            target_config = self.oft_contracts[target_chain]
+            
+            # Check if contracts are available
+            if not source_config.get('oft_address') or not target_config.get('oft_address'):
+                return {"success": False, "error": "OFT contracts not configured for cross-chain messaging"}
+            
+            # Encode message data as bytes for LayerZero
+            import json
+            message_bytes = json.dumps(message_data).encode('utf-8')
+            print(f"📦 Message size: {len(message_bytes)} bytes")
+            
+            # Convert recipient address to bytes32 format
+            recipient_clean = recipient_address.lower().replace('0x', '').zfill(64)
+            recipient_bytes32 = bytes.fromhex(recipient_clean)
+            
+            # Create LayerZero SendParam with custom message in composeMsg
+            # For messages, we send 0 ETH but include the message data
+            amount_wei = 0  # No token transfer, just message
+            
+            # Use working extraOptions format for messaging
+            working_extra_options = bytes.fromhex('0003010011010000000000000000000000000000ea60')
+            
+            send_param = (
+                target_config['layerzero_eid'],  # dstEid
+                recipient_bytes32,               # to (bytes32)
+                amount_wei,                      # amountLD (0 for messages)
+                amount_wei,                      # minAmountLD (0 for messages)
+                working_extra_options,           # extraOptions
+                message_bytes,                   # composeMsg - OUR MESSAGE DATA
+                b''                             # oftCmd
+            )
+            
+            # Get OFT contract for messaging
+            oft_contract = source_web3.eth.contract(
+                address=source_config['oft_address'],
+                abi=LAYERZERO_OFT_ABI
+            )
+            
+            # Estimate fee for the message
+            try:
+                quote_result = oft_contract.functions.quoteSend(send_param, False).call()
+                messaging_fee_wei = quote_result[0]
+                messaging_fee_eth = float(Web3.from_wei(messaging_fee_wei, 'ether'))
+                print(f"💰 LayerZero messaging fee: {messaging_fee_eth} ETH")
+            except Exception as fee_error:
+                print(f"⚠️ Fee estimation failed, using fixed fee: {fee_error}")
+                messaging_fee_wei = Web3.to_wei(0.001, 'ether')  # Fixed fee fallback
+                messaging_fee_eth = 0.001
+            
+            # Use deployer account for sending messages
+            if not self.current_account:
+                return {"success": False, "error": "No account available for message sending"}
+            
+            # Check deployer ETH balance for fees
+            deployer_balance = source_web3.eth.get_balance(self.current_account.address)
+            deployer_balance_eth = float(Web3.from_wei(deployer_balance, 'ether'))
+            
+            print(f"💳 Deployer balance: {deployer_balance_eth} ETH")
+            print(f"🎯 Required fee: {messaging_fee_eth} ETH")
+            
+            if deployer_balance_eth < messaging_fee_eth:
+                return {"success": False, "error": f"Insufficient ETH for messaging fee. Have: {deployer_balance_eth}, Need: {messaging_fee_eth}"}
+            
+            # Build and send the message transaction
+            print(f"\n📤 === SENDING LAYERZERO MESSAGE TRANSACTION ===")
+            nonce = source_web3.eth.get_transaction_count(self.current_account.address)
+            
+            transaction = oft_contract.functions.send(
+                send_param,
+                (messaging_fee_wei, 0),  # MessagingFee struct
+                self.current_account.address  # refundAddress
+            ).build_transaction({
+                'from': self.current_account.address,
+                'value': messaging_fee_wei,
+                'gas': 1000000,  # Sufficient gas for message sending
+                'gasPrice': source_web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': source_web3.eth.chain_id
+            })
+            
+            # Sign and send transaction
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, self.current_account.key)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 Message transaction sent: {tx_hash.hex()}")
+            
+            # Wait for confirmation
+            receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ Cross-chain message sent successfully!")
+                print(f"🔗 Transaction: {tx_hash.hex()}")
+                print(f"⛽ Gas used: {receipt.gasUsed}")
+                print(f"📊 Block: {receipt.blockNumber}")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "source_chain": source_chain,
+                    "target_chain": target_chain,
+                    "recipient": recipient_address,
+                    "message_type": message_data.get('type'),
+                    "message_size": len(message_bytes),
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber,
+                    "layerzero_fee_paid": messaging_fee_eth,
+                    "destination_eid": target_config['layerzero_eid'],
+                    "timestamp": message_data.get('timestamp'),
+                    "status": "sent"
+                }
+            else:
+                print(f"❌ Message transaction failed!")
+                return {"success": False, "error": f"Transaction failed with status: {receipt.status}"}
+                
+        except Exception as e:
+            print(f"❌ Cross-chain message error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": f"Failed to send cross-chain message: {str(e)}"}
+
     async def _wait_for_layerzero_settlement(
         self,
         destination_chain: str,

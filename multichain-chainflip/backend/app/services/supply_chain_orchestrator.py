@@ -558,46 +558,74 @@ class SupplyChainOrchestrator:
     ) -> Dict:
         """
         Send cross-chain message using LayerZero infrastructure
+        UPDATED: Now uses real LayerZero OFT service instead of simulation
         """
         try:
             self.logger.info(f"🌐 Sending LayerZero message: {source_chain} → {target_chain}")
             
-            # Convert message to bytes (simple JSON encoding for now)
+            # Convert message to bytes (JSON encoding)
             message_bytes = json.dumps(message_data).encode('utf-8')
+            self.logger.info(f"📦 Message size: {len(message_bytes)} bytes, type: {message_data.get('type')}")
             
-            # Use existing LayerZero service for cross-chain messaging
+            # Use real LayerZero service for cross-chain messaging
             if layerzero_oft_bridge_service:
-                # This would use your existing LayerZero messaging infrastructure
-                # For now, we'll simulate the cross-chain message
-                result = {
-                    "transaction_hash": f"0x{uuid.uuid4().hex}",
-                    "source_chain": source_chain,
-                    "target_chain": target_chain,
-                    "recipient": recipient_address,
-                    "message_size": len(message_bytes),
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "status": "sent"
-                }
+                # Call the real LayerZero service
+                layerzero_result = await layerzero_oft_bridge_service.send_cross_chain_message(
+                    source_chain=source_chain,
+                    target_chain=target_chain,
+                    message_data=message_data,
+                    recipient_address=recipient_address
+                )
                 
-                # Store cross-chain message record
-                await self.database["cross_chain_messages"].insert_one({
-                    "message_id": result["transaction_hash"],
-                    "source_chain": source_chain,
-                    "target_chain": target_chain,
-                    "recipient_address": recipient_address,
-                    "message_type": message_data.get("type"),
-                    "message_data": message_data,
-                    "timestamp": datetime.utcnow(),
-                    "status": "sent"
-                })
-                
-                return result
+                if layerzero_result.get("success"):
+                    self.logger.info(f"✅ LayerZero message sent successfully: {layerzero_result.get('transaction_hash')}")
+                    
+                    # Store cross-chain message record in database
+                    await self.database["cross_chain_messages"].insert_one({
+                        "message_id": layerzero_result.get("transaction_hash"),
+                        "source_chain": source_chain,
+                        "target_chain": target_chain,
+                        "recipient_address": recipient_address,
+                        "message_type": message_data.get("type"),
+                        "message_data": message_data,
+                        "layerzero_details": {
+                            "transaction_hash": layerzero_result.get("transaction_hash"),
+                            "gas_used": layerzero_result.get("gas_used"),
+                            "block_number": layerzero_result.get("block_number"),
+                            "layerzero_fee_paid": layerzero_result.get("layerzero_fee_paid"),
+                            "destination_eid": layerzero_result.get("destination_eid")
+                        },
+                        "timestamp": datetime.utcnow(),
+                        "status": "sent_via_layerzero"
+                    })
+                    
+                    return {
+                        "transaction_hash": layerzero_result.get("transaction_hash"),
+                        "source_chain": source_chain,
+                        "target_chain": target_chain,
+                        "recipient": recipient_address,
+                        "message_size": len(message_bytes),
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "status": "sent_via_layerzero",
+                        "layerzero_details": layerzero_result
+                    }
+                else:
+                    self.logger.error(f"❌ LayerZero message failed: {layerzero_result.get('error')}")
+                    return {
+                        "transaction_hash": None, 
+                        "error": f"LayerZero messaging failed: {layerzero_result.get('error')}",
+                        "status": "layerzero_failed"
+                    }
             else:
-                raise Exception("LayerZero service not available")
+                raise Exception("LayerZero OFT bridge service not available")
                 
         except Exception as e:
             self.logger.error(f"❌ LayerZero message failed: {e}")
-            return {"transaction_hash": None, "error": str(e)}
+            return {
+                "transaction_hash": None, 
+                "error": str(e),
+                "status": "error"
+            }
     
     async def _handle_incoming_cross_chain_message(self, message_data: Dict, source_chain: str) -> Dict:
         """
@@ -617,7 +645,7 @@ class SupplyChainOrchestrator:
                 
             elif message_type == "SHIPPING_STARTED":
                 # Hub receives shipping confirmation from manufacturer
-                return await self._handle_shipping_started_on_hub(message_data)
+                return await self._handle_shipping_started_on_hub(message_data, message_data.get("layerzero_result", {}))
                 
             elif message_type == "TRANSPORT_ASSIGNMENT":
                 # Transporter receives assignment from manufacturer
@@ -689,6 +717,44 @@ class SupplyChainOrchestrator:
         except Exception as e:
             self.logger.error(f"❌ Manufacturer notification handling failed: {e}")
             return {"handled": False, "error": str(e)}
+    
+    async def _handle_shipping_started_on_hub(self, shipping_data: Dict, layerzero_result: Dict) -> Dict:
+        """
+        Handle shipping started notification on Hub
+        Now integrates with NFT transfer orchestration
+        """
+        try:
+            self.logger.info(f"🚛 Processing shipping started on Hub: {shipping_data['request_id']}")
+            
+            # Update purchase request status
+            await self.database["purchase_requests"].update_one(
+                {"request_id": shipping_data["request_id"]},
+                {
+                    "$set": {
+                        "status": "shipping_initiated",
+                        "shipping_details": shipping_data,
+                        "layerzero_notification": layerzero_result,
+                        "shipping_started_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # INTEGRATION: Start NFT transfer flow
+            await self._initiate_nft_transfer_flow(shipping_data)
+            
+            # Continue with transporter assignment
+            assignment_result = await self._create_transportation_batch_crosschain(shipping_data)
+            
+            return {
+                "success": True,
+                "shipping_processed": True,
+                "nft_transfer_initiated": True,
+                "assignment_result": assignment_result
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ Shipping processing error: {e}")
+            return {"success": False, "error": str(e)}
     
     async def _create_transportation_batch(self, request_doc: Dict, shipping_details: Dict) -> Dict:
         """
