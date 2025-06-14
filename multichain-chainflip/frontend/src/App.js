@@ -18,7 +18,6 @@ import QRScanner from './components/QRScanner';
 import Analytics from './components/Analytics';
 import ConsensusManagement from './components/ConsensusManagement';
 import TokenBridge from './components/TokenBridge';
-import SupplyChainOrchestrator from './components/SupplyChainOrchestrator';
 import TransporterRegistration from './components/TransporterRegistration';
 
 // Auth Pages
@@ -216,16 +215,6 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/supply-chain" 
-              element={
-                <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
-                    <SupplyChainOrchestrator />
-                  </AppLayout>
-                </ProtectedRoute>
-              } 
-            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -268,24 +257,18 @@ const AppLayout = ({ children, backendStatus }) => {
       { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
     ];
 
-    // Role-specific additional items
+    // Role-specific additional items - SUPPLY CHAIN FUNCTIONALITY INTEGRATED INTO PRODUCTS
     if (userRole === 'manufacturer') {
       roleSpecificItems.push(
-        { id: 'supply-chain', name: 'Orders & Shipping', icon: '🏭', path: '/supply-chain' },
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' }
       );
     } else if (userRole === 'buyer') {
-      roleSpecificItems.push(
-        { id: 'supply-chain', name: 'Your Orders', icon: '🛒', path: '/supply-chain' }
-      );
+      // Buyer gets integrated supply chain in products tab
     } else if (userRole === 'transporter') {
-      roleSpecificItems.push(
-        { id: 'supply-chain', name: 'Delivery Requests', icon: '🚛', path: '/supply-chain' }
-      );
+      // Transporter gets integrated supply chain in products tab
     } else {
-      // Admin or default - show all
+      // Admin or default - show all including consensus
       roleSpecificItems.push(
-        { id: 'supply-chain', name: 'Supply Chain', icon: '🏭', path: '/supply-chain' },
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
         { id: 'consensus', name: 'Consensus System', icon: '⚡', path: '/consensus' }
       );

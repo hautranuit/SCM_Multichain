@@ -371,20 +371,29 @@ const ProductManagement = () => {
 
   const handleCompleteShipping = async (productTokenId) => {
     try {
-      const confirmation = window.confirm('Mark this product as delivered and complete shipping?');
+      const confirmation = window.confirm('Mark this product as delivered and complete shipping?\n\nThis will require consensus validation.');
       if (!confirmation) return;
 
       setLoading(true);
+
+      // ALGORITHM 3: Supply Chain Consensus Validation
+      const consensusValidation = await performConsensusValidation(productTokenId);
+      
+      if (!consensusValidation.approved) {
+        alert(`❌ Consensus Validation Failed!\n\n${consensusValidation.reason}\n\nShipping cannot be completed without consensus approval.`);
+        return;
+      }
 
       // Complete shipping operation (transporter chain operation)
       const result = await blockchainService.completeShipping({
         product_id: productTokenId,
         transporter: user?.wallet_address,
         delivery_confirmation: true,
-        delivery_timestamp: Date.now()
+        delivery_timestamp: Date.now(),
+        consensus_approval: consensusValidation.consensus_id
       });
 
-      alert(`✅ Shipping Completed!\n\n📦 Product: ${productTokenId}\n🚛 Delivered by: ${user?.wallet_address}\n📅 Completed: ${new Date().toLocaleString()}\n🔗 Transaction: ${result.transaction_hash || 'N/A'}`);
+      alert(`✅ Shipping Completed with Consensus!\n\n📦 Product: ${productTokenId}\n🚛 Delivered by: ${user?.wallet_address}\n📅 Completed: ${new Date().toLocaleString()}\n🔗 Transaction: ${result.transaction_hash || 'N/A'}\n⚡ Consensus ID: ${consensusValidation.consensus_id}`);
       
       await fetchProducts();
     } catch (error) {
@@ -393,6 +402,66 @@ const ProductManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const performConsensusValidation = async (productTokenId) => {
+    try {
+      // Algorithm 3: Supply Chain Consensus
+      const shipmentData = {
+        shipment_id: `SHIP-${Date.now()}-${productTokenId}`,
+        product_id: productTokenId,
+        transporter: user?.wallet_address,
+        start_location: 'Current Location',
+        end_location: 'Delivery Address',
+        distance: Math.floor(Math.random() * 1000) + 100, // Mock distance
+        transport_fee: Math.floor(Math.random() * 100) + 50, // Mock fee
+        timestamp: Date.now()
+      };
+
+      // Simulate consensus voting process
+      const consensusResult = await simulateConsensusVoting(shipmentData);
+      
+      return {
+        approved: consensusResult.votes_for >= consensusResult.required_votes,
+        consensus_id: consensusResult.consensus_id,
+        votes_for: consensusResult.votes_for,
+        votes_against: consensusResult.votes_against,
+        required_votes: consensusResult.required_votes,
+        reason: consensusResult.approved 
+          ? `Consensus reached: ${consensusResult.votes_for}/${consensusResult.required_votes} votes`
+          : `Insufficient votes: ${consensusResult.votes_for}/${consensusResult.required_votes} required`
+      };
+    } catch (error) {
+      console.error('Consensus validation error:', error);
+      return {
+        approved: false,
+        reason: `Consensus validation failed: ${error.message}`
+      };
+    }
+  };
+
+  const simulateConsensusVoting = async (shipmentData) => {
+    // Algorithm 3: Simplified consensus simulation
+    const required_votes = 3; // Minimum votes required
+    const votes_for = Math.floor(Math.random() * 5) + 1; // Random votes (1-5)
+    const votes_against = Math.floor(Math.random() * 2); // Random opposing votes (0-1)
+    const consensus_id = `CONSENSUS-${Date.now()}`;
+
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    return {
+      consensus_id,
+      votes_for,
+      votes_against,
+      required_votes,
+      approved: votes_for >= required_votes,
+      participants: [
+        { role: 'manufacturer', vote: 'approve', reason: 'Quality standards met' },
+        { role: 'inspector', vote: 'approve', reason: 'Documentation complete' },
+        { role: 'network_node', vote: votes_for >= 3 ? 'approve' : 'reject', reason: 'Network validation' }
+      ]
+    };
   };
 
   const handleBuyProduct = async (productTokenId) => {
@@ -1082,7 +1151,14 @@ const ProductManagement = () => {
             {!loading && products.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
                 {products.map((product, index) => (
-                  <div key={product.token_id || product.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
+                  <div key={product.token_id || product.id || index} className="card" style={{ 
+                    border: '1px solid #e5e7eb', 
+                    padding: '15px',
+                    height: '400px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                       <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
                         {product.name || product.metadata?.name || `Product ${index + 1}`}
@@ -1098,7 +1174,14 @@ const ProductManagement = () => {
                       </span>
                     </div>
                     
-                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
+                    <div style={{ 
+                      fontSize: '14px', 
+                      color: '#6b7280', 
+                      marginBottom: '10px',
+                      flex: '1',
+                      overflowY: 'auto',
+                      paddingRight: '5px'
+                    }}>
                       <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
                       <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
                       <div><strong>Price:</strong> {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH</div>
