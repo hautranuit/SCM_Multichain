@@ -11,7 +11,14 @@ import {
   AlertCircle,
   TrendingUp,
   Navigation,
-  Send
+  Send,
+  Palette,
+  Shield,
+  ArrowRight,
+  Eye,
+  DollarSign,
+  Lock,
+  Unlock
 } from 'lucide-react';
 
 const SupplyChainOrchestrator = () => {
@@ -19,6 +26,8 @@ const SupplyChainOrchestrator = () => {
   const [purchaseRequests, setPurchaseRequests] = useState([]);
   const [transporterLeaderboard, setTransporterLeaderboard] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [nftTransfers, setNftTransfers] = useState([]);
+  const [nftAnalytics, setNftAnalytics] = useState(null);
   const [loading, setLoading] = useState(false);
   
   // Purchase form state
@@ -47,6 +56,16 @@ const SupplyChainOrchestrator = () => {
     special_instructions: ''
   });
 
+  // NFT transfer form state
+  const [nftForm, setNftForm] = useState({
+    purchase_request_id: '',
+    product_id: '',
+    manufacturer_address: '0x032041b4b356fEE1496805DD4749f181bC736FFA',
+    transporter_addresses: ['0x28918ecf013F32fAf45e05d62B4D9b207FCae784'],
+    buyer_address: '0xc6A050a538a9E857B4DCb4A33436280c202F6941',
+    purchase_amount: '0.1'
+  });
+
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
   useEffect(() => {
@@ -59,7 +78,9 @@ const SupplyChainOrchestrator = () => {
       await Promise.all([
         loadPurchaseRequests(),
         loadTransporterLeaderboard(),
-        loadAnalytics()
+        loadAnalytics(),
+        loadNftTransfers(),
+        loadNftAnalytics()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -95,6 +116,26 @@ const SupplyChainOrchestrator = () => {
       setAnalytics(data);
     } catch (error) {
       console.error('Error loading analytics:', error);
+    }
+  };
+
+  const loadNftTransfers = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/supply-chain/nft/transfers/list?limit=50`);
+      const data = await response.json();
+      setNftTransfers(data.transfers || []);
+    } catch (error) {
+      console.error('Error loading NFT transfers:', error);
+    }
+  };
+
+  const loadNftAnalytics = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/supply-chain/nft/analytics/dashboard`);
+      const data = await response.json();
+      setNftAnalytics(data);
+    } catch (error) {
+      console.error('Error loading NFT analytics:', error);
     }
   };
 
@@ -166,7 +207,7 @@ const SupplyChainOrchestrator = () => {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        alert('Shipping initiated successfully!');
+        alert('Shipping initiated successfully! NFT transfer flow automatically started.');
         setShippingForm({
           ...shippingForm,
           request_id: '',
@@ -174,13 +215,89 @@ const SupplyChainOrchestrator = () => {
           package_details: { weight: '', dimensions: '', description: '' },
           special_instructions: ''
         });
-        await loadPurchaseRequests();
+        await Promise.all([loadPurchaseRequests(), loadNftTransfers()]);
       } else {
         alert(`Shipping failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Shipping initiation error:', error);
       alert(`Shipping failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNftSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const requestData = {
+        ...nftForm,
+        purchase_amount: parseFloat(nftForm.purchase_amount),
+        product_metadata: {
+          name: `Product ${nftForm.product_id}`,
+          description: `Supply chain product for purchase ${nftForm.purchase_request_id}`,
+          product_id: nftForm.product_id,
+          purchase_request_id: nftForm.purchase_request_id,
+          created_at: new Date().toISOString()
+        }
+      };
+
+      const response = await fetch(`${BACKEND_URL}/api/supply-chain/nft/initiate-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert(`NFT transfer initiated! Transfer ID: ${result.transfer_id}`);
+        setNftForm({
+          ...nftForm,
+          purchase_request_id: '',
+          product_id: ''
+        });
+        await loadNftTransfers();
+      } else {
+        alert(`NFT transfer failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('NFT transfer error:', error);
+      alert(`NFT transfer failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeNextNftStep = async (transferId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/supply-chain/nft/execute-step`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transfer_id: transferId,
+          executor_address: '0x28918ecf013F32fAf45e05d62B4D9b207FCae784'
+        })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert('Transfer step executed successfully!');
+        await loadNftTransfers();
+      } else {
+        alert(`Step execution failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Step execution error:', error);
+      alert(`Step execution failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -193,7 +310,10 @@ const SupplyChainOrchestrator = () => {
       'shipping_initiated': 'text-purple-600 bg-purple-100',
       'in_transit': 'text-orange-600 bg-orange-100',
       'delivered': 'text-green-600 bg-green-100',
-      'cancelled': 'text-red-600 bg-red-100'
+      'cancelled': 'text-red-600 bg-red-100',
+      'minted': 'text-indigo-600 bg-indigo-100',
+      'escrowed': 'text-blue-600 bg-blue-100',
+      'failed': 'text-red-600 bg-red-100'
     };
     return colors[status] || 'text-gray-600 bg-gray-100';
   };
@@ -232,53 +352,59 @@ const SupplyChainOrchestrator = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
         <h1 className="text-3xl font-bold mb-2">Supply Chain Orchestrator</h1>
-        <p className="text-blue-100">Cross-chain purchase coordination with hub-based consensus</p>
+        <p className="text-blue-100">Cross-chain purchase coordination with NFT transfers and escrow management</p>
       </div>
 
       {/* Analytics Dashboard */}
-      {analytics && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                <p className="text-2xl font-bold text-gray-900">{analytics.total_requests}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {analytics && (
+          <>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Requests</p>
+                  <p className="text-2xl font-bold text-gray-900">{analytics.total_requests}</p>
+                </div>
+                <ShoppingCart className="h-8 w-8 text-blue-600" />
               </div>
-              <ShoppingCart className="h-8 w-8 text-blue-600" />
             </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Requests</p>
-                <p className="text-2xl font-bold text-gray-900">{analytics.active_requests}</p>
+            
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Requests</p>
+                  <p className="text-2xl font-bold text-gray-900">{analytics.active_requests}</p>
+                </div>
+                <Clock className="h-8 w-8 text-yellow-600" />
               </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
             </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Transporters</p>
-                <p className="text-2xl font-bold text-gray-900">{analytics.active_transporters}</p>
+          </>
+        )}
+        
+        {nftAnalytics && (
+          <>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">NFT Transfers</p>
+                  <p className="text-2xl font-bold text-gray-900">{nftAnalytics.total_transfers}</p>
+                </div>
+                <Palette className="h-8 w-8 text-purple-600" />
               </div>
-              <Truck className="h-8 w-8 text-green-600" />
             </div>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Completion Rate</p>
-                <p className="text-2xl font-bold text-gray-900">{analytics.completion_rate.toFixed(1)}%</p>
+            
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Escrow Value</p>
+                  <p className="text-2xl font-bold text-gray-900">{nftAnalytics.total_escrow_value_eth.toFixed(2)} ETH</p>
+                </div>
+                <Shield className="h-8 w-8 text-green-600" />
               </div>
-              <TrendingUp className="h-8 w-8 text-purple-600" />
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow">
@@ -287,6 +413,7 @@ const SupplyChainOrchestrator = () => {
             {[
               { id: 'purchase', label: 'Initiate Purchase', icon: ShoppingCart },
               { id: 'shipping', label: 'Start Shipping', icon: Send },
+              { id: 'nft', label: 'NFT Transfers', icon: Palette },
               { id: 'tracking', label: 'Track Orders', icon: Package },
               { id: 'transporters', label: 'Transporters', icon: Users }
             ].map(({ id, label, icon: Icon }) => (
@@ -461,7 +588,8 @@ const SupplyChainOrchestrator = () => {
               <h2 className="text-xl font-semibold text-gray-900">Start Shipping Process</h2>
               <div className="bg-green-50 p-4 rounded-lg">
                 <p className="text-sm text-green-700">
-                  This step is performed by manufacturers after receiving cross-chain purchase notifications from the Hub.
+                  This step is performed by manufacturers after receiving cross-chain purchase notifications from the Hub. 
+                  <span className="font-medium"> NFT transfer flow will be automatically initiated when shipping starts.</span>
                 </p>
               </div>
               
@@ -558,12 +686,166 @@ const SupplyChainOrchestrator = () => {
                     ) : (
                       <>
                         <Send className="h-4 w-4 mr-2" />
-                        Start Shipping
+                        Start Shipping & NFT Transfer
                       </>
                     )}
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* NFT Transfers Tab */}
+          {activeTab === 'nft' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-900">NFT Transfer Management</h2>
+                <button
+                  onClick={loadNftTransfers}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center"
+                >
+                  <Palette className="h-4 w-4 mr-2" />
+                  Refresh NFTs
+                </button>
+              </div>
+
+              {/* Manual NFT Initiation Form */}
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h3 className="font-medium text-purple-900 mb-3">Manual NFT Transfer Initiation</h3>
+                <p className="text-sm text-purple-700 mb-4">
+                  NFT transfers are automatically initiated when shipping starts. Use this form for manual testing only.
+                </p>
+                
+                <form onSubmit={handleNftSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <input
+                      type="text"
+                      value={nftForm.purchase_request_id}
+                      onChange={(e) => setNftForm({...nftForm, purchase_request_id: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Purchase Request ID"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={nftForm.product_id}
+                      onChange={(e) => setNftForm({...nftForm, product_id: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Product ID"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      {loading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : (
+                        <Palette className="h-4 w-4 mr-2" />
+                      )}
+                      Create NFT Transfer
+                    </button>
+                  </div>
+                </form>
+              </div>
+              
+              {/* NFT Transfers List */}
+              <div className="space-y-4">
+                {nftTransfers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Palette className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No NFT transfers found</p>
+                  </div>
+                ) : (
+                  nftTransfers.map((transfer) => (
+                    <div key={transfer.transfer_id} className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-lg border border-purple-200">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="font-medium text-gray-900 flex items-center">
+                            <Palette className="h-4 w-4 mr-2 text-purple-600" />
+                            {transfer.transfer_id}
+                          </h3>
+                          <p className="text-sm text-gray-600">Token ID: {transfer.token_id}</p>
+                          <p className="text-sm text-gray-600">Product: {transfer.product_id}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(transfer.status)}`}>
+                            {transfer.status.replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                          <p className="text-sm text-gray-500 mt-1">{transfer.progress_percentage.toFixed(0)}% Complete</p>
+                        </div>
+                      </div>
+                      
+                      {/* Transfer Progress Bar */}
+                      <div className="mb-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-700">Transfer Progress</span>
+                          <span className="text-sm text-gray-500">{transfer.current_step}/{transfer.total_steps} steps</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${transfer.progress_percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="font-medium text-gray-700 flex items-center">
+                            <Users className="h-4 w-4 mr-1" />
+                            Manufacturer
+                          </p>
+                          <p className="text-gray-600">{transfer.manufacturer_address.slice(0, 8)}...</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 flex items-center">
+                            <Truck className="h-4 w-4 mr-1" />
+                            Transporters
+                          </p>
+                          <p className="text-gray-600">{transfer.transporter_count} assigned</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 flex items-center">
+                            <ShoppingCart className="h-4 w-4 mr-1" />
+                            Buyer
+                          </p>
+                          <p className="text-gray-600">{transfer.buyer_address.slice(0, 8)}...</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 flex items-center">
+                            <Shield className="h-4 w-4 mr-1" />
+                            Escrow
+                          </p>
+                          <p className="text-gray-600">{transfer.purchase_amount} ETH</p>
+                          <p className="text-gray-500">{transfer.escrow_id.slice(0, 8)}...</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-4 border-t border-purple-200 flex justify-between items-center">
+                        <span className="text-sm text-gray-500">
+                          Created: {new Date(transfer.created_at).toLocaleString()}
+                        </span>
+                        {transfer.status === 'in_transit' && (
+                          <button
+                            onClick={() => executeNextNftStep(transfer.transfer_id)}
+                            disabled={loading}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center text-sm"
+                          >
+                            <ArrowRight className="h-4 w-4 mr-1" />
+                            Execute Next Step
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
