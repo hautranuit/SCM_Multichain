@@ -14,7 +14,7 @@ import json
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from web3 import Web3
 
-from .multi_account_manager import MultiAccountManager
+from .multi_account_manager import AddressKeyManager
 from .layerzero_oft_bridge_service import layerzero_oft_bridge_service
 from .blockchain_service import blockchain_service
 from .multichain_service import multichain_service
@@ -69,7 +69,7 @@ class SupplyChainOrchestrator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.database: Optional[AsyncIOMotorDatabase] = None
-        self.account_manager = MultiAccountManager()
+        self.account_manager = AddressKeyManager()
         
         # Chain configurations
         self.chains = {
@@ -106,7 +106,7 @@ class SupplyChainOrchestrator:
     
     async def get_database(self):
         """Get database instance"""
-        if blockchain_service.database:
+        if blockchain_service.database is not None:
             return blockchain_service.database
         return None
     
