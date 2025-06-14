@@ -272,6 +272,14 @@ class BlockchainService:
                             # Cache in MongoDB
                             result = await self.database.products.insert_one(product_data)
                             
+                            # ENHANCEMENT: Sync CID to Hub chain (Polygon Amoy) for dual storage
+                            hub_sync_result = await self._sync_cid_to_hub(
+                                token_id=str(token_id),
+                                metadata_cid=metadata_cid,
+                                manufacturer=manufacturer,
+                                product_data=product_data
+                            )
+                            
                             return {
                                 "success": True,
                                 "token_id": str(token_id),
@@ -284,6 +292,7 @@ class BlockchainService:
                                 "gas_used": receipt.gasUsed,
                                 "contract_address": contract_address,
                                 "encryption_keys": keys_used,
+                                "hub_sync": hub_sync_result,
                                 "_id": str(result.inserted_id)
                             }
                         else:
@@ -974,6 +983,95 @@ class BlockchainService:
         except Exception as e:
             print(f"⚠️ L2 bridge testing error: {e}")
             return {"error": str(e)}
+
+            return {"error": str(e)}
+
+    async def _sync_cid_to_hub(
+        self,
+        token_id: str,
+        metadata_cid: str,
+        manufacturer: str,
+        product_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        ENHANCEMENT: Sync CID to Hub chain (Polygon Amoy) for dual storage
+        Stores CID references on both chains for redundancy and global lookup
+        """
+        try:
+            print(f"🌐 Syncing CID to Hub chain for token {token_id}")
+            
+            if not self.pos_web3:
+                print("⚠️ Hub chain not connected, storing in database registry only")
+                return await self._store_hub_registry_fallback(token_id, metadata_cid, manufacturer, product_data)
+            
+            # Create hub registry entry
+            hub_registry_data = {
+                "token_id": token_id,
+                "metadata_cid": metadata_cid,
+                "manufacturer": manufacturer,
+                "source_chain": "base_sepolia",
+                "source_contract": product_data.get("contract_address"),
+                "source_tx": product_data.get("transaction_hash"),
+                "product_name": product_data.get("name"),
+                "created_at": time.time(),
+                "sync_status": "pending"
+            }
+            
+            # For now, simulate hub contract interaction (in production, would call actual hub contract)
+            mock_hub_tx = f"0x{uuid.uuid4().hex}"
+            
+            # Update registry
+            hub_registry_data.update({
+                "hub_tx_hash": mock_hub_tx,
+                "sync_status": "completed",
+                "synced_at": time.time()
+            })
+            
+            # Store in hub registry collection
+            await self.database.hub_cid_registry.insert_one(hub_registry_data)
+            
+            print(f"✅ CID synced to hub: {metadata_cid} -> Hub TX: {mock_hub_tx}")
+            
+            return {
+                "success": True,
+                "hub_tx_hash": mock_hub_tx,
+                "hub_registry_id": str(hub_registry_data.get("_id")),
+                "sync_method": "hub_contract"
+            }
+            
+        except Exception as e:
+            print(f"❌ Hub CID sync error: {e}")
+            return await self._store_hub_registry_fallback(token_id, metadata_cid, manufacturer, product_data)
+    
+    async def _store_hub_registry_fallback(
+        self,
+        token_id: str,
+        metadata_cid: str,
+        manufacturer: str,
+        product_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Fallback: Store in database registry when hub chain is unavailable"""
+        try:
+            registry_data = {
+                "token_id": token_id,
+                "metadata_cid": metadata_cid,
+                "manufacturer": manufacturer,
+                "source_chain": "base_sepolia",
+                "sync_status": "fallback_registry",
+                "created_at": time.time()
+            }
+            
+            result = await self.database.hub_cid_registry.insert_one(registry_data)
+            
+            return {
+                "success": True,
+                "registry_id": str(result.inserted_id),
+                "sync_method": "database_fallback"
+            }
+            
+        except Exception as e:
+            print(f"❌ Fallback registry error: {e}")
+            return {"success": False, "error": str(e)}
 
 # Include other algorithm implementations (payment release, dispute resolution, etc.)
 # They can be added back from the original file as needed

@@ -756,6 +756,87 @@ class SupplyChainOrchestrator:
             self.logger.error(f"❌ Shipping processing error: {e}")
             return {"success": False, "error": str(e)}
     
+    async def _initiate_nft_transfer_flow(self, shipping_data: Dict) -> Dict:
+        """
+        Initiate NFT transfer flow when shipping starts
+        Integrates with NFT Transfer Orchestrator
+        """
+        try:
+            self.logger.info(f"🎨 Initiating NFT transfer flow for request: {shipping_data['request_id']}")
+            
+            # Get purchase request details
+            purchase_doc = await self.database["purchase_requests"].find_one({
+                "request_id": shipping_data["request_id"]
+            })
+            
+            if not purchase_doc:
+                self.logger.error(f"❌ Purchase request not found: {shipping_data['request_id']}")
+                return {"success": False, "error": "Purchase request not found"}
+            
+            # Get assigned transporters from transportation batch
+            batch_doc = await self.database["transportation_batches"].find_one({
+                "request_id": shipping_data["request_id"]
+            })
+            
+            transporter_addresses = []
+            if batch_doc and "transporters" in batch_doc:
+                transporter_addresses = [t["transporter_address"] for t in batch_doc["transporters"]]
+            
+            # Import NFT orchestrator
+            try:
+                from .nft_transfer_orchestrator import nft_transfer_orchestrator
+                await nft_transfer_orchestrator.initialize()
+                
+                # Create NFT transfer flow
+                nft_result = await nft_transfer_orchestrator.initiate_nft_transfer_flow(
+                    purchase_request_id=shipping_data["request_id"],
+                    product_id=purchase_doc["product_id"],
+                    manufacturer_address=purchase_doc["manufacturer_address"],
+                    transporter_addresses=transporter_addresses,
+                    buyer_address=purchase_doc["buyer_address"],
+                    purchase_amount=purchase_doc["purchase_amount"],
+                    product_metadata={
+                        "name": f"Product {purchase_doc['product_id']}",
+                        "description": f"Supply chain product for purchase {shipping_data['request_id']}",
+                        "product_id": purchase_doc["product_id"],
+                        "purchase_request_id": shipping_data["request_id"],
+                        "manufacturer": purchase_doc["manufacturer_address"],
+                        "buyer": purchase_doc["buyer_address"],
+                        "purchase_amount": purchase_doc["purchase_amount"],
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                )
+                
+                if nft_result["success"]:
+                    # Update purchase request with NFT transfer details
+                    await self.database["purchase_requests"].update_one(
+                        {"request_id": shipping_data["request_id"]},
+                        {
+                            "$set": {
+                                "nft_transfer": {
+                                    "transfer_id": nft_result["transfer_id"],
+                                    "token_id": nft_result["token_id"],
+                                    "escrow_id": nft_result["escrow_id"],
+                                    "initiated_at": datetime.utcnow()
+                                }
+                            }
+                        }
+                    )
+                    
+                    self.logger.info(f"✅ NFT transfer flow initiated: {nft_result['transfer_id']}")
+                    return nft_result
+                else:
+                    self.logger.error(f"❌ NFT transfer initiation failed: {nft_result.get('error')}")
+                    return nft_result
+                    
+            except ImportError:
+                self.logger.warning("⚠️ NFT Transfer Orchestrator not available")
+                return {"success": False, "error": "NFT Transfer service not available"}
+                
+        except Exception as e:
+            self.logger.error(f"❌ NFT transfer flow initiation error: {e}")
+            return {"success": False, "error": str(e)}
+
     async def _create_transportation_batch(self, request_doc: Dict, shipping_details: Dict) -> Dict:
         """
         Create transportation batch with simplified consensus
@@ -780,6 +861,57 @@ class SupplyChainOrchestrator:
                 "created_at": datetime.utcnow(),
                 "status": "pending_validation",
                 "shipping_details": shipping_details
+            }
+            
+            # Store batch
+            await self.database["transportation_batches"].insert_one(batch_data)
+            
+            # Initiate consensus validation
+            consensus_result = await self._initiate_consensus_validation(batch_data)
+            
+            return {
+                "batch_id": batch_id,
+                "transporters_count": len(selected_transporters),
+                "validation_nodes_count": len(validation_nodes),
+                "consensus_result": consensus_result
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ Transportation batch creation failed: {e}")
+            return {"batch_id": None, "error": str(e)}
+    
+    async def _create_transportation_batch_crosschain(self, shipping_data: Dict) -> Dict:
+        """
+        Create transportation batch for cross-chain shipping with NFT integration
+        """
+        try:
+            batch_id = f"BATCH-{int(datetime.utcnow().timestamp())}-{uuid.uuid4().hex[:8]}"
+            
+            # Get purchase request details
+            purchase_doc = await self.database["purchase_requests"].find_one({
+                "request_id": shipping_data["request_id"]
+            })
+            
+            if not purchase_doc:
+                return {"success": False, "error": "Purchase request not found"}
+            
+            # Get transporters for this batch from hub coordination
+            hub_coordination = purchase_doc.get("hub_coordination", {})
+            transporter_assignment = hub_coordination.get("transporter_assignment", {})
+            selected_transporters = transporter_assignment.get("selected_transporters", [])
+            
+            # Select validation nodes (high reputation transporters)
+            validation_nodes = await self._select_validation_nodes()
+            
+            batch_data = {
+                "batch_id": batch_id,
+                "request_id": shipping_data["request_id"],
+                "transporters": selected_transporters,
+                "validation_nodes": validation_nodes,
+                "consensus_threshold": self.consensus_threshold,
+                "created_at": datetime.utcnow(),
+                "status": "pending_validation",
+                "shipping_details": shipping_data
             }
             
             # Store batch
