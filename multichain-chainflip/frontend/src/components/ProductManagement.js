@@ -982,7 +982,14 @@ const ProductManagement = () => {
             {!loading && purchases.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
                 {purchases.map((purchase, index) => (
-                  <div key={purchase.purchase_id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '15px' }}>
+                  <div key={purchase.purchase_id || index} className="card" style={{ 
+                    border: '1px solid #e5e7eb', 
+                    padding: '15px',
+                    height: '320px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                       <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
                         Order #{purchase.purchase_id?.substring(0, 12)}...

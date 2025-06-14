@@ -64,6 +64,14 @@ const RegisterPage = () => {
     setSuccess('');
     
     try {
+      // If registering as transporter, show the transporter registration form
+      if (userData.role === 'transporter') {
+        // Redirect to transporter registration with pre-filled data
+        sessionStorage.setItem('transporterRegistrationData', JSON.stringify(userData));
+        window.location.href = '/transporter-registration';
+        return;
+      }
+
       const authService = (await import('./services/authService')).default;
       await authService.register(userData);
       setSuccess('Registration successful! Please wait for admin approval. You will receive an email once approved.');
@@ -130,6 +138,9 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Special route for transporter registration (part of signup flow) */}
+            <Route path="/transporter-registration" element={<TransporterRegistration />} />
             
             {/* Protected Admin Routes */}
             <Route path="/admin" element={<AdminPage />} />
@@ -215,16 +226,6 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/transporter-registration" 
-              element={
-                <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
-                    <TransporterRegistration />
-                  </AppLayout>
-                </ProtectedRoute>
-              } 
-            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -258,17 +259,42 @@ const AppLayout = ({ children, backendStatus }) => {
       }
     })();
 
-    const otherItems = [
+    // Role-specific menu items
+    const roleSpecificItems = [];
+    
+    // Common items for all roles
+    const commonItems = [
       { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
-      { id: 'supply-chain', name: 'Supply Chain', icon: '🏭', path: '/supply-chain' },
-      { id: 'transporter-registration', name: 'Transporter Registration', icon: '🚛', path: '/transporter-registration' },
-      { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
-      { id: 'consensus', name: 'Consensus (Alg 3)', icon: '⚡', path: '/consensus' },
       { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
-      { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' },
     ];
 
-    return [...baseItems, productMenuItem, ...otherItems];
+    // Role-specific additional items
+    if (userRole === 'manufacturer') {
+      roleSpecificItems.push(
+        { id: 'supply-chain', name: 'Orders & Shipping', icon: '🏭', path: '/supply-chain' },
+        { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' }
+      );
+    } else if (userRole === 'buyer') {
+      roleSpecificItems.push(
+        { id: 'supply-chain', name: 'Your Orders', icon: '🛒', path: '/supply-chain' }
+      );
+    } else if (userRole === 'transporter') {
+      roleSpecificItems.push(
+        { id: 'supply-chain', name: 'Delivery Requests', icon: '🚛', path: '/supply-chain' }
+      );
+    } else {
+      // Admin or default - show all
+      roleSpecificItems.push(
+        { id: 'supply-chain', name: 'Supply Chain', icon: '🏭', path: '/supply-chain' },
+        { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
+        { id: 'consensus', name: 'Consensus System', icon: '⚡', path: '/consensus' }
+      );
+    }
+
+    // Analytics - role-specific
+    const analyticsItem = { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' };
+
+    return [...baseItems, productMenuItem, ...commonItems, ...roleSpecificItems, analyticsItem];
   };
 
   const menuItems = getRoleBasedMenuItems();
@@ -298,6 +324,9 @@ const AppLayout = ({ children, backendStatus }) => {
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ fontSize: '0.875rem' }}>
+                Role: <span className="font-medium text-blue-600 capitalize">{userRole}</span>
+              </div>
               <div style={{ fontSize: '0.875rem' }}>
                 Backend: <span className={backendStatus.includes('✅') ? 'text-green' : 'text-red'}>
                   {backendStatus}

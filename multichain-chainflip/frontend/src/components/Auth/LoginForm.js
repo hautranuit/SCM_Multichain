@@ -113,6 +113,7 @@ const LoginForm = ({ onLogin, isLoading }) => {
               <p className="font-medium">Admin Login:</p>
               <p>Email: admin@chainflip.com</p>
               <p>Password: ChainFLIP2025!</p>
+              <p className="text-xs text-yellow-600 mt-1">Admin Address: 0x032041b4b356fEE1496805DD4749f181bC736FFA</p>
             </div>
           </div>
         </form>

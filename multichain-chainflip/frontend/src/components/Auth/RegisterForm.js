@@ -19,7 +19,7 @@ const RegisterForm = ({ onRegister, isLoading }) => {
       label: 'Manufacturer',
       icon: Building,
       description: 'Produce and create products in the supply chain',
-      l2Chain: 'zkEVM Cardona (Chain ID: 2442)'
+      l2Chain: 'Base Sepolia (Chain ID: 84532)'
     },
     {
       value: 'transporter',

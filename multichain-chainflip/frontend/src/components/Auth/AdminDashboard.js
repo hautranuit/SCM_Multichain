@@ -11,7 +11,8 @@ import {
   Shield,
   UserCheck,
   UserX,
-  AlertCircle
+  AlertCircle,
+  Wallet
 } from 'lucide-react';
 
 const AdminDashboard = ({ authService }) => {
@@ -247,7 +248,7 @@ const AdminDashboard = ({ authService }) => {
                   title: 'Manufacturers',
                   value: stats.manufacturers,
                   icon: Building,
-                  description: 'L2 Chain ID: 2442 (zkEVM Cardona)'
+                  description: 'L2 Chain ID: 84532 (Base Sepolia)'
                 },
                 {
                   title: 'Transporters',
@@ -322,7 +323,10 @@ const AdminDashboard = ({ authService }) => {
                                 </span>
                               </div>
                               <p className="text-sm text-gray-500">{user.email}</p>
-                              <p className="text-xs text-gray-400">Wallet: {user.wallet_address}</p>
+                              <div className="flex items-center text-xs text-gray-400">
+                                <Wallet className="h-3 w-3 mr-1" />
+                                <span className="font-mono">{user.wallet_address}</span>
+                              </div>
                               <p className="text-xs text-gray-400">
                                 Registered: {new Date(user.registration_date).toLocaleDateString()}
                               </p>
@@ -383,6 +387,9 @@ const AdminDashboard = ({ authService }) => {
                         L2 Chain
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ethereum Address
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Registration Date
                       </th>
                     </tr>
@@ -417,7 +424,15 @@ const AdminDashboard = ({ authService }) => {
                             {getStatusBadge(user.approval_status)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {user.l2_blockchain_assigned || 'Not assigned'}
+                            {user.role === 'manufacturer' ? '84532 (Base Sepolia)' : 
+                             user.role === 'transporter' ? '421614 (Arbitrum Sepolia)' :
+                             user.role === 'buyer' ? '11155420 (Optimism Sepolia)' : 'Not assigned'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center text-sm text-gray-900">
+                              <Wallet className="h-3 w-3 mr-1 text-gray-400" />
+                              <span className="font-mono text-xs">{user.wallet_address}</span>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(user.registration_date).toLocaleDateString()}
