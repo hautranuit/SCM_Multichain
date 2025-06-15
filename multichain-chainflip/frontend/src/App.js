@@ -14,7 +14,7 @@ import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import ParticipantManagement from './components/ParticipantManagement';
-import QRScanner from './components/QRScanner';
+import EnhancedConsensusDemo from './components/EnhancedConsensusDemo';
 import Analytics from './components/Analytics';
 import ConsensusManagement from './components/ConsensusManagement';
 import TokenBridge from './components/TokenBridge';
@@ -176,11 +176,11 @@ function App() {
               } 
             />
             <Route 
-              path="/qr-scanner" 
+              path="/enhanced-consensus" 
               element={
                 <ProtectedRoute>
                   <AppLayout backendStatus={backendStatus}>
-                    <QRScanner />
+                    <EnhancedConsensusDemo />
                   </AppLayout>
                 </ProtectedRoute>
               } 
@@ -254,7 +254,7 @@ const AppLayout = ({ children, backendStatus }) => {
     // Common items for all roles
     const commonItems = [
       { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
-      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+      { id: 'enhanced-consensus', name: 'Enhanced Consensus', icon: '📱', path: '/enhanced-consensus' },
     ];
 
     // Role-specific additional items - SUPPLY CHAIN FUNCTIONALITY INTEGRATED INTO PRODUCTS
