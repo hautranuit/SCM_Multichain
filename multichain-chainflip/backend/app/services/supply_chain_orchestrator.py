@@ -4,7 +4,7 @@ Implements cross-chain purchase flow with Hub coordination and reputation-based 
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import uuid
@@ -178,12 +178,16 @@ class SupplyChainOrchestrator:
                 "hub_message_result": hub_message_result
             })
             
+            # INTEGRATION: Create escrow payment for this purchase
+            payment_result = await self._create_escrow_payment_for_purchase(request)
+            
             return {
                 "success": True,
                 "request_id": request.request_id,
                 "distance_miles": distance_miles,
                 "transporters_required": self._get_transporters_required(distance_miles),
                 "cross_chain_message": hub_message_result,
+                "payment_escrow": payment_result,
                 "status": "sent_to_hub",
                 "message": f"Purchase request sent from {buyer_chain} to Hub (Polygon Amoy)"
             }
@@ -1099,6 +1103,14 @@ class SupplyChainOrchestrator:
             nft_result = await self._execute_final_nft_transfer(chain_doc, delivery_confirmation)
             
             if nft_result["success"]:
+                # INTEGRATION: Release escrow payment after successful delivery
+                payment_release_result = await self._release_escrow_payment_for_delivery(
+                    chain_doc["purchase_request_id"],
+                    buyer_address,
+                    delivery_confirmation,
+                    chain_doc.get("transporter_addresses", [])
+                )
+                
                 # Update message chain as completed
                 await self.database["cross_chain_message_flows"].update_one(
                     {"message_chain_id": message_chain_id},
@@ -1108,6 +1120,7 @@ class SupplyChainOrchestrator:
                             "delivery_confirmed_at": datetime.utcnow(),
                             "delivery_confirmation": delivery_confirmation,
                             "final_nft_transfer": nft_result,
+                            "payment_release": payment_release_result,
                             "completed_at": datetime.utcnow()
                         }
                     }
@@ -1121,6 +1134,7 @@ class SupplyChainOrchestrator:
                             "status": "completed",
                             "delivery_confirmed": True,
                             "final_nft_transfer": nft_result,
+                            "payment_release": payment_release_result,
                             "completed_at": datetime.utcnow()
                         }
                     }
@@ -1131,7 +1145,8 @@ class SupplyChainOrchestrator:
                     "message_chain_id": message_chain_id,
                     "delivery_confirmed": True,
                     "final_nft_transfer": nft_result,
-                    "message": "Supply chain completed! NFT transferred from Manufacturer to Buyer."
+                    "payment_release": payment_release_result,
+                    "message": "Supply chain completed! NFT transferred from Manufacturer to Buyer and payments released."
                 }
             else:
                 return nft_result

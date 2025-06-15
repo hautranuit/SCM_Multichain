@@ -154,14 +154,15 @@ class SCCConsensusService:
             from .blockchain_service import blockchain_service
             if blockchain_service.database is not None:
                 self.database = blockchain_service.database
+                # Ensure collections exist
+                await self._ensure_collections()
+                # Initialize node registry
+                await self._initialize_node_registry()
+                self.logger.info("✅ SCC Consensus Service initialized with database")
             else:
-                raise Exception("Blockchain service database not initialized")
-            
-            # Ensure collections exist
-            await self._ensure_collections()
-            
-            # Initialize node registry
-            await self._initialize_node_registry()
+                self.logger.warning("⚠️ Blockchain service database not initialized - SCC will initialize later")
+                # Set a flag to retry initialization later
+                self.database = None
             
             self.logger.info("✅ SCC Consensus Service initialized")
             

@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus, payment_incentive
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 from app.services.blockchain_service import BlockchainService
@@ -46,6 +46,7 @@ app.include_router(qr_routes.router, prefix="/api/qr", tags=["qr-codes"])
 app.include_router(layerzero_oft.router, prefix="/api/layerzero-oft", tags=["layerzero-oft"])
 app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["supply-chain"])
 app.include_router(enhanced_consensus.router, prefix="/api/enhanced-consensus", tags=["enhanced-consensus"])
+app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payment-incentive"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -79,6 +80,11 @@ async def startup_event():
     await scc_consensus_service.initialize()
     await dispute_resolution_service.initialize()
     print("🔗 Enhanced Consensus and Dispute Resolution Services initialized")
+    
+    # Initialize Payment Incentive Service
+    from app.services.payment_incentive_service import payment_incentive_service
+    await payment_incentive_service.initialize()
+    print("💰 Payment Incentive Service initialized")
     
     print("✅ ChainFLIP Backend Initialized Successfully")
 
