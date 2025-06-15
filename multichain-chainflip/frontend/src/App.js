@@ -10,6 +10,12 @@ import RegisterForm from './components/Auth/RegisterForm';
 import AdminDashboard from './components/Auth/AdminDashboard';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
+// New Modern Components
+import LandingPage from './components/LandingPage';
+import ModernDashboard from './components/ModernDashboard';
+import EnhancedAuthenticity from './components/EnhancedAuthenticity';
+import Marketplace from './components/Marketplace';
+
 // Main App Components
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
@@ -135,9 +141,12 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+        <div className="min-h-screen bg-gray-50">
           <Routes>
-            {/* Public Routes */}
+            {/* Public Landing Page */}
+            <Route path="/" element={<LandingPage />} />
+            
+            {/* Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             
@@ -152,9 +161,9 @@ function App() {
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
-                    <Dashboard backendStatus={backendStatus} />
-                  </AppLayout>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <ModernDashboard backendStatus={backendStatus} />
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -162,9 +171,9 @@ function App() {
               path="/products" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <ProductManagement />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -172,9 +181,9 @@ function App() {
               path="/participants" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <ParticipantManagement />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -182,9 +191,9 @@ function App() {
               path="/enhanced-consensus" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <EnhancedConsensusDemo />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -192,9 +201,9 @@ function App() {
               path="/analytics" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <Analytics />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -202,9 +211,9 @@ function App() {
               path="/consensus" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <ConsensusManagement />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -212,9 +221,9 @@ function App() {
               path="/token-bridge" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <TokenBridge />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
@@ -222,15 +231,32 @@ function App() {
               path="/qr-scanner" 
               element={
                 <ProtectedRoute>
-                  <AppLayout backendStatus={backendStatus}>
+                  <ModernAppLayout backendStatus={backendStatus}>
                     <QRScanner />
-                  </AppLayout>
+                  </ModernAppLayout>
                 </ProtectedRoute>
               } 
             />
-            
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route 
+              path="/enhanced-authenticity" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <EnhancedAuthenticity />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/marketplace" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <Marketplace />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
           </Routes>
         </div>
       </Router>
@@ -238,9 +264,10 @@ function App() {
   );
 }
 
-// App Layout Component for authenticated pages
-const AppLayout = ({ children, backendStatus }) => {
-  const { userRole } = useAuth();
+// Modern App Layout Component for authenticated pages
+const ModernAppLayout = ({ children, backendStatus }) => {
+  const { userRole, user } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const getRoleBasedMenuItems = () => {
     const baseItems = [
@@ -251,47 +278,51 @@ const AppLayout = ({ children, backendStatus }) => {
     const productMenuItem = (() => {
       switch (userRole) {
         case 'manufacturer':
-          return { id: 'products', name: 'Create Product NFT', icon: '📦', path: '/products' };
+          return { id: 'products', name: 'Product Lifecycle', icon: '🏭', path: '/products' };
         case 'transporter':
-          return { id: 'products', name: 'Shipping Process', icon: '🚛', path: '/products' };
+          return { id: 'products', name: 'Delivery Management', icon: '🚛', path: '/products' };
         case 'buyer':
-          return { id: 'products', name: 'Market', icon: '🛒', path: '/products' };
+          return { id: 'products', name: 'Product Browser', icon: '🛒', path: '/products' };
         default:
           return { id: 'products', name: 'Products', icon: '📦', path: '/products' };
       }
     })();
 
-    // Role-specific menu items
-    const roleSpecificItems = [];
-    
-    // Common items for all roles
-    const commonItems = [
-      { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
-      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
-      { id: 'enhanced-consensus', name: 'Enhanced Consensus', icon: '🔗', path: '/enhanced-consensus' },
+    // Algorithm-specific features
+    const algorithmItems = [
+      { id: 'enhanced-authenticity', name: 'Enhanced Verification', icon: '🔐', path: '/enhanced-authenticity' },
+      { id: 'marketplace', name: 'Marketplace', icon: '🏪', path: '/marketplace' },
     ];
 
-    // Role-specific additional items - SUPPLY CHAIN FUNCTIONALITY INTEGRATED INTO PRODUCTS
+    // Common items for all roles
+    const commonItems = [
+      { id: 'participants', name: 'Network', icon: '🌐', path: '/participants' },
+      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+      { id: 'enhanced-consensus', name: 'Consensus Hub', icon: '🔗', path: '/enhanced-consensus' },
+    ];
+
+    // Role-specific additional items
+    const roleSpecificItems = [];
     if (userRole === 'manufacturer') {
       roleSpecificItems.push(
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' }
       );
     } else if (userRole === 'buyer') {
-      // Buyer gets integrated supply chain in products tab
+      // Buyer gets marketplace features prominently
     } else if (userRole === 'transporter') {
-      // Transporter gets integrated supply chain in products tab
+      // Transporter gets delivery tools
     } else {
-      // Admin or default - show all including consensus
+      // Admin or default - show all
       roleSpecificItems.push(
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
         { id: 'consensus', name: 'Consensus System', icon: '⚡', path: '/consensus' }
       );
     }
 
-    // Analytics - role-specific
+    // Analytics for all
     const analyticsItem = { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' };
 
-    return [...baseItems, productMenuItem, ...commonItems, ...roleSpecificItems, analyticsItem];
+    return [...baseItems, productMenuItem, ...algorithmItems, ...commonItems, ...roleSpecificItems, analyticsItem];
   };
 
   const menuItems = getRoleBasedMenuItems();
@@ -300,75 +331,96 @@ const AppLayout = ({ children, backendStatus }) => {
     try {
       const authService = (await import('./services/authService')).default;
       await authService.logout();
-      window.location.href = '/login';
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 
   return (
     <>
-      <header style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '1rem 0' }}>
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <h1 style={{ margin: 0, color: '#1e40af', fontSize: '2rem', fontWeight: 'bold' }}>
-                🔗 ChainFLIP
-              </h1>
-              <span style={{ marginLeft: '1rem', color: '#6b7280', fontSize: '0.875rem' }}>
-                Multi-Chain Supply Chain Management
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ fontSize: '0.875rem' }}>
-                Role: <span className="font-medium text-blue-600 capitalize">{userRole}</span>
-              </div>
-              <div style={{ fontSize: '0.875rem' }}>
-                Backend: <span className={backendStatus.includes('✅') ? 'text-green' : 'text-red'}>
-                  {backendStatus}
-                </span>
-              </div>
+      {/* Modern Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
               <button
-                onClick={handleLogout}
-                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               >
-                Sign Out
+                ☰
               </button>
+              <div className="flex items-center space-x-3">
+                <div className="text-2xl font-bold text-blue-600">ChainFLIP</div>
+                <div className="hidden md:block text-sm text-gray-500">
+                  Blockchain Supply Chain Management
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-6">
+              <div className="hidden md:flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-600">Role:</span>
+                  <span className="font-semibold text-blue-600 capitalize">{userRole}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-600">Status:</span>
+                  <span className={`font-semibold ${backendStatus.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                    {backendStatus}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="text-sm font-medium text-gray-700">{user?.username}</div>
+                <button
+                  onClick={handleLogout}
+                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div style={{ display: 'flex' }}>
-        <nav className="sidebar">
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {menuItems.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => window.location.href = item.path}
-                  className={window.location.pathname === item.path ? 'nav-item active' : 'nav-item'}
-                  style={{ 
-                    width: '100%', 
-                    textAlign: 'left',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '1rem'
-                  }}
-                >
-                  <span style={{ marginRight: '0.75rem', fontSize: '1.125rem' }}>{item.icon}</span>
-                  {item.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+      <div className="flex">
+        {/* Modern Sidebar */}
+        <nav className={`sidebar ${sidebarOpen ? 'open' : ''} md:block`}>
+          <div className="p-6">
+            <ul className="space-y-2">
+              {menuItems.map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => {
+                      window.location.href = item.path;
+                      setSidebarOpen(false);
+                    }}
+                    className={`nav-item w-full text-left ${window.location.pathname === item.path ? 'active' : ''}`}
+                  >
+                    <span className="text-xl mr-3">{item.icon}</span>
+                    {item.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </nav>
 
-        <main className="main-content">
-          <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-            {children}
-          </div>
+        {/* Overlay for mobile */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Main Content */}
+        <main className="main-content flex-1">
+          {children}
         </main>
       </div>
     </>
