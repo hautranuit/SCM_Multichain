@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -95,6 +95,7 @@ app.include_router(layerzero_oft.router, prefix="/api/layerzero-oft", tags=["lay
 app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["supply-chain"])
 app.include_router(nft_transfers.router, prefix="/api/supply-chain", tags=["NFT Transfers"])
 app.include_router(enhanced_consensus.router, prefix="/api/enhanced-consensus", tags=["Enhanced Consensus"])
+app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payment-incentive"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)
@@ -431,6 +432,14 @@ async def unified_startup_event():
             logger.info("✅ Federated Learning service initialized")
         except Exception as e:
             logger.warning(f"FL service initialization warning: {e}")
+        
+        # Initialize Payment Incentive Service (Algorithm 1)
+        try:
+            from app.services.payment_incentive_service import payment_incentive_service
+            await payment_incentive_service.initialize()
+            logger.info("✅ Payment Incentive Service initialized")
+        except Exception as e:
+            logger.warning(f"Payment Incentive Service initialization warning: {e}")
         
         logger.info("✅ ChainFLIP Unified Backend Initialized Successfully")
         logger.info("🌐 All endpoints available:")

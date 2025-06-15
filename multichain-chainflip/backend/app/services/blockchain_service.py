@@ -7,6 +7,7 @@ import asyncio
 import json
 import time
 import uuid
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
@@ -398,28 +399,35 @@ class BlockchainService:
             print(f"❌ Error getting products: {e}")
             return []
     
-    async def verify_product_authenticity(self, product_id: str, qr_data: str, current_owner: str) -> str:
+    async def verify_product_authenticity(self, product_id: str, qr_data: str, current_owner: str, verification_context: Dict = None) -> Dict[str, Any]:
         """
-        Algorithm 4: Product Authenticity Verification Using QR and NFT
-        Enhanced with product-specific encryption keys
+        Algorithm 4: Enhanced Product Authenticity Verification Using QR and NFT
+        Enhanced with product-specific encryption keys, batch processing, and improved error handling
         
-        Input: Product ID, QR data, NFT metadata, current owner
-        Output: Authenticity status
+        Input: Product ID, QR data, NFT metadata, current owner, verification context
+        Output: Enhanced authenticity status with detailed verification data
         
         1: Retrieve the NFT associated with the given Product ID
         2: if NFT exists then
         3:     if QRdata = NFTmetadata then
         4:         if currentowner = NFTowner then
-        5:             Return "Product is Authentic"
+        5:             Return "Product is Authentic" with verification details
         6:         else
-        7:             Return "Ownership Mismatch"
+        7:             Return "Ownership Mismatch" with ownership chain
         8:         end if
         9:     else
-        10:         Return "Product Data Mismatch"
+        10:         Return "Product Data Mismatch" with mismatched fields
         11:     end if
         12: else
-        13:     Return "Product Not Registered"
+        13:     Return "Product Not Registered" with registration suggestions
         14: end if
+        
+        Enhanced Features:
+        - Batch verification support
+        - Detailed verification status indicators
+        - Improved error handling with actionable feedback
+        - Integration with QR scanner workflow
+        - Historical verification tracking
         """
         try:
             print(f"🔍 Algorithm 4: Product Authenticity Verification Using QR and NFT")
@@ -633,37 +641,134 @@ class BlockchainService:
                 if qr_manufacturer.lower() == ipfs_manufacturer.lower():
                     print(f"✅ Step 4: Manufacturer verification successful (QR ↔ IPFS)")
                     
-                    # Record successful verification
-                    await self._record_verification_event(product_id, current_owner, "authentic")
+                    # Record successful verification with enhanced details
+                    verification_details = {
+                        "status": "success",
+                        "authentic": True,
+                        "product_id": product_id,
+                        "verifier": current_owner,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "verification_steps": [
+                            {"step": "nft_retrieval", "status": "passed", "details": "NFT found and accessible"},
+                            {"step": "qr_decryption", "status": "passed", "details": "QR data decrypted successfully"},
+                            {"step": "metadata_match", "status": "passed", "details": "QR metadata matches NFT metadata"},
+                            {"step": "manufacturer_verification", "status": "passed", "details": "Manufacturer verified via IPFS"}
+                        ],
+                        "manufacturer": {
+                            "qr_value": qr_manufacturer,
+                            "ipfs_value": ipfs_manufacturer,
+                            "verified": True
+                        },
+                        "metadata_cid": product.get("metadata_cid", ""),
+                        "product_name": product.get("name", "Unknown Product")
+                    }
+                    await self._record_verification_event(product_id, current_owner, "authentic", verification_details)
                     
-                    print(f"✅ Algorithm 4 Result: Product is Authentic - Manufacturer Verified via IPFS")
-                    return "Product is Authentic"
+                    print(f"✅ Algorithm 4 Enhanced Result: Product is Authentic - Manufacturer Verified via IPFS")
+                    
+                    # Return enhanced result for API consumers
+                    if verification_context and verification_context.get("return_detailed", False):
+                        return verification_details
+                    else:
+                        return "Product is Authentic"
                 else:
                     print(f"❌ Step 4: Manufacturer mismatch")
                     print(f"   QR Manufacturer: {qr_manufacturer}")
                     print(f"   IPFS Manufacturer: {ipfs_manufacturer}")
                     
-                    # Record verification failure
-                    await self._record_verification_event(product_id, current_owner, "manufacturer_mismatch")
+                    # Record verification failure with enhanced details
+                    verification_details = {
+                        "status": "failed",
+                        "authentic": False,
+                        "product_id": product_id,
+                        "verifier": current_owner,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "error_code": "MANUFACTURER_MISMATCH",
+                        "verification_steps": [
+                            {"step": "nft_retrieval", "status": "passed", "details": "NFT found and accessible"},
+                            {"step": "qr_decryption", "status": "passed", "details": "QR data decrypted successfully"},
+                            {"step": "metadata_match", "status": "passed", "details": "QR metadata matches NFT metadata"},
+                            {"step": "manufacturer_verification", "status": "failed", "details": "Manufacturer mismatch between QR and IPFS"}
+                        ],
+                        "manufacturer": {
+                            "qr_value": qr_manufacturer,
+                            "ipfs_value": ipfs_manufacturer,
+                            "verified": False
+                        },
+                        "suggestion": "Contact the manufacturer to verify product authenticity"
+                    }
+                    await self._record_verification_event(product_id, current_owner, "manufacturer_mismatch", verification_details)
                     
-                    print(f"❌ Algorithm 4 Result: Manufacturer Mismatch (QR ≠ IPFS)")
-                    return "Manufacturer Mismatch"
+                    print(f"❌ Algorithm 4 Enhanced Result: Manufacturer Mismatch (QR ≠ IPFS)")
+                    
+                    # Return enhanced result for API consumers
+                    if verification_context and verification_context.get("return_detailed", False):
+                        return verification_details
+                    else:
+                        return "Manufacturer Mismatch"
             else:
                 print(f"❌ Step 4: Missing manufacturer data")
                 print(f"   QR Manufacturer: '{qr_manufacturer}'")
                 print(f"   IPFS Manufacturer: '{ipfs_manufacturer}'")
                 
-                # Record verification failure
-                await self._record_verification_event(product_id, current_owner, "manufacturer_data_missing")
+                # Record verification failure with enhanced details
+                verification_details = {
+                    "status": "failed",
+                    "authentic": False,
+                    "product_id": product_id,
+                    "verifier": current_owner,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "error_code": "MANUFACTURER_DATA_MISSING",
+                    "verification_steps": [
+                        {"step": "nft_retrieval", "status": "passed", "details": "NFT found and accessible"},
+                        {"step": "qr_decryption", "status": "passed", "details": "QR data decrypted successfully"},
+                        {"step": "metadata_match", "status": "passed", "details": "QR metadata matches NFT metadata"},
+                        {"step": "manufacturer_verification", "status": "failed", "details": "Missing manufacturer data in QR or IPFS"}
+                    ],
+                    "manufacturer": {
+                        "qr_value": qr_manufacturer,
+                        "ipfs_value": ipfs_manufacturer,
+                        "verified": False
+                    },
+                    "suggestion": "Ensure QR code contains manufacturer information and IPFS metadata is complete"
+                }
+                await self._record_verification_event(product_id, current_owner, "manufacturer_data_missing", verification_details)
                 
-                print(f"❌ Algorithm 4 Result: Manufacturer Data Missing")
-                return "Manufacturer Data Missing"
+                print(f"❌ Algorithm 4 Enhanced Result: Manufacturer Data Missing")
+                
+                # Return enhanced result for API consumers
+                if verification_context and verification_context.get("return_detailed", False):
+                    return verification_details
+                else:
+                    return "Manufacturer Data Missing"
             
         except Exception as e:
             print(f"❌ Algorithm 4 Error: {e}")
             import traceback
             traceback.print_exc()
-            return f"Verification Failed: {str(e)}"
+            
+            # Enhanced error response
+            verification_details = {
+                "status": "error",
+                "authentic": False,
+                "product_id": product_id,
+                "verifier": current_owner,
+                "timestamp": datetime.utcnow().isoformat(),
+                "error_code": "VERIFICATION_ERROR",
+                "error_message": str(e),
+                "suggestion": "Please try again or contact support if the issue persists"
+            }
+            
+            try:
+                await self._record_verification_event(product_id, current_owner, "verification_error", verification_details)
+            except:
+                pass  # Don't fail if logging fails
+            
+            # Return enhanced result for API consumers
+            if verification_context and verification_context.get("return_detailed", False):
+                return verification_details
+            else:
+                return f"Verification Failed: {str(e)}"
     
     async def _verify_with_default_keys(self, product: Dict[str, Any], qr_data: Any, current_owner: str, product_id: str) -> str:
         """Fallback verification using default encryption keys"""
@@ -700,22 +805,38 @@ class BlockchainService:
             print(f"❌ Default key verification error: {e}")
             return "Product Data Mismatch"
     
-    async def _record_verification_event(self, product_id: str, verifier: str, result: str):
-        """Record verification event"""
+    async def _record_verification_event(self, product_id: str, verifier: str, result: str, verification_details: Dict = None):
+        """Enhanced verification event recording with detailed tracking"""
         try:
             verification_data = {
                 "product_id": product_id,
                 "verifier": verifier,
                 "result": result,
                 "timestamp": time.time(),
-                "verification_id": str(uuid.uuid4())
+                "verification_id": str(uuid.uuid4()),
+                "details": verification_details or {}
             }
             
             await self.database.verifications.insert_one(verification_data)
-            print(f"📝 Verification recorded: {product_id} -> {result}")
+            print(f"📝 Enhanced verification recorded: {product_id} -> {result}")
+            
+            # Also store in verification history for analytics
+            verification_history = {
+                "product_id": product_id,
+                "verifier": verifier,
+                "result": result,
+                "timestamp": datetime.utcnow(),
+                "verification_details": verification_details,
+                "session_info": {
+                    "user_agent": verification_details.get("context", {}).get("user_agent", "") if verification_details else "",
+                    "ip_address": verification_details.get("context", {}).get("ip_address", "") if verification_details else ""
+                }
+            }
+            
+            await self.database.verification_history.insert_one(verification_history)
             
         except Exception as e:
-            print(f"⚠️ Verification recording error: {e}")
+            print(f"⚠️ Enhanced verification recording error: {e}")
     
     async def _verify_manufacturer_role_blockchain(self, manufacturer_address: str) -> Dict[str, Any]:
         """
@@ -1072,6 +1193,254 @@ class BlockchainService:
         except Exception as e:
             print(f"❌ Fallback registry error: {e}")
             return {"success": False, "error": str(e)}
+
+    # Algorithm 4 Enhancement: Batch Verification Capabilities
+    
+    async def verify_multiple_products_authenticity(self, verification_requests: List[Dict]) -> Dict[str, Any]:
+        """
+        Enhanced Algorithm 4: Batch Product Authenticity Verification
+        
+        Allows verification of multiple products in a single request for efficiency
+        
+        Input: List of verification requests [{"product_id": str, "qr_data": str, "current_owner": str}]
+        Output: Batch verification results with individual product statuses
+        """
+        try:
+            print(f"🔍 Algorithm 4 Batch Verification: Processing {len(verification_requests)} products")
+            
+            batch_result = {
+                "batch_id": str(uuid.uuid4()),
+                "timestamp": datetime.utcnow().isoformat(),
+                "total_products": len(verification_requests),
+                "successful_verifications": 0,
+                "failed_verifications": 0,
+                "results": {},
+                "summary": {
+                    "authentic_products": 0,
+                    "non_authentic_products": 0,
+                    "error_products": 0
+                }
+            }
+            
+            # Process each verification request
+            for i, request in enumerate(verification_requests):
+                product_id = request.get("product_id")
+                qr_data = request.get("qr_data")
+                current_owner = request.get("current_owner")
+                
+                print(f"📱 Batch item {i+1}/{len(verification_requests)}: {product_id}")
+                
+                try:
+                    # Add batch context to verification
+                    verification_context = {
+                        "batch_verification": True,
+                        "batch_id": batch_result["batch_id"],
+                        "batch_index": i,
+                        "return_detailed": True
+                    }
+                    
+                    result = await self.verify_product_authenticity(
+                        product_id, 
+                        qr_data, 
+                        current_owner, 
+                        verification_context
+                    )
+                    
+                    batch_result["results"][product_id] = result
+                    
+                    # Update counters based on result
+                    if isinstance(result, dict):
+                        if result.get("status") == "success" and result.get("authentic"):
+                            batch_result["successful_verifications"] += 1
+                            batch_result["summary"]["authentic_products"] += 1
+                        elif result.get("status") == "failed":
+                            batch_result["failed_verifications"] += 1
+                            batch_result["summary"]["non_authentic_products"] += 1
+                        else:
+                            batch_result["failed_verifications"] += 1
+                            batch_result["summary"]["error_products"] += 1
+                    else:
+                        # Handle string responses (backward compatibility)
+                        if result == "Product is Authentic":
+                            batch_result["successful_verifications"] += 1
+                            batch_result["summary"]["authentic_products"] += 1
+                        else:
+                            batch_result["failed_verifications"] += 1
+                            batch_result["summary"]["non_authentic_products"] += 1
+                            
+                except Exception as verification_error:
+                    print(f"❌ Batch verification error for {product_id}: {verification_error}")
+                    batch_result["results"][product_id] = {
+                        "status": "error",
+                        "error_message": str(verification_error),
+                        "product_id": product_id
+                    }
+                    batch_result["failed_verifications"] += 1
+                    batch_result["summary"]["error_products"] += 1
+            
+            # Calculate success rate
+            batch_result["success_rate"] = (
+                batch_result["successful_verifications"] / batch_result["total_products"] * 100
+                if batch_result["total_products"] > 0 else 0
+            )
+            
+            print(f"✅ Batch verification completed: {batch_result['successful_verifications']}/{batch_result['total_products']} successful")
+            
+            # Record batch verification event
+            await self._record_batch_verification_event(batch_result)
+            
+            return batch_result
+            
+        except Exception as e:
+            print(f"❌ Batch verification error: {e}")
+            return {
+                "status": "error",
+                "error_message": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+    
+    async def _record_batch_verification_event(self, batch_result: Dict):
+        """Record batch verification event for analytics"""
+        try:
+            batch_event = {
+                "batch_id": batch_result["batch_id"],
+                "timestamp": datetime.utcnow(),
+                "total_products": batch_result["total_products"],
+                "successful_verifications": batch_result["successful_verifications"],
+                "failed_verifications": batch_result["failed_verifications"],
+                "success_rate": batch_result["success_rate"],
+                "summary": batch_result["summary"]
+            }
+            
+            await self.database.batch_verifications.insert_one(batch_event)
+            print(f"📊 Batch verification analytics recorded")
+            
+        except Exception as e:
+            print(f"⚠️ Batch verification recording error: {e}")
+    
+    async def get_verification_analytics(self, time_range_days: int = 30) -> Dict[str, Any]:
+        """
+        Get verification analytics for dashboard
+        
+        Algorithm 4 Enhancement: Verification Status Indicators
+        """
+        try:
+            from datetime import timedelta
+            
+            # Calculate date range
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=time_range_days)
+            
+            # Get verification history
+            verification_cursor = self.database.verification_history.find({
+                "timestamp": {"$gte": start_date, "$lte": end_date}
+            })
+            
+            verifications = await verification_cursor.to_list(length=None)
+            
+            analytics = {
+                "period": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "days": time_range_days
+                },
+                "totals": {
+                    "total_verifications": len(verifications),
+                    "authentic_products": 0,
+                    "non_authentic_products": 0,
+                    "error_verifications": 0
+                },
+                "success_rates": {
+                    "overall_success_rate": 0,
+                    "daily_success_rates": {}
+                },
+                "verification_types": {
+                    "single_verifications": 0,
+                    "batch_verifications": 0
+                },
+                "common_failures": {},
+                "top_verifiers": {},
+                "verification_trends": []
+            }
+            
+            # Process verification data
+            daily_stats = {}
+            failure_reasons = {}
+            verifier_counts = {}
+            
+            for verification in verifications:
+                result = verification.get("result", "")
+                verifier = verification.get("verifier", "unknown")
+                verification_date = verification["timestamp"].date().isoformat()
+                
+                # Daily statistics
+                if verification_date not in daily_stats:
+                    daily_stats[verification_date] = {"total": 0, "authentic": 0}
+                daily_stats[verification_date]["total"] += 1
+                
+                # Count by result type
+                if result == "authentic":
+                    analytics["totals"]["authentic_products"] += 1
+                    daily_stats[verification_date]["authentic"] += 1
+                elif result in ["manufacturer_mismatch", "ownership_mismatch", "product_data_mismatch"]:
+                    analytics["totals"]["non_authentic_products"] += 1
+                    failure_reasons[result] = failure_reasons.get(result, 0) + 1
+                else:
+                    analytics["totals"]["error_verifications"] += 1
+                    failure_reasons[result] = failure_reasons.get(result, 0) + 1
+                
+                # Verifier statistics
+                verifier_counts[verifier] = verifier_counts.get(verifier, 0) + 1
+                
+                # Check if batch verification
+                verification_details = verification.get("verification_details", {})
+                if verification_details.get("context", {}).get("batch_verification"):
+                    analytics["verification_types"]["batch_verifications"] += 1
+                else:
+                    analytics["verification_types"]["single_verifications"] += 1
+            
+            # Calculate success rates
+            total_verifications = analytics["totals"]["total_verifications"]
+            if total_verifications > 0:
+                analytics["success_rates"]["overall_success_rate"] = (
+                    analytics["totals"]["authentic_products"] / total_verifications * 100
+                )
+            
+            # Daily success rates
+            for date, stats in daily_stats.items():
+                if stats["total"] > 0:
+                    analytics["success_rates"]["daily_success_rates"][date] = (
+                        stats["authentic"] / stats["total"] * 100
+                    )
+            
+            # Common failures
+            analytics["common_failures"] = dict(sorted(failure_reasons.items(), key=lambda x: x[1], reverse=True)[:5])
+            
+            # Top verifiers
+            analytics["top_verifiers"] = dict(sorted(verifier_counts.items(), key=lambda x: x[1], reverse=True)[:10])
+            
+            # Verification trends (last 7 days)
+            trend_days = min(7, time_range_days)
+            trend_start = end_date - timedelta(days=trend_days)
+            
+            for i in range(trend_days):
+                day = (trend_start + timedelta(days=i)).date().isoformat()
+                day_stats = daily_stats.get(day, {"total": 0, "authentic": 0})
+                analytics["verification_trends"].append({
+                    "date": day,
+                    "total_verifications": day_stats["total"],
+                    "authentic_verifications": day_stats["authentic"],
+                    "success_rate": (day_stats["authentic"] / day_stats["total"] * 100) if day_stats["total"] > 0 else 0
+                })
+            
+            return analytics
+            
+        except Exception as e:
+            print(f"❌ Analytics generation error: {e}")
+            return {
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
 
 # Include other algorithm implementations (payment release, dispute resolution, etc.)
 # They can be added back from the original file as needed

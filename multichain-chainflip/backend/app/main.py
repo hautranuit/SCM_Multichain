@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus, payment_incentive
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 from app.services.blockchain_service import BlockchainService
@@ -47,6 +47,8 @@ app.include_router(layerzero_oft.router, prefix="/api/layerzero-oft", tags=["lay
 app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["supply-chain"])
 app.include_router(enhanced_consensus.router, prefix="/api/enhanced-consensus", tags=["enhanced-consensus"])
 app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payment-incentive"])
+app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authenticity", tags=["enhanced-authenticity"])
+app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -85,6 +87,14 @@ async def startup_event():
     from app.services.payment_incentive_service import payment_incentive_service
     await payment_incentive_service.initialize()
     print("💰 Payment Incentive Service initialized")
+    
+    # Initialize Post Supply Chain Service (Algorithm 5)
+    try:
+        from app.services.post_supply_chain_service import post_supply_chain_service
+        await post_supply_chain_service.initialize()
+        print("🛍️ Post Supply Chain Service initialized")
+    except Exception as e:
+        print(f"⚠️ Post Supply Chain Service initialization warning: {e}")
     
     print("✅ ChainFLIP Backend Initialized Successfully")
 
