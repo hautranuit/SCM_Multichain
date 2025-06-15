@@ -16,11 +16,11 @@ backend:
 
   - task: "Issue 9: Consensus Algorithm Integration"
     implemented: true
-    working: false
+    working: true
     file: "/app/multichain-chainflip/backend/app/api/routes/supply_chain.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
@@ -28,6 +28,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "Consensus algorithm endpoints are implemented but return 500 Internal Server Error. The supply_chain_orchestrator service is not properly initialized."
+      - working: true
+        agent: "testing"
+        comment: "Fixed the Enhanced Consensus and Dispute Resolution system. The issue was that the enhanced_consensus router was not included in main.py and the services were not initialized during startup. Also fixed a bug in the batch status endpoint where it was trying to convert a datetime object to a string incorrectly."
 
   - task: "Issue 11: Supply Chain Tab Integration"
     implemented: true
@@ -96,8 +99,7 @@ metadata:
 test_plan:
   current_focus:
     - "Issue 9: Consensus Algorithm Integration"
-  stuck_tasks:
-    - "Issue 9: Consensus Algorithm Integration"
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
@@ -106,3 +108,5 @@ agent_communication:
     message: "Created initial test result file based on review request. Will now test backend API functionality."
   - agent: "testing"
     message: "Completed backend API testing. Most features are working properly, but the consensus algorithm integration has issues. The supply chain orchestrator service is not properly initialized, causing 500 errors on consensus-related endpoints."
+  - agent: "testing"
+    message: "Fixed the Enhanced Consensus and Dispute Resolution system. The issue was that the enhanced_consensus router was not included in main.py and the services were not initialized during startup. Also fixed a bug in the batch status endpoint where it was trying to convert a datetime object to a string incorrectly. All tests are now passing."

@@ -259,13 +259,37 @@ class SCCConsensusService:
             default_secondary_nodes = [
                 {
                     "node_id": "SN-HUB-001",
-                    "address": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "address": "0x542E1d35Aa5c8A6b9B2C3d4e5F6a7B8c9D0e1F2a",
                     "node_type": NodeType.SECONDARY.value,
                     "role": NodeRole.HUB_COORDINATOR.value,
                     "stake_amount": 0.5,
                     "trust_score": 0.88,
                     "reputation": 0.88,
                     "chain_id": 80002,  # Polygon Amoy (Hub)
+                    "is_active": True,
+                    "last_activity": datetime.utcnow()
+                },
+                {
+                    "node_id": "SN-DISTRIBUTOR-001",
+                    "address": "0x9F8c2D2e3F4a5B6c7D8e9F0a1B2c3D4e5F6a7B8c",
+                    "node_type": NodeType.SECONDARY.value,
+                    "role": NodeRole.HUB_COORDINATOR.value,
+                    "stake_amount": 0.4,
+                    "trust_score": 0.85,
+                    "reputation": 0.85,
+                    "chain_id": 84532,  # Base Sepolia
+                    "is_active": True,
+                    "last_activity": datetime.utcnow()
+                },
+                {
+                    "node_id": "SN-COORDINATOR-001",
+                    "address": "0x1A2b3C4d5E6f7G8h9I0j1K2l3M4n5O6p7Q8r9S0t",
+                    "node_type": NodeType.SECONDARY.value,
+                    "role": NodeRole.HUB_COORDINATOR.value,
+                    "stake_amount": 0.3,
+                    "trust_score": 0.82,
+                    "reputation": 0.82,
+                    "chain_id": 421614,  # Arbitrum Sepolia
                     "is_active": True,
                     "last_activity": datetime.utcnow()
                 }
@@ -512,7 +536,7 @@ class SCCConsensusService:
                 await self._commit_batch(batch_id, approve_votes, reject_votes, total_validators)
             
             # Check if all validators voted or deadline passed
-            elif votes_received == total_validators or datetime.utcnow() > datetime.fromisoformat(batch_doc["validation_deadline"].replace("Z", "+00:00")):
+            elif votes_received == total_validators or datetime.utcnow() > batch_doc["validation_deadline"]:
                 if approve_votes > reject_votes:
                     result_status = "committed"
                     await self._commit_batch(batch_id, approve_votes, reject_votes, total_validators)
@@ -801,7 +825,7 @@ class SCCConsensusService:
         
         # Create deterministic string from transactions
         tx_strings = []
-        for tx in sorted(transactions, key=lambda x: x.tx_id):
+        for tx in sorted(transactions, key=lambda x: x.tx_id or ""):
             tx_string = f"{tx.tx_id}:{tx.from_address}:{tx.to_address}:{tx.product_id}:{tx.value}"
             tx_strings.append(tx_string)
         

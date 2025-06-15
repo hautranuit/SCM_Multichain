@@ -175,7 +175,7 @@ async def get_batch_consensus_status(
             "proposer_id": batch_doc["proposer_id"],
             "transactions_count": len(batch_doc["transactions"]),
             "created_at": batch_doc["created_at"].isoformat(),
-            "validation_deadline": batch_doc.get("validation_deadline", "").replace("Z", "+00:00") if batch_doc.get("validation_deadline") else None,
+            "validation_deadline": batch_doc.get("validation_deadline").isoformat() if batch_doc.get("validation_deadline") else None,
             "votes_received": len(votes),
             "votes": [
                 {
@@ -185,7 +185,7 @@ async def get_batch_consensus_status(
                     "timestamp": vote["timestamp"].isoformat()
                 } for vote in votes
             ],
-            "consensus_result": consensus_result.__dict__ if consensus_result else None
+            "consensus_result": consensus_result if consensus_result else None
         }
         
     except HTTPException:
@@ -247,6 +247,44 @@ async def get_consensus_nodes(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Nodes retrieval error: {str(e)}")
+
+@router.post("/consensus/nodes/reinitialize", response_model=Dict, tags=["SCC Consensus - Admin"])
+async def force_reinitialize_consensus_nodes(
+    confirm: bool = Query(False, description="Set to true to confirm reinitialization"),
+    scc_service = Depends(get_scc_service)
+):
+    """
+    ADMIN ENDPOINT: Force reinitialize consensus nodes (clears existing and creates new)
+    Use with caution - this will reset all node data!
+    """
+    try:
+        if not confirm:
+            return {
+                "success": False,
+                "error": "Must set confirm=true to proceed with reinitialization",
+                "warning": "This will delete all existing consensus nodes and recreate them"
+            }
+        
+        # Clear existing nodes
+        delete_result = await scc_service.database["scc_nodes"].delete_many({})
+        deleted_count = delete_result.deleted_count
+        
+        # Force reinitialize
+        await scc_service._initialize_node_registry()
+        
+        # Count new nodes
+        new_count = await scc_service.database["scc_nodes"].count_documents({})
+        
+        return {
+            "success": True,
+            "message": "Consensus nodes reinitialized successfully",
+            "deleted_nodes": deleted_count,
+            "created_nodes": new_count,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Node reinitialization error: {str(e)}")
 
 # === DISPUTE RESOLUTION ALGORITHM ENDPOINTS ===
 
