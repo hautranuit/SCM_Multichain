@@ -96,6 +96,8 @@ app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["suppl
 app.include_router(nft_transfers.router, prefix="/api/supply-chain", tags=["NFT Transfers"])
 app.include_router(enhanced_consensus.router, prefix="/api/enhanced-consensus", tags=["Enhanced Consensus"])
 app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payment-incentive"])
+app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authenticity", tags=["enhanced-authenticity"])
+app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)
@@ -440,6 +442,14 @@ async def unified_startup_event():
             logger.info("✅ Payment Incentive Service initialized")
         except Exception as e:
             logger.warning(f"Payment Incentive Service initialization warning: {e}")
+        
+        # Initialize Post Supply Chain Service (Algorithm 5)
+        try:
+            from app.services.post_supply_chain_service import post_supply_chain_service
+            await post_supply_chain_service.initialize()
+            logger.info("✅ Post Supply Chain Service initialized")
+        except Exception as e:
+            logger.warning(f"Post Supply Chain Service initialization warning: {e}")
         
         logger.info("✅ ChainFLIP Unified Backend Initialized Successfully")
         logger.info("🌐 All endpoints available:")

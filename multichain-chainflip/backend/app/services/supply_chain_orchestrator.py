@@ -1569,6 +1569,120 @@ class SupplyChainOrchestrator:
         except Exception as e:
             self.logger.error(f"❌ Get transporter leaderboard failed: {e}")
             return []
+    
+    # === PAYMENT INTEGRATION METHODS ===
+    
+    async def _create_escrow_payment_for_purchase(self, request: "PurchaseRequest") -> Dict:
+        """
+        Create escrow payment for purchase request (Algorithm 1 integration)
+        """
+        try:
+            # Import payment incentive service for integration
+            from .payment_incentive_service import payment_incentive_service
+            
+            # Calculate total transporter count for payment splitting
+            transporter_count = len(request.selected_transporters)
+            
+            # Create escrow payment request
+            escrow_data = {
+                "purchase_request_id": request.request_id,
+                "buyer_address": request.buyer_address,
+                "total_amount": request.total_price,
+                "transporter_addresses": [t.address for t in request.selected_transporters],
+                "estimated_delivery_date": request.delivery_deadline.isoformat() if hasattr(request, 'delivery_deadline') else None
+            }
+            
+            self.logger.info(f"🔗 Algorithm 3→1 Integration: Creating escrow payment for purchase {request.request_id}")
+            
+            # Create the escrow payment through Algorithm 1
+            payment_result = await payment_incentive_service.create_escrow_payment(
+                escrow_data["purchase_request_id"],
+                escrow_data["buyer_address"], 
+                escrow_data["total_amount"],
+                escrow_data["transporter_addresses"],
+                escrow_data["estimated_delivery_date"]
+            )
+            
+            if payment_result.get("success"):
+                self.logger.info(f"✅ Escrow payment created successfully for {request.request_id}")
+                return {
+                    "success": True,
+                    "escrow_address": payment_result.get("escrow_address"),
+                    "payment_status": "escrowed",
+                    "total_amount": escrow_data["total_amount"],
+                    "transporter_count": transporter_count,
+                    "integration": "algorithm_1_payment_system"
+                }
+            else:
+                self.logger.warning(f"⚠️ Escrow payment creation failed for {request.request_id}")
+                return {
+                    "success": False,
+                    "reason": payment_result.get("message", "Unknown payment error"),
+                    "fallback": "manual_payment_required"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"❌ Create escrow payment failed for {request.request_id}: {e}")
+            return {
+                "success": False,
+                "reason": f"Escrow creation error: {str(e)}",
+                "fallback": "manual_payment_required"
+            }
+    
+    async def _release_escrow_payment_for_delivery(self, request_id: str, delivery_confirmation: Dict) -> Dict:
+        """
+        Release escrow payment after delivery confirmation (Algorithm 1 integration)
+        """
+        try:
+            # Import payment incentive service for integration
+            from .payment_incentive_service import payment_incentive_service
+            
+            self.logger.info(f"🔗 Algorithm 3→1 Integration: Releasing escrow payment for delivered purchase {request_id}")
+            
+            # Release the escrow payment through Algorithm 1
+            release_result = await payment_incentive_service.release_escrow_payment(
+                request_id,
+                delivery_confirmation.get("delivery_address"),
+                delivery_confirmation.get("delivery_proof", {}),
+                delivery_confirmation.get("transporter_addresses", [])
+            )
+            
+            if release_result.get("success"):
+                self.logger.info(f"✅ Escrow payment released successfully for {request_id}")
+                
+                # Calculate and distribute transporter incentives
+                incentive_results = []
+                for transporter_addr in delivery_confirmation.get("transporter_addresses", []):
+                    incentive_result = await payment_incentive_service.calculate_transporter_incentive(
+                        request_id,
+                        transporter_addr,
+                        delivery_confirmation.get("delivery_metrics", {})
+                    )
+                    incentive_results.append({
+                        "transporter": transporter_addr,
+                        "incentive": incentive_result
+                    })
+                
+                return {
+                    "success": True,
+                    "payment_released": release_result.get("amount_released"),
+                    "release_transaction": release_result.get("transaction_hash"),
+                    "transporter_incentives": incentive_results,
+                    "integration": "algorithm_1_payment_system"
+                }
+            else:
+                self.logger.warning(f"⚠️ Escrow payment release failed for {request_id}")
+                return {
+                    "success": False,
+                    "reason": release_result.get("message", "Unknown release error")
+                }
+                
+        except Exception as e:
+            self.logger.error(f"❌ Release escrow payment failed for {request_id}: {e}")
+            return {
+                "success": False,
+                "reason": f"Payment release error: {str(e)}"
+            }
 
 
 # Global instance
