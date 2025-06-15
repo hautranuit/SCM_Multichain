@@ -1,476 +1,275 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import QRCode from 'qrcode.react';
+import { QrCode, Camera, Upload, Eye, Truck, ShoppingBag } from 'lucide-react';
+import TransporterLocationUpdate from './TransporterLocationUpdate';
+import BuyerProductView from './BuyerProductView';
+import { useAuth } from '../contexts/AuthContext';
 
 const QRScanner = () => {
+  const { userRole } = useAuth();
+  const [scannedData, setScannedData] = useState('');
   const [scanResult, setScanResult] = useState(null);
-  const [scanHistory, setScanHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [productDetails, setProductDetails] = useState(null);
-  const [manualInput, setManualInput] = useState('');
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const [activeMode, setActiveMode] = useState(null); // 'transporter' or 'buyer'
+  const [qrFile, setQrFile] = useState(null);
 
-  useEffect(() => {
-    loadScanHistory();
-  }, []);
-
-  const loadScanHistory = () => {
-    const history = JSON.parse(localStorage.getItem('qrScanHistory') || '[]');
-    setScanHistory(history);
-  };
-
-  const saveScanToHistory = (scanData) => {
-    const history = JSON.parse(localStorage.getItem('qrScanHistory') || '[]');
-    const newScan = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      data: scanData,
-      result: productDetails
-    };
-    const updatedHistory = [newScan, ...history].slice(0, 50); // Keep last 50 scans
-    localStorage.setItem('qrScanHistory', JSON.stringify(updatedHistory));
-    setScanHistory(updatedHistory);
-  };
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } // Use back camera
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Could not access camera. Please ensure camera permissions are granted.');
+  const handleQRFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setQrFile(file);
+      // In a real implementation, you would decode the QR from the image
+      // For now, we'll simulate with the text input
+      alert('QR image uploaded. Please also paste the QR data in the text field for this demo.');
     }
   };
 
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject;
-      const tracks = stream.getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-      setCameraActive(false);
+  const handleScanQR = async () => {
+    if (!scannedData.trim()) {
+      alert('Please enter QR code data');
+      return;
     }
-  };
 
-  const captureAndScan = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!activeMode) {
+      alert('Please select whether you are a Transporter or Buyer');
+      return;
+    }
 
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const context = canvas.getContext('2d');
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0);
-
-    // Simulate QR code detection (in real app, use a QR code library)
-    // For demo, we'll use manual input
-    setShowManualInput(true);
-  };
-
-  const processQRCode = async (qrData) => {
     setLoading(true);
-    setScanResult(qrData);
-    
     try {
-      let parsedData;
-      try {
-        parsedData = JSON.parse(qrData);
-      } catch {
-        // If not JSON, treat as product ID
-        parsedData = { productId: qrData };
+      // Call backend to decrypt QR and get product info
+      const response = await axios.post(
+        `${process.env.REACT_APP_BACKEND_URL}/api/ipfs/qr/scan-and-decrypt`,
+        {
+          encrypted_qr_data: scannedData,
+          user_type: activeMode
+        }
+      );
+
+      if (response.data.success) {
+        setScanResult(response.data);
+        
+        // Show initial scan result
+        if (activeMode === 'transporter') {
+          alert(`✅ QR Scanned Successfully!\n\nProduct ID: ${response.data.product_id}\nYou can now update the location for this product.`);
+        } else if (activeMode === 'buyer') {
+          alert(`✅ QR Scanned Successfully!\n\nProduct ID: ${response.data.product_id}\nLoading product information and shipping history...`);
+        }
       }
 
-      // Fetch product details from blockchain
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/products/${parsedData.productId}`);
-      setProductDetails(response.data);
-      
-      // Save to history
-      saveScanToHistory(qrData);
-      
     } catch (error) {
-      console.error('Error fetching product details:', error);
-      // Try to fetch from QR verification endpoint
-      try {
-        const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/qr/verify`, {
-          qr_data: qrData
-        });
-        setProductDetails(response.data);
-        saveScanToHistory(qrData);
-      } catch (verifyError) {
-        console.error('Error verifying QR code:', verifyError);
-        setProductDetails({ 
-          error: 'Product not found or invalid QR code',
-          scannedData: qrData 
-        });
-      }
-    }
-    setLoading(false);
-  };
-
-  const handleManualScan = (e) => {
-    e.preventDefault();
-    if (manualInput.trim()) {
-      processQRCode(manualInput.trim());
-      setManualInput('');
-      setShowManualInput(false);
+      console.error('QR scan error:', error);
+      alert(`❌ QR Scan Failed: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const clearResults = () => {
+  const handleLocationUpdate = (updateResult) => {
+    alert(`✅ Location Updated Successfully!\n\nThe new IPFS CID (${updateResult.new_cid}) should now be saved to the blockchain for permanent tracking.`);
+    // Reset for next scan
+    setScannedData('');
     setScanResult(null);
-    setProductDetails(null);
   };
 
-  const generateSampleQR = () => {
-    const sampleData = {
-      productId: "SAMPLE-001",
-      name: "Sample Product",
-      manufacturer: "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-      blockchain: "polygon",
-      contractAddress: process.env.REACT_APP_CONTRACT_ADDRESS
-    };
-    return JSON.stringify(sampleData);
+  const handleReceiptConfirmation = (confirmResult) => {
+    alert(`✅ Receipt Confirmed!\n\nDelivery has been marked as complete. The final IPFS CID (${confirmResult.new_cid}) contains the complete product journey.`);
+    // Reset for next scan
+    setScannedData('');
+    setScanResult(null);
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '30px' }}>📱 QR Code Scanner</h2>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+            <QrCode className="w-8 h-8 mr-3 text-blue-600" />
+            QR Code Scanner
+          </h1>
+          <p className="text-gray-600">
+            Scan QR codes to update product location (Transporter) or view product information (Buyer)
+          </p>
+        </div>
 
-      {/* Scanner Section */}
-      <div className="card" style={{ padding: '20px', marginBottom: '30px' }}>
-        <h3 style={{ marginBottom: '20px' }}>Scan Product QR Code</h3>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          {/* Camera Section */}
-          <div>
-            <h4>Camera Scanner</h4>
-            {!cameraActive ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '40px', 
-                border: '2px dashed #e5e7eb', 
-                borderRadius: '8px',
-                background: '#f9fafb'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
-                <div style={{ marginBottom: '15px', color: '#6b7280' }}>
-                  Click to activate camera and scan QR codes
-                </div>
+        {!scanResult && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            {/* User Type Selection */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">I am a:</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
-                  onClick={startCamera}
-                  className="btn"
-                  style={{ 
-                    background: '#10b981', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '12px 24px', 
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    cursor: 'pointer'
-                  }}
+                  onClick={() => setActiveMode('transporter')}
+                  className={`p-4 border-2 rounded-lg transition-colors ${
+                    activeMode === 'transporter'
+                      ? 'border-green-500 bg-green-50 text-green-800'
+                      : 'border-gray-200 hover:border-green-300'
+                  }`}
                 >
-                  Start Camera
+                  <div className="flex items-center justify-center mb-2">
+                    <Truck className="w-8 h-8" />
+                  </div>
+                  <div className="font-semibold">Transporter</div>
+                  <div className="text-sm mt-1">Update product location and shipping status</div>
+                </button>
+                
+                <button
+                  onClick={() => setActiveMode('buyer')}
+                  className={`p-4 border-2 rounded-lg transition-colors ${
+                    activeMode === 'buyer'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-center mb-2">
+                    <ShoppingBag className="w-8 h-8" />
+                  </div>
+                  <div className="font-semibold">Buyer</div>
+                  <div className="text-sm mt-1">View product info and confirm receipt</div>
                 </button>
               </div>
-            ) : (
-              <div style={{ textAlign: 'center' }}>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  style={{ 
-                    width: '100%', 
-                    maxWidth: '400px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '8px' 
-                  }}
-                />
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
-                <div style={{ marginTop: '15px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                  <button
-                    onClick={captureAndScan}
-                    className="btn"
-                    style={{ 
-                      background: '#3b82f6', 
-                      color: 'white', 
-                      border: 'none', 
-                      padding: '10px 20px', 
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    📸 Capture & Scan
-                  </button>
-                  <button
-                    onClick={stopCamera}
-                    className="btn"
-                    style={{ 
-                      background: '#ef4444', 
-                      color: 'white', 
-                      border: 'none', 
-                      padding: '10px 20px', 
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Stop Camera
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
 
-          {/* Manual Input Section */}
-          <div>
-            <h4>Manual Input</h4>
-            <div style={{ padding: '20px', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-              <form onSubmit={handleManualScan}>
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
-                    Enter QR Code Data or Product ID:
-                  </label>
+            {/* QR Code Input */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  QR Code Data
+                </label>
+                <div className="flex gap-2">
                   <textarea
-                    value={manualInput}
-                    onChange={(e) => setManualInput(e.target.value)}
-                    placeholder='{"productId":"PROD-001","name":"Product Name"} or just product ID'
-                    style={{ 
-                      width: '100%', 
-                      padding: '10px', 
-                      border: '1px solid #e5e7eb', 
-                      borderRadius: '4px',
-                      minHeight: '80px'
-                    }}
+                    value={scannedData}
+                    onChange={(e) => setScannedData(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows="4"
+                    placeholder="Paste QR code data here or upload QR image..."
                   />
                 </div>
+              </div>
+
+              <div className="flex gap-2">
+                <label className="flex-1 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                  <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                  <span className="text-sm text-gray-600">Upload QR Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleQRFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                
                 <button
-                  type="submit"
-                  disabled={!manualInput.trim() || loading}
-                  className="btn"
-                  style={{ 
-                    background: loading ? '#9ca3af' : '#8b5cf6', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '10px 20px', 
-                    borderRadius: '6px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    width: '100%'
-                  }}
+                  onClick={handleScanQR}
+                  disabled={loading || !activeMode}
+                  className="bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
-                  {loading ? 'Scanning...' : '🔍 Scan Data'}
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  ) : (
+                    <Camera className="w-5 h-5 mr-2" />
+                  )}
+                  {loading ? 'Processing...' : 'Process QR'}
                 </button>
-              </form>
+              </div>
+
+              {qrFile && (
+                <div className="text-sm text-green-600">
+                  ✅ QR image uploaded: {qrFile.name}
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div className="mt-6 bg-blue-50 rounded-lg p-4">
+              <h4 className="font-medium text-blue-900 mb-2">📱 How to Use:</h4>
+              <div className="text-sm text-blue-700 space-y-1">
+                <div>1. Select whether you are a Transporter or Buyer</div>
+                <div>2. Scan QR code with your phone camera and paste the data, or upload QR image</div>
+                <div>3. Click "Process QR" to decrypt and access product information</div>
+                <div>4. Follow the workflow for your role (update location or confirm receipt)</div>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Sample QR Code */}
-          <div>
-            <h4>Sample QR Code</h4>
-            <div style={{ textAlign: 'center', padding: '20px', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <QRCode value={generateSampleQR()} size={150} />
+        {/* Scan Results and Actions */}
+        {scanResult && activeMode === 'transporter' && (
+          <div className="space-y-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="text-green-900 font-semibold mb-2">🚛 Transporter Mode</h3>
+              <div className="text-green-700 text-sm">
+                <div><strong>Product ID:</strong> {scanResult.product_id}</div>
+                <div><strong>Current Metadata CID:</strong> {scanResult.current_metadata_cid}</div>
+                <div><strong>Permissions:</strong> {scanResult.permissions?.join(', ')}</div>
               </div>
-              <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
-                Scan this sample QR code for testing
-              </div>
+            </div>
+            
+            <TransporterLocationUpdate
+              productId={scanResult.product_id}
+              currentCid={scanResult.current_metadata_cid}
+              onUpdate={handleLocationUpdate}
+            />
+            
+            <div className="text-center">
               <button
-                onClick={() => processQRCode(generateSampleQR())}
-                className="btn"
-                style={{ 
-                  background: '#f59e0b', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '8px 16px', 
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
+                onClick={() => {
+                  setScannedData('');
+                  setScanResult(null);
                 }}
+                className="text-blue-600 hover:text-blue-800 underline"
               >
-                Test Scan
+                ← Scan Another QR Code
               </button>
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Scan Results */}
-      {(scanResult || productDetails) && (
-        <div className="card" style={{ padding: '20px', marginBottom: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0 }}>Scan Results</h3>
-            <button
-              onClick={clearResults}
-              className="btn"
-              style={{ 
-                background: '#6b7280', 
-                color: 'white', 
-                border: 'none', 
-                padding: '8px 16px', 
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              Clear Results
-            </button>
-          </div>
-
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <div style={{ fontSize: '18px', color: '#6b7280' }}>Verifying product authenticity...</div>
-            </div>
-          ) : productDetails?.error ? (
-            <div style={{ 
-              padding: '20px', 
-              background: '#fef2f2', 
-              border: '1px solid #fecaca', 
-              borderRadius: '8px',
-              color: '#991b1b'
-            }}>
-              <h4>❌ Verification Failed</h4>
-              <div>Error: {productDetails.error}</div>
-              {productDetails.scannedData && (
-                <div style={{ marginTop: '10px', fontSize: '14px' }}>
-                  Scanned data: {productDetails.scannedData}
-                </div>
-              )}
-            </div>
-          ) : productDetails ? (
-            <div style={{ 
-              padding: '20px', 
-              background: '#f0fdf4', 
-              border: '1px solid #bbf7d0', 
-              borderRadius: '8px'
-            }}>
-              <h4 style={{ color: '#166534', marginBottom: '15px' }}>✅ Product Verified</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-                <div>
-                  <strong>Product Name:</strong> {productDetails.name || productDetails.metadata?.name || 'Unknown'}
-                </div>
-                <div>
-                  <strong>Category:</strong> {productDetails.category || productDetails.metadata?.category || 'Not specified'}
-                </div>
-                <div>
-                  <strong>Manufacturer:</strong> 
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                    {productDetails.manufacturer ? `${productDetails.manufacturer.substring(0, 20)}...` : 'Unknown'}
-                  </span>
-                </div>
-                <div>
-                  <strong>Batch Number:</strong> {productDetails.batchNumber || productDetails.metadata?.batchNumber || 'N/A'}
-                </div>
-                <div>
-                  <strong>Price:</strong> ${productDetails.price || productDetails.metadata?.price || '0.00'}
-                </div>
-                <div>
-                  <strong>Location:</strong> {productDetails.location || productDetails.metadata?.location || 'Unknown'}
-                </div>
-              </div>
-              
-              {productDetails.description && (
-                <div style={{ marginTop: '15px', padding: '10px', background: 'white', borderRadius: '4px' }}>
-                  <strong>Description:</strong> {productDetails.description || productDetails.metadata?.description}
-                </div>
-              )}
-
-              <div style={{ marginTop: '15px', fontSize: '14px', color: '#166534' }}>
-                <div>✅ Product authenticity verified on blockchain</div>
-                <div>✅ Supply chain integrity confirmed</div>
-                <div>✅ No counterfeit indicators detected</div>
+        {scanResult && activeMode === 'buyer' && (
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-blue-900 font-semibold mb-2">🛒 Buyer Mode</h3>
+              <div className="text-blue-700 text-sm">
+                <div><strong>Product ID:</strong> {scanResult.product_id}</div>
+                <div><strong>Current Metadata CID:</strong> {scanResult.current_metadata_cid}</div>
+                <div><strong>Permissions:</strong> {scanResult.permissions?.join(', ')}</div>
               </div>
             </div>
-          ) : (
-            <div style={{ padding: '20px', background: '#f3f4f6', borderRadius: '8px' }}>
-              <div>Scanned Data: {scanResult}</div>
+            
+            <BuyerProductView
+              productCid={scanResult.current_metadata_cid}
+              onConfirmReceipt={handleReceiptConfirmation}
+            />
+            
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  setScannedData('');
+                  setScanResult(null);
+                }}
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                ← Scan Another QR Code
+              </button>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Scan History */}
-      <div className="card" style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Scan History</h3>
-          <button
-            onClick={() => {
-              localStorage.removeItem('qrScanHistory');
-              setScanHistory([]);
-            }}
-            className="btn"
-            style={{ 
-              background: '#ef4444', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Clear History
-          </button>
-        </div>
-
-        {scanHistory.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-            No scan history available. Start scanning QR codes to see them here.
-          </div>
-        ) : (
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            {scanHistory.map((scan) => (
-              <div key={scan.id} style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                padding: '15px',
-                border: '1px solid #e5e7eb',
-                borderRadius: '6px',
-                marginBottom: '10px',
-                background: 'white'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: '500', marginBottom: '5px' }}>
-                    {new Date(scan.timestamp).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '5px' }}>
-                    Data: {scan.data.length > 50 ? `${scan.data.substring(0, 50)}...` : scan.data}
-                  </div>
-                  {scan.result && !scan.result.error && (
-                    <div style={{ fontSize: '12px', color: '#059669' }}>
-                      ✅ Product: {scan.result.name || scan.result.metadata?.name || 'Unknown'}
-                    </div>
-                  )}
-                  {scan.result?.error && (
-                    <div style={{ fontSize: '12px', color: '#dc2626' }}>
-                      ❌ {scan.result.error}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => processQRCode(scan.data)}
-                  className="btn"
-                  style={{ 
-                    background: '#3b82f6', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '6px 12px', 
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  Re-scan
-                </button>
-              </div>
-            ))}
           </div>
         )}
+
+        {/* Demo Data */}
+        <div className="mt-8 bg-gray-100 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-2">🧪 Demo QR Data (for testing):</h4>
+          <div className="text-sm text-gray-700 space-y-2">
+            <div>
+              <strong>Sample QR:</strong> 
+              <code className="ml-2 bg-white px-2 py-1 rounded text-xs">
+                {`{"product_id":"PROD-001","metadata_cid":"bafkreiqr..","timestamp":"${new Date().toISOString()}","encrypted":true}`}
+              </code>
+            </div>
+            <div className="text-xs text-gray-500">
+              Note: In production, QR codes would contain encrypted data that gets decrypted by the backend.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

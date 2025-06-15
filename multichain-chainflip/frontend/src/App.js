@@ -19,6 +19,9 @@ import Analytics from './components/Analytics';
 import ConsensusManagement from './components/ConsensusManagement';
 import TokenBridge from './components/TokenBridge';
 import TransporterRegistration from './components/TransporterRegistration';
+import QRScanner from './components/QRScanner';
+import TransporterLocationUpdate from './components/TransporterLocationUpdate';
+import BuyerProductView from './components/BuyerProductView';
 
 // Auth Pages
 const LoginPage = () => {
@@ -215,6 +218,16 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/qr-scanner" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout backendStatus={backendStatus}>
+                    <QRScanner />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -254,7 +267,8 @@ const AppLayout = ({ children, backendStatus }) => {
     // Common items for all roles
     const commonItems = [
       { id: 'participants', name: 'Participants', icon: '👥', path: '/participants' },
-      { id: 'enhanced-consensus', name: 'Enhanced Consensus', icon: '📱', path: '/enhanced-consensus' },
+      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+      { id: 'enhanced-consensus', name: 'Enhanced Consensus', icon: '🔗', path: '/enhanced-consensus' },
     ];
 
     // Role-specific additional items - SUPPLY CHAIN FUNCTIONALITY INTEGRATED INTO PRODUCTS

@@ -758,11 +758,17 @@ class SupplyChainOrchestrator:
     
     async def _initiate_nft_transfer_flow(self, shipping_data: Dict) -> Dict:
         """
-        Initiate NFT transfer flow when shipping starts
-        Integrates with NFT Transfer Orchestrator
+        UPDATED: Initiate cross-chain message flow instead of NFT transfers
+        Only final NFT transfer from Manufacturer → Buyer when delivery is confirmed
+        
+        Process:
+        1. Manufacturer → Transporter1: Cross-chain message (not NFT transfer)
+        2. Transporter1 → Transporter2: Cross-chain message (not NFT transfer)  
+        3. TransporterN → Buyer: Cross-chain message (not NFT transfer)
+        4. When buyer confirms delivery: Final NFT transfer Manufacturer → Buyer
         """
         try:
-            self.logger.info(f"🎨 Initiating NFT transfer flow for request: {shipping_data['request_id']}")
+            self.logger.info(f"📨 Initiating cross-chain message flow for request: {shipping_data['request_id']}")
             
             # Get purchase request details
             purchase_doc = await self.database["purchase_requests"].find_one({
@@ -782,59 +788,415 @@ class SupplyChainOrchestrator:
             if batch_doc and "transporters" in batch_doc:
                 transporter_addresses = [t["transporter_address"] for t in batch_doc["transporters"]]
             
-            # Import NFT orchestrator
+            # Create cross-chain message chain instead of NFT transfers
+            message_chain_result = await self._create_cross_chain_message_flow(
+                purchase_request_id=shipping_data["request_id"],
+                product_id=purchase_doc["product_id"], 
+                manufacturer_address=purchase_doc["manufacturer_address"],
+                transporter_addresses=transporter_addresses,
+                buyer_address=purchase_doc["buyer_address"],
+                purchase_amount=purchase_doc["purchase_amount"],
+                product_metadata={
+                    "name": f"Product {purchase_doc['product_id']}",
+                    "description": f"Supply chain product for purchase {shipping_data['request_id']}",
+                    "product_id": purchase_doc["product_id"],
+                    "purchase_request_id": shipping_data["request_id"],
+                    "manufacturer": purchase_doc["manufacturer_address"],
+                    "buyer": purchase_doc["buyer_address"],
+                    "purchase_amount": purchase_doc["purchase_amount"],
+                    "created_at": datetime.utcnow().isoformat()
+                }
+            )
+            
+            if message_chain_result["success"]:
+                # Update purchase request with message chain details  
+                await self.database["purchase_requests"].update_one(
+                    {"request_id": shipping_data["request_id"]},
+                    {
+                        "$set": {
+                            "cross_chain_messages": {
+                                "message_chain_id": message_chain_result["message_chain_id"],
+                                "message_flow": message_chain_result["message_flow"],
+                                "initiated_at": datetime.utcnow(),
+                                "final_nft_transfer_pending": True
+                            }
+                        }
+                    }
+                )
+                
+                self.logger.info(f"✅ Cross-chain message flow initiated: {message_chain_result['message_chain_id']}")
+                return message_chain_result
+            else:
+                self.logger.error(f"❌ Message chain initiation failed: {message_chain_result.get('error')}")
+                return message_chain_result
+                
+        except Exception as e:
+            self.logger.error(f"❌ Cross-chain message flow initiation error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _create_cross_chain_message_flow(
+        self,
+        purchase_request_id: str,
+        product_id: str,
+        manufacturer_address: str,
+        transporter_addresses: List[str],
+        buyer_address: str,
+        purchase_amount: float,
+        product_metadata: Dict
+    ) -> Dict:
+        """
+        Create cross-chain message flow for product tracking
+        Each step sends a message with updated location/status instead of transferring NFT
+        """
+        try:
+            message_chain_id = f"MSG_CHAIN_{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:8]}"
+            
+            # Create message flow steps
+            message_flow = [
+                {
+                    "step": 1,
+                    "from": "manufacturer",
+                    "from_address": manufacturer_address,
+                    "from_chain": "base_sepolia",
+                    "to": "transporter_1",
+                    "to_address": transporter_addresses[0] if transporter_addresses else buyer_address,
+                    "to_chain": "arbitrum_sepolia",
+                    "action": "shipping_initiated",
+                    "message_type": "SHIPMENT_START",
+                    "status": "pending"
+                }
+            ]
+            
+            # Add transporter-to-transporter message steps
+            for i in range(len(transporter_addresses) - 1):
+                message_flow.append({
+                    "step": i + 2,
+                    "from": f"transporter_{i + 1}",
+                    "from_address": transporter_addresses[i],
+                    "from_chain": "arbitrum_sepolia",
+                    "to": f"transporter_{i + 2}",
+                    "to_address": transporter_addresses[i + 1],
+                    "to_chain": "arbitrum_sepolia",
+                    "action": "handoff_to_next_transporter",
+                    "message_type": "TRANSPORT_HANDOFF",
+                    "status": "pending"
+                })
+            
+            # Final step: Last transporter to buyer (message only, not NFT transfer)
+            final_step = len(transporter_addresses) + 1
+            final_transporter = transporter_addresses[-1] if transporter_addresses else manufacturer_address
+            message_flow.append({
+                "step": final_step,
+                "from": f"transporter_{len(transporter_addresses)}" if transporter_addresses else "manufacturer",
+                "from_address": final_transporter,
+                "from_chain": "arbitrum_sepolia" if transporter_addresses else "base_sepolia",
+                "to": "buyer",
+                "to_address": buyer_address,
+                "to_chain": "optimism_sepolia",
+                "action": "ready_for_delivery",
+                "message_type": "DELIVERY_READY",
+                "status": "pending"
+            })
+            
+            # Note: Final NFT transfer will happen only when buyer confirms delivery
+            message_flow.append({
+                "step": final_step + 1,
+                "from": "manufacturer",
+                "from_address": manufacturer_address,
+                "from_chain": "base_sepolia", 
+                "to": "buyer",
+                "to_address": buyer_address,
+                "to_chain": "optimism_sepolia",
+                "action": "final_nft_transfer",
+                "message_type": "NFT_TRANSFER",
+                "status": "pending_buyer_confirmation",
+                "note": "This step only executes when buyer confirms delivery"
+            })
+            
+            # Store message chain in database
+            message_chain_data = {
+                "message_chain_id": message_chain_id,
+                "purchase_request_id": purchase_request_id,
+                "product_id": product_id,
+                "product_metadata": product_metadata,
+                "message_flow": message_flow,
+                "current_step": 1,
+                "status": "initiated",
+                "created_at": datetime.utcnow(),
+                "manufacturer_address": manufacturer_address,
+                "buyer_address": buyer_address,
+                "transporter_addresses": transporter_addresses,
+                "total_steps": len(message_flow)
+            }
+            
+            await self.database["cross_chain_message_flows"].insert_one(message_chain_data)
+            
+            # Send first message to start the flow
+            first_message_result = await self._send_layerzero_message(
+                source_chain="base_sepolia",
+                target_chain="arbitrum_sepolia" if transporter_addresses else "optimism_sepolia",
+                message_data={
+                    "type": "SHIPMENT_START",
+                    "message_chain_id": message_chain_id,
+                    "purchase_request_id": purchase_request_id,
+                    "product_id": product_id,
+                    "product_metadata": product_metadata,
+                    "from_address": manufacturer_address,
+                    "current_step": 1,
+                    "action": "shipping_initiated",
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                recipient_address=transporter_addresses[0] if transporter_addresses else buyer_address
+            )
+            
+            # Update first step status
+            await self.database["cross_chain_message_flows"].update_one(
+                {"message_chain_id": message_chain_id},
+                {
+                    "$set": {
+                        "message_flow.0.status": "sent",
+                        "message_flow.0.transaction_hash": first_message_result.get("transaction_hash"),
+                        "message_flow.0.sent_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            return {
+                "success": True,
+                "message_chain_id": message_chain_id,
+                "message_flow": message_flow,
+                "first_message_tx": first_message_result.get("transaction_hash"),
+                "total_steps": len(message_flow),
+                "note": "Cross-chain messages only. Final NFT transfer occurs when buyer confirms delivery."
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ Cross-chain message flow creation failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def advance_message_chain(
+        self,
+        message_chain_id: str,
+        current_holder_address: str,
+        location_update: Dict = None
+    ) -> Dict:
+        """
+        Advance the message chain to next step (called by transporters when updating location)
+        """
+        try:
+            # Get message chain
+            chain_doc = await self.database["cross_chain_message_flows"].find_one({
+                "message_chain_id": message_chain_id
+            })
+            
+            if not chain_doc:
+                return {"success": False, "error": "Message chain not found"}
+            
+            current_step = chain_doc["current_step"]
+            message_flow = chain_doc["message_flow"]
+            
+            # Verify current holder authorization
+            current_step_data = message_flow[current_step - 1]
+            if current_step_data["from_address"] != current_holder_address:
+                return {"success": False, "error": "Unauthorized: Not current message holder"}
+            
+            # Check if this is the final NFT transfer step
+            if current_step_data.get("action") == "final_nft_transfer":
+                return await self._execute_final_nft_transfer(message_chain_id, chain_doc)
+            
+            # Send message to next step
+            if current_step < len(message_flow) - 1:  # Not the final NFT transfer step
+                next_step = current_step + 1
+                next_step_data = message_flow[next_step - 1]
+                
+                # Send cross-chain message
+                message_result = await self._send_layerzero_message(
+                    source_chain=next_step_data["from_chain"],
+                    target_chain=next_step_data["to_chain"],
+                    message_data={
+                        "type": next_step_data["message_type"],
+                        "message_chain_id": message_chain_id,
+                        "purchase_request_id": chain_doc["purchase_request_id"],
+                        "product_id": chain_doc["product_id"],
+                        "from_address": current_holder_address,
+                        "current_step": next_step,
+                        "action": next_step_data["action"],
+                        "location_update": location_update,
+                        "timestamp": datetime.utcnow().isoformat()
+                    },
+                    recipient_address=next_step_data["to_address"]
+                )
+                
+                # Update message chain progress
+                await self.database["cross_chain_message_flows"].update_one(
+                    {"message_chain_id": message_chain_id},
+                    {
+                        "$set": {
+                            "current_step": next_step,
+                            f"message_flow.{next_step - 1}.status": "sent",
+                            f"message_flow.{next_step - 1}.transaction_hash": message_result.get("transaction_hash"),
+                            f"message_flow.{next_step - 1}.sent_at": datetime.utcnow(),
+                            f"message_flow.{next_step - 1}.location_update": location_update
+                        }
+                    }
+                )
+                
+                return {
+                    "success": True,
+                    "message_chain_id": message_chain_id,
+                    "advanced_to_step": next_step,
+                    "message_tx": message_result.get("transaction_hash"),
+                    "next_holder": next_step_data["to_address"],
+                    "action": next_step_data["action"]
+                }
+            else:
+                return {"success": False, "error": "Already at final step"}
+                
+        except Exception as e:
+            self.logger.error(f"❌ Message chain advancement failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def buyer_confirm_delivery_and_trigger_nft_transfer(
+        self,
+        message_chain_id: str,
+        buyer_address: str,
+        delivery_confirmation: Dict
+    ) -> Dict:
+        """
+        Buyer confirms delivery and triggers the final NFT transfer from Manufacturer → Buyer
+        This is the ONLY NFT transfer in the entire supply chain process
+        """
+        try:
+            self.logger.info(f"✅ Buyer confirming delivery and triggering final NFT transfer: {message_chain_id}")
+            
+            # Get message chain
+            chain_doc = await self.database["cross_chain_message_flows"].find_one({
+                "message_chain_id": message_chain_id
+            })
+            
+            if not chain_doc:
+                return {"success": False, "error": "Message chain not found"}
+            
+            # Verify buyer authorization
+            if chain_doc["buyer_address"] != buyer_address:
+                return {"success": False, "error": "Unauthorized: Not the designated buyer"}
+            
+            # Check if ready for final transfer
+            current_step = chain_doc["current_step"]
+            message_flow = chain_doc["message_flow"]
+            
+            # Find the final NFT transfer step
+            final_nft_step = None
+            for step in message_flow:
+                if step.get("action") == "final_nft_transfer":
+                    final_nft_step = step
+                    break
+            
+            if not final_nft_step:
+                return {"success": False, "error": "Final NFT transfer step not found"}
+            
+            # Execute the final NFT transfer (Manufacturer → Buyer)
+            nft_result = await self._execute_final_nft_transfer(chain_doc, delivery_confirmation)
+            
+            if nft_result["success"]:
+                # Update message chain as completed
+                await self.database["cross_chain_message_flows"].update_one(
+                    {"message_chain_id": message_chain_id},
+                    {
+                        "$set": {
+                            "status": "completed",
+                            "delivery_confirmed_at": datetime.utcnow(),
+                            "delivery_confirmation": delivery_confirmation,
+                            "final_nft_transfer": nft_result,
+                            "completed_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                # Update purchase request status
+                await self.database["purchase_requests"].update_one(
+                    {"request_id": chain_doc["purchase_request_id"]},
+                    {
+                        "$set": {
+                            "status": "completed",
+                            "delivery_confirmed": True,
+                            "final_nft_transfer": nft_result,
+                            "completed_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                return {
+                    "success": True,
+                    "message_chain_id": message_chain_id,
+                    "delivery_confirmed": True,
+                    "final_nft_transfer": nft_result,
+                    "message": "Supply chain completed! NFT transferred from Manufacturer to Buyer."
+                }
+            else:
+                return nft_result
+                
+        except Exception as e:
+            self.logger.error(f"❌ Buyer delivery confirmation failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _execute_final_nft_transfer(
+        self,
+        chain_doc: Dict,
+        delivery_confirmation: Dict = None
+    ) -> Dict:
+        """
+        Execute the final NFT transfer from Manufacturer → Buyer
+        This is the ONLY actual NFT transfer in the entire supply chain
+        """
+        try:
+            self.logger.info(f"🎨 Executing final NFT transfer: Manufacturer → Buyer")
+            
+            manufacturer_address = chain_doc["manufacturer_address"]
+            buyer_address = chain_doc["buyer_address"]
+            product_id = chain_doc["product_id"]
+            
+            # Import NFT orchestrator for the final transfer
             try:
                 from .nft_transfer_orchestrator import nft_transfer_orchestrator
                 await nft_transfer_orchestrator.initialize()
                 
-                # Create NFT transfer flow
-                nft_result = await nft_transfer_orchestrator.initiate_nft_transfer_flow(
-                    purchase_request_id=shipping_data["request_id"],
-                    product_id=purchase_doc["product_id"],
-                    manufacturer_address=purchase_doc["manufacturer_address"],
-                    transporter_addresses=transporter_addresses,
-                    buyer_address=purchase_doc["buyer_address"],
-                    purchase_amount=purchase_doc["purchase_amount"],
-                    product_metadata={
-                        "name": f"Product {purchase_doc['product_id']}",
-                        "description": f"Supply chain product for purchase {shipping_data['request_id']}",
-                        "product_id": purchase_doc["product_id"],
-                        "purchase_request_id": shipping_data["request_id"],
-                        "manufacturer": purchase_doc["manufacturer_address"],
-                        "buyer": purchase_doc["buyer_address"],
-                        "purchase_amount": purchase_doc["purchase_amount"],
-                        "created_at": datetime.utcnow().isoformat()
+                # Execute final NFT transfer
+                nft_result = await nft_transfer_orchestrator.execute_final_transfer(
+                    from_address=manufacturer_address,
+                    to_address=buyer_address,
+                    product_id=product_id,
+                    purchase_request_id=chain_doc["purchase_request_id"],
+                    delivery_confirmation=delivery_confirmation,
+                    supply_chain_metadata={
+                        "message_chain_id": chain_doc["message_chain_id"],
+                        "transporters_involved": chain_doc["transporter_addresses"],
+                        "total_steps": chain_doc["total_steps"],
+                        "completed_at": datetime.utcnow().isoformat()
                     }
                 )
                 
-                if nft_result["success"]:
-                    # Update purchase request with NFT transfer details
-                    await self.database["purchase_requests"].update_one(
-                        {"request_id": shipping_data["request_id"]},
-                        {
-                            "$set": {
-                                "nft_transfer": {
-                                    "transfer_id": nft_result["transfer_id"],
-                                    "token_id": nft_result["token_id"],
-                                    "escrow_id": nft_result["escrow_id"],
-                                    "initiated_at": datetime.utcnow()
-                                }
-                            }
-                        }
-                    )
-                    
-                    self.logger.info(f"✅ NFT transfer flow initiated: {nft_result['transfer_id']}")
-                    return nft_result
-                else:
-                    self.logger.error(f"❌ NFT transfer initiation failed: {nft_result.get('error')}")
-                    return nft_result
-                    
+                return nft_result
+                
             except ImportError:
-                self.logger.warning("⚠️ NFT Transfer Orchestrator not available")
-                return {"success": False, "error": "NFT Transfer service not available"}
+                self.logger.warning("⚠️ NFT Transfer Orchestrator not available, using blockchain service")
+                
+                # Fallback: Use blockchain service directly
+                nft_result = await blockchain_service.transfer_nft(
+                    from_address=manufacturer_address,
+                    to_address=buyer_address,
+                    token_id=product_id,
+                    supply_chain_metadata={
+                        "message_chain_id": chain_doc["message_chain_id"],
+                        "delivery_confirmed": True,
+                        "delivery_confirmation": delivery_confirmation
+                    }
+                )
+                
+                return nft_result
                 
         except Exception as e:
-            self.logger.error(f"❌ NFT transfer flow initiation error: {e}")
+            self.logger.error(f"❌ Final NFT transfer execution failed: {e}")
             return {"success": False, "error": str(e)}
 
     async def _create_transportation_batch(self, request_doc: Dict, shipping_details: Dict) -> Dict:

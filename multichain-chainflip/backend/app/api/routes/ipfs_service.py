@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import os
 from pathlib import Path
+from datetime import datetime
 
 from app.services.ipfs_service import ipfs_service
 
@@ -195,36 +196,66 @@ async def get_from_ipfs(cid: str):
 @router.post("/qr/generate")
 async def generate_encrypted_qr(
     product_id: str,
-    metadata: Dict[str, Any]
+    metadata_cid: str,
+    qr_data: Dict[str, Any]
 ):
-    """Generate encrypted QR code for product"""
+    """Generate encrypted QR code for product with IPFS metadata reference"""
     try:
+        # Enhanced QR data with IPFS reference
+        enhanced_qr_data = {
+            "product_id": product_id,
+            "metadata_cid": metadata_cid,
+            "timestamp": datetime.utcnow().isoformat(),
+            "qr_version": "2.0",
+            **qr_data
+        }
+        
         # This will integrate with the existing QR generation system
+        # For now, return the structure - the actual encryption will be handled by the QR service
         return {
             "success": True,
             "product_id": product_id,
-            "qr_code_url": f"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-            "qr_hash": "0x1234567890abcdef",
-            "encrypted_data_cid": "bafkreiqrstuvwxyz0987654321"
+            "metadata_cid": metadata_cid,
+            "qr_data": enhanced_qr_data,
+            "ipfs_url": f"{ipfs_service.ipfs_gateway}{metadata_cid}",
+            "message": "QR data prepared for encryption and generation"
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/qr/decrypt")
-async def decrypt_qr_data(
-    qr_hash: str,
-    private_key: str
+@router.post("/qr/scan-and-decrypt")
+async def scan_and_decrypt_qr(
+    encrypted_qr_data: str,
+    user_type: str  # "transporter" or "buyer"
 ):
-    """Decrypt QR code data"""
+    """Decrypt QR code data and return appropriate information based on user type"""
     try:
         # This will integrate with the existing QR decryption system
-        return {
-            "success": True,
-            "decrypted_data": {
-                "product_id": "12345",
-                "timestamp": "2024-01-01T00:00:00Z",
-                "location": "Manufacturing Plant A"
+        # For now, mock the decryption process
+        
+        # In real implementation, this would decrypt the QR data
+        # and extract the metadata_cid to fetch current product info
+        
+        if user_type == "transporter":
+            return {
+                "success": True,
+                "user_type": "transporter",
+                "product_id": "extracted_from_qr",
+                "current_metadata_cid": "extracted_from_qr",
+                "permissions": ["update_location", "view_shipping_history"],
+                "next_action": "Use /transporter/location-update endpoint"
             }
-        }
+        elif user_type == "buyer":
+            return {
+                "success": True,
+                "user_type": "buyer", 
+                "product_id": "extracted_from_qr",
+                "current_metadata_cid": "extracted_from_qr",
+                "permissions": ["view_product_info", "confirm_receipt"],
+                "next_action": "Use /buyer/product-info endpoint"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user type")
+            
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
