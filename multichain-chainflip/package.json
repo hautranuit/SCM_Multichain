@@ -4,7 +4,8 @@
   "description": "LayerZero Infrastructure Setup Script",
   "main": "setup_layerzero_infrastructure.js",
   "dependencies": {
-    "ethers": "^6.14.3"
+    "ethers": "^6.14.3",
+    "mongodb": "^6.17.0"
   },
   "scripts": {
     "setup": "node setup_layerzero_infrastructure.js"

@@ -4,7 +4,7 @@ import QRCode from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
-import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star } from 'lucide-react';
+import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star, Play, Image as ImageIcon } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
@@ -165,7 +165,12 @@ const ProductManagement = () => {
         filename: filename,
         mimeType: mimeType
       });
-      return response.data.cid;
+      
+      if (response.data.success) {
+        return response.data.cid;
+      } else {
+        throw new Error('Upload failed: ' + (response.data.error || 'Unknown error'));
+      }
     } catch (error) {
       console.error('IPFS upload error:', error);
       throw error;
@@ -183,23 +188,33 @@ const ProductManagement = () => {
       // Upload image if selected
       if (productImage) {
         console.log('Uploading image to IPFS...');
-        imageCid = await uploadFileToIPFS(
-          productImage.data,
-          `product_image_${Date.now()}.${productImage.file.name.split('.').pop()}`,
-          productImage.file.type
-        );
-        console.log('Image uploaded, CID:', imageCid);
+        try {
+          imageCid = await uploadFileToIPFS(
+            productImage.data,
+            `product_image_${Date.now()}.${productImage.file.name.split('.').pop()}`,
+            productImage.file.type
+          );
+          console.log('Image uploaded, CID:', imageCid);
+        } catch (error) {
+          console.warn('Image upload failed, continuing without image:', error);
+          // Continue without image rather than failing completely
+        }
       }
 
       // Upload video if selected
       if (productVideo) {
         console.log('Uploading video to IPFS...');
-        videoCid = await uploadFileToIPFS(
-          productVideo.data,
-          `product_video_${Date.now()}.${productVideo.file.name.split('.').pop()}`,
-          productVideo.file.type
-        );
-        console.log('Video uploaded, CID:', videoCid);
+        try {
+          videoCid = await uploadFileToIPFS(
+            productVideo.data,
+            `product_video_${Date.now()}.${productVideo.file.name.split('.').pop()}`,
+            productVideo.file.type
+          );
+          console.log('Video uploaded, CID:', videoCid);
+        } catch (error) {
+          console.warn('Video upload failed, continuing without video:', error);
+          // Continue without video rather than failing completely
+        }
       }
 
       // Prepare metadata for cross-chain minting with proper CID mapping
@@ -324,7 +339,7 @@ const ProductManagement = () => {
       const result = await blockchainService.listProductForSale({
         product_id: productTokenId,
         price: parseFloat(price),
-        target_chains: [80002, 2442, 421614, 11155420] // All chains
+        target_chains: [80002, 84532, 421614, 11155420] // All chains
       });
 
       alert(`🛒 Product listed in marketplace!\n\n💰 Price: ${price} ETH\n📅 Listed: ${new Date(result.listing_timestamp * 1000).toLocaleString()}\n🌐 Available on ${result.listed_on_chains.length} chains`);
@@ -484,7 +499,7 @@ const ProductManagement = () => {
         `   2️⃣ → LayerZero Bridge →\n` +
         `   3️⃣ Polygon PoS (Hub Chain)\n` +
         `   4️⃣ → fxPortal Bridge →\n` +
-        `   5️⃣ zkEVM Cardona (Manufacturer Chain)\n\n` +
+        `   5️⃣ Base Sepolia (Manufacturer Chain)\n\n` +
         `⏱️ Processing time: 3-7 minutes\n` +
         `🔐 Escrow protection included\n` +
         `🎁 Transporter incentives enabled\n\n` +
@@ -517,7 +532,7 @@ const ProductManagement = () => {
           `   🔹 fxPortal TX: ${crossChainDetails.fxportal_tx || 'Processing...'}\n` +
           `   🔹 Escrow ID: ${crossChainDetails.escrow_id || 'N/A'}\n\n` +
           `🌉 Bridges Used: LayerZero + fxPortal\n` +
-          `⛓️ Chains: Optimism → Polygon → zkEVM\n` +
+          `⛓️ Chains: Optimism → Polygon → Base Sepolia\n` +
           `🎯 Algorithms: Algorithm 1 + Algorithm 5\n\n` +
           `🔄 NFT ownership transferred to your wallet\n` +
           `💳 Payment processing with escrow protection`
@@ -565,7 +580,7 @@ const ProductManagement = () => {
         `🏭 Manufacturer: ${manufacturer.substring(0, 10)}...\n\n` +
         `🔗 This will open the Token Bridge to transfer:\n` +
         `   📤 From: Your selected chain\n` +
-        `   📥 To: Manufacturer's chain (zkEVM Cardona)\n` +
+        `   📥 To: Manufacturer's chain (Base Sepolia)\n` +
         `   💰 Amount: ${price} ETH\n\n` +
         `ℹ️ After successful transfer, you'll need to confirm the purchase.`
       );
@@ -631,6 +646,30 @@ const ProductManagement = () => {
           gradient: 'from-indigo-600 via-blue-600 to-cyan-600'
         };
     }
+  };
+
+  // Helper function to get IPFS image URL
+  const getImageUrl = (product) => {
+    // Try different ways to get the image CID
+    const imageCid = product.image_cid || product.imageCID || product.metadata?.imageCID || product.metadata?.image_cid;
+    
+    if (imageCid) {
+      return `${process.env.REACT_APP_BACKEND_URL}/api/ipfs/${imageCid}`;
+    }
+    
+    return null;
+  };
+
+  // Helper function to get IPFS video URL
+  const getVideoUrl = (product) => {
+    // Try different ways to get the video CID
+    const videoCid = product.video_cid || product.videoCID || product.metadata?.videoCID || product.metadata?.video_cid;
+    
+    if (videoCid) {
+      return `${process.env.REACT_APP_BACKEND_URL}/api/ipfs/${videoCid}`;
+    }
+    
+    return null;
   };
 
   const roleInfo = getRoleInfo();
@@ -720,7 +759,7 @@ const ProductManagement = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               {[
                 { title: 'Hub Chain', subtitle: 'Polygon PoS', value: multiChainStats.multichain?.statistics?.total_products || 0, icon: '🏛️', color: 'blue' },
-                { title: 'Manufacturer', subtitle: 'zkEVM Cardona', value: multiChainStats.multichain?.statistics?.total_products || 0, icon: '🏭', color: 'green' },
+                { title: 'Manufacturer', subtitle: 'Base Sepolia', value: multiChainStats.multichain?.statistics?.total_products || 0, icon: '🏭', color: 'green' },
                 { title: 'Transporter', subtitle: 'Arbitrum Sepolia', value: multiChainStats.multichain?.statistics?.total_transactions || 0, icon: '🚛', color: 'yellow' },
                 { title: 'Buyer Chain', subtitle: 'Optimism Sepolia', value: multiChainStats.multichain?.statistics?.total_disputes || 0, icon: '🛒', color: 'purple' }
               ].map((stat, index) => (
@@ -789,7 +828,7 @@ const ProductManagement = () => {
               <div className="relative p-8">
                 <div className="text-center mb-8">
                   <h3 className="text-3xl font-bold text-white mb-2">Create Product NFT</h3>
-                  <p className="text-white/70">Launch your product on zkEVM Cardona with IPFS metadata storage</p>
+                  <p className="text-white/70">Launch your product on Base Sepolia with IPFS metadata storage</p>
                 </div>
                 <form onSubmit={createProduct} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -978,11 +1017,11 @@ const ProductManagement = () => {
                 </div>
               )}
 
-              {/* Modern Products Grid */}
+              {/* Modern Products Grid with Fixed Heights */}
               {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && products.length > 0) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {products.map((product, index) => (
-                    <div key={product.token_id || product.id || index} className="group relative">
+                    <div key={product.token_id || product.id || index} className="group relative h-[700px] flex flex-col">
                       {/* Card Background */}
                       <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-cyan-500/20"></div>
                       
@@ -990,32 +1029,44 @@ const ProductManagement = () => {
                       <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/0 to-blue-400/0 group-hover:from-cyan-400/10 group-hover:to-blue-400/10 rounded-3xl transition-all duration-500"></div>
                       
                       {/* Card Content */}
-                      <div className="relative p-8 space-y-6">
-                        {/* Product Image with Fallback */}
-                        {product.image_cid ? (
-                          <div className="aspect-w-16 aspect-h-9 rounded-2xl overflow-hidden">
-                            <img 
-                              src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
-                              alt="Product"
-                              className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-full h-48 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-2xl flex items-center justify-center">
-                            <Package className="w-12 h-12 text-cyan-400" />
-                          </div>
-                        )}
+                      <div className="relative p-8 flex flex-col h-full">
+                        {/* Product Image/Video Section - Fixed Height */}
+                        <div className="h-48 mb-6">
+                          {getImageUrl(product) ? (
+                            <div className="relative h-full rounded-2xl overflow-hidden group/media">
+                              <img 
+                                src={getImageUrl(product)}
+                                alt="Product"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                              <div className="hidden w-full h-full bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-2xl items-center justify-center">
+                                <ImageIcon className="w-12 h-12 text-cyan-400" />
+                              </div>
+                              {/* Video overlay if video exists */}
+                              {getVideoUrl(product) && (
+                                <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm rounded-full p-2">
+                                  <Play className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-2xl flex items-center justify-center">
+                              <Package className="w-12 h-12 text-cyan-400" />
+                            </div>
+                          )}
+                        </div>
                         
-                        {/* Product Header */}
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between">
-                            <h4 className="text-xl font-bold text-white group-hover:text-cyan-100 transition-colors line-clamp-2">
+                        {/* Product Header - Fixed Height */}
+                        <div className="h-24 mb-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="text-xl font-bold text-white group-hover:text-cyan-100 transition-colors line-clamp-2 flex-1 mr-2">
                               {product.name || product.metadata?.name || `Product ${index + 1}`}
                             </h4>
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-100 border border-cyan-400/30">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-100 border border-cyan-400/30 whitespace-nowrap">
                               {product.category || product.metadata?.category || 'General'}
                             </span>
                           </div>
@@ -1025,8 +1076,8 @@ const ProductManagement = () => {
                           </p>
                         </div>
 
-                        {/* Product Details */}
-                        <div className="space-y-3">
+                        {/* Product Details - Fixed Height */}
+                        <div className="h-24 mb-4 space-y-3">
                           <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
                             <span className="text-white/70 text-sm">Price:</span>
                             <span className="font-bold text-green-400 text-lg">
@@ -1036,23 +1087,23 @@ const ProductManagement = () => {
                           {product.token_id && (
                             <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
                               <span className="text-white/70 text-sm">Token ID:</span>
-                              <span className="font-mono text-xs text-cyan-400">{product.token_id}</span>
+                              <span className="font-mono text-xs text-cyan-400 truncate">{product.token_id}</span>
                             </div>
                           )}
                         </div>
 
-                        {/* QR Code */}
-                        <div className="flex justify-center">
+                        {/* QR Code - Fixed Height */}
+                        <div className="h-24 flex justify-center items-center mb-6">
                           <div className="p-3 bg-white rounded-2xl">
                             <QRCode 
                               value={generateQRCode(product)} 
-                              size={100}
+                              size={80}
                             />
                           </div>
                         </div>
 
-                        {/* Modern Action Buttons */}
-                        <div className="grid grid-cols-2 gap-4">
+                        {/* Modern Action Buttons - Bottom */}
+                        <div className="grid grid-cols-2 gap-4 mt-auto">
                           {userRole === 'buyer' && activeTab === 'marketplace' && (
                             <>
                               <button
@@ -1138,10 +1189,10 @@ const ProductManagement = () => {
               {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {purchases.map((purchase, index) => (
-                    <div key={purchase.purchase_id || index} className="group relative">
+                    <div key={purchase.purchase_id || index} className="group relative h-[500px]">
                       <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
-                      <div className="relative p-8 space-y-6">
-                        <div className="flex items-start justify-between">
+                      <div className="relative p-8 h-full flex flex-col">
+                        <div className="flex items-start justify-between mb-6">
                           <h4 className="text-xl font-bold text-white">
                             Order #{purchase.purchase_id?.substring(0, 12)}...
                           </h4>
@@ -1154,7 +1205,7 @@ const ProductManagement = () => {
                           </span>
                         </div>
                         
-                        <div className="space-y-3">
+                        <div className="space-y-3 flex-1">
                           {[
                             { label: 'Product ID', value: purchase.product_id },
                             { label: 'Price Paid', value: `${purchase.price_eth} ETH` },
@@ -1168,7 +1219,7 @@ const ProductManagement = () => {
                           ))}
                         </div>
 
-                        <div className="p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-400/20">
+                        <div className="p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-400/20 mt-4">
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between">
                               <span className="text-blue-200">Payment:</span>
