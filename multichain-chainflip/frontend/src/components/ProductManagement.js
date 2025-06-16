@@ -4,7 +4,7 @@ import QRCode from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
-import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw } from 'lucide-react';
+import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
@@ -600,537 +600,615 @@ const ProductManagement = () => {
     return date.toISOString().split('T')[0];
   };
 
+  const getRoleInfo = () => {
+    switch (userRole) {
+      case 'manufacturer':
+        return {
+          title: 'Product Creation Studio',
+          subtitle: 'Design, mint and manage NFT products with cutting-edge blockchain technology',
+          icon: '🏭',
+          gradient: 'from-blue-600 via-purple-600 to-cyan-600'
+        };
+      case 'transporter':
+        return {
+          title: 'Logistics Command Center',
+          subtitle: 'Orchestrate deliveries with intelligent routing and performance optimization',
+          icon: '🚛',
+          gradient: 'from-green-500 via-emerald-500 to-teal-600'
+        };
+      case 'buyer':
+        return {
+          title: 'Premium Marketplace',
+          subtitle: 'Discover authentic products with verified supply chains and secure transactions',
+          icon: '🛒',
+          gradient: 'from-purple-600 via-pink-500 to-rose-500'
+        };
+      default:
+        return {
+          title: 'Product Management',
+          subtitle: 'Advanced blockchain-powered product lifecycle management',
+          icon: '📦',
+          gradient: 'from-indigo-600 via-blue-600 to-cyan-600'
+        };
+    }
+  };
+
+  const roleInfo = getRoleInfo();
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Modern Header with Gradient */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <div className="px-6 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">
-                📦 {userRole === 'manufacturer' ? 'Product Creation Studio' : 
-                     userRole === 'transporter' ? 'Shipping Dashboard' :
-                     userRole === 'buyer' ? 'Product Marketplace' : 
-                     'Product Management'}
-              </h1>
-              <p className="text-blue-100 mt-2 text-lg">
-                {userRole === 'manufacturer' 
-                  ? 'Create and manage NFT products with blockchain verification' 
-                  : userRole === 'transporter'
-                  ? 'Handle shipments and complete delivery processes with consensus'
-                  : userRole === 'buyer'
-                  ? 'Discover and purchase verified products from trusted manufacturers'
-                  : `Comprehensive product management for ${userRole} role`
-                }
-              </p>
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={loadMultiChainStats}
-                className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-md shadow-sm text-sm font-medium text-white hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </button>
-              {/* Only show Create Product NFT button for manufacturers */}
-              {userRole === 'manufacturer' && (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-20 -right-20 w-96 h-96 bg-gradient-to-r from-cyan-400/20 to-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-1/3 -left-32 w-80 h-80 bg-gradient-to-r from-purple-400/15 to-pink-400/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute bottom-32 right-1/3 w-72 h-72 bg-gradient-to-r from-emerald-400/20 to-teal-400/20 rounded-full blur-3xl animate-pulse delay-500"></div>
+        
+        {/* Particle Grid */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxnIGZpbGw9Im5vbmUiIGZpbGwtcnVsZT0iZXZlbm9kZCI+CiAgICAgICAgPGcgZmlsbD0iIzM3NDE1MSIgZmlsbC1vcGFjaXR5PSIwLjAyIj4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSI+CiAgICAgICAgICAgICAgICA8YW5pbWF0ZSBhdHRyaWJ1dGVOYW1lPSJmaWxsLW9wYWNpdHkiIHZhbHVlcz0iMC4wMjswLjA1OzAuMDIiIGR1cj0iM3MiIHJlcGVhdENvdW50PSJpbmRlZmluaXRlIi8+CiAgICAgICAgICAgIDwvY2lyY2xlPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+')] opacity-30"></div>
+      </div>
+
+      {/* Ultra-Modern Header */}
+      <div className="relative z-10 bg-white/5 backdrop-blur-2xl border-b border-white/10">
+        <div className="px-8 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-8">
+                <div className={`w-20 h-20 bg-gradient-to-r ${roleInfo.gradient} rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/25 group-hover:scale-110 transition-all duration-300`}>
+                  <span className="text-3xl">{roleInfo.icon}</span>
+                </div>
+                <div className="space-y-3">
+                  <h1 className={`text-6xl font-bold bg-gradient-to-r ${roleInfo.gradient} bg-clip-text text-transparent`}>
+                    {roleInfo.title}
+                  </h1>
+                  <p className="text-xl text-blue-100/80 max-w-3xl">
+                    {roleInfo.subtitle}
+                  </p>
+                  <div className="flex items-center space-x-6">
+                    <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                      <Sparkles className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-100 font-medium">Blockchain-Powered</span>
+                    </div>
+                    <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                      <Zap className="w-4 h-4 text-yellow-400" />
+                      <span className="text-white/90 font-medium">Real-Time Analytics</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
                 <button
-                  onClick={() => setShowCreateForm(!showCreateForm)}
-                  className="inline-flex items-center px-6 py-2 bg-white text-blue-600 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                  onClick={loadMultiChainStats}
+                  className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 text-white px-6 py-3 rounded-2xl transition-all duration-300 hover:bg-white/20 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {showCreateForm ? 'Cancel' : 'Create Product NFT'}
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/0 to-blue-400/10 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
+                  <div className="relative flex items-center space-x-2">
+                    <RefreshCw className="w-5 h-5" />
+                    <span className="font-medium">Refresh Data</span>
+                  </div>
                 </button>
-              )}
+                {userRole === 'manufacturer' && (
+                  <button
+                    onClick={() => setShowCreateForm(!showCreateForm)}
+                    className={`group relative overflow-hidden ${showCreateForm ? 'bg-red-500 hover:bg-red-600' : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'} text-white px-8 py-3 rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-cyan-500/25`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
+                    <div className="relative flex items-center space-x-2">
+                      {showCreateForm ? (
+                        <>
+                          <span className="text-xl">✕</span>
+                          <span className="font-semibold">Cancel</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-5 h-5" />
+                          <span className="font-semibold">Create Product NFT</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-6">
-        {/* Multi-Chain Stats Cards */}
-        {multiChainStats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">🏛️</span>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-600">Hub Chain</h3>
-                  <div className="text-sm text-gray-500 mt-1">
-                    <div>Status: {multiChainStats.multichain?.polygon_pos_hub?.connected ? '✅ Connected' : '❌ Disconnected'}</div>
-                    <div className="text-2xl font-bold text-blue-600">{multiChainStats.multichain?.statistics?.total_products || 0}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">🏭</span>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-600">Manufacturer</h3>
-                  <div className="text-sm text-gray-500 mt-1">
-                    <div>zkEVM Cardona</div>
-                    <div className="text-2xl font-bold text-green-600">{multiChainStats.multichain?.statistics?.total_products || 0}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">🚛</span>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-600">Transporter</h3>
-                  <div className="text-sm text-gray-500 mt-1">
-                    <div>Arbitrum Sepolia</div>
-                    <div className="text-2xl font-bold text-yellow-600">{multiChainStats.multichain?.statistics?.total_transactions || 0}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">🛒</span>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-600">Buyer</h3>
-                  <div className="text-sm text-gray-500 mt-1">
-                    <div>Optimism Sepolia</div>
-                    <div className="text-2xl font-bold text-purple-600">{multiChainStats.multichain?.statistics?.total_disputes || 0}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Buyer Tabs */}
-        {userRole === 'buyer' && (
-          <div className="mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-              <nav className="flex space-x-1">
-                <button
-                  onClick={() => setActiveTab('marketplace')}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'marketplace'
-                      ? 'bg-blue-500 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  🛒 Marketplace
-                </button>
-                <button
-                  onClick={() => setActiveTab('orders')}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'orders'
-                      ? 'bg-blue-500 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  📋 Your Orders
-                </button>
-                <button
-                  onClick={() => setActiveTab('owned')}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'owned'
-                      ? 'bg-blue-500 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  👤 My Products
-                </button>
-              </nav>
-            </div>
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              {activeTab === 'marketplace' && (
-                <div className="text-sm text-blue-800">
-                  <strong>🛒 Marketplace:</strong> Browse and purchase products with authenticity verification and secure payments.
-                </div>
-              )}
-              {activeTab === 'orders' && (
-                <div className="text-sm text-blue-800">
-                  <strong>📋 Purchase History:</strong> Track your order status and payment processing with NFT ownership transfers and cross-chain transactions.
-                </div>
-              )}
-              {activeTab === 'owned' && (
-                <div className="text-sm text-blue-800">
-                  <strong>👤 Owned Products:</strong> Products you currently own after successful purchases transferred to your wallet address.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Create Product Form - Only for Manufacturers */}
-        {showCreateForm && userRole === 'manufacturer' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-            <div className="border-b border-gray-200 pb-4 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Create Product NFT</h3>
-              <p className="text-sm text-gray-600 mt-1">Create a new product NFT on zkEVM Cardona with IPFS metadata storage</p>
-            </div>
-            <form onSubmit={createProduct}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter product name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                  <select
-                    value={newProduct.category}
-                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select category</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Food & Beverage">Food & Beverage</option>
-                    <option value="Pharmaceuticals">Pharmaceuticals</option>
-                    <option value="Textiles">Textiles</option>
-                    <option value="Automotive">Automotive</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={newProduct.description}
-                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter product description"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Price (ETH)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0.000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Manufacturing Location</label>
-                  <input
-                    type="text"
-                    value={newProduct.location}
-                    onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Manufacturing location"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {productImage && (
-                    <div className="mt-2 text-sm text-green-600">
-                      ✅ {productImage.file.name} selected
+      <div className="relative z-10 px-8 py-12">
+        <div className="max-w-7xl mx-auto space-y-12">
+          {/* Multi-Chain Stats with Modern Design */}
+          {multiChainStats && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              {[
+                { title: 'Hub Chain', subtitle: 'Polygon PoS', value: multiChainStats.multichain?.statistics?.total_products || 0, icon: '🏛️', color: 'blue' },
+                { title: 'Manufacturer', subtitle: 'zkEVM Cardona', value: multiChainStats.multichain?.statistics?.total_products || 0, icon: '🏭', color: 'green' },
+                { title: 'Transporter', subtitle: 'Arbitrum Sepolia', value: multiChainStats.multichain?.statistics?.total_transactions || 0, icon: '🚛', color: 'yellow' },
+                { title: 'Buyer Chain', subtitle: 'Optimism Sepolia', value: multiChainStats.multichain?.statistics?.total_disputes || 0, icon: '🛒', color: 'purple' }
+              ].map((stat, index) => (
+                <div key={index} className="group relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-cyan-500/20"></div>
+                  <div className="relative p-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-4xl group-hover:scale-110 transition-transform duration-300">{stat.icon}</div>
+                      <div className={`w-3 h-3 rounded-full ${multiChainStats.multichain?.polygon_pos_hub?.connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                     </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Video</label>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleVideoUpload}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {productVideo && (
-                    <div className="mt-2 text-sm text-green-600">
-                      ✅ {productVideo.file.name} selected
+                    <div className="space-y-2">
+                      <h3 className="text-white/90 font-semibold">{stat.title}</h3>
+                      <p className="text-white/60 text-sm">{stat.subtitle}</p>
+                      <div className="text-3xl font-bold text-white group-hover:text-cyan-100 transition-colors duration-300">
+                        {stat.value}
+                      </div>
                     </div>
-                  )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Modern Buyer Tabs */}
+          {userRole === 'buyer' && (
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
+              <div className="relative p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-white flex items-center space-x-3">
+                    <Star className="w-8 h-8 text-yellow-400" />
+                    <span>Product Explorer</span>
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { key: 'marketplace', label: 'Marketplace', icon: '🛒', desc: 'Discover products' },
+                    { key: 'orders', label: 'Your Orders', icon: '📋', desc: 'Track purchases' },
+                    { key: 'owned', label: 'My Products', icon: '👤', desc: 'Owned items' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`group relative overflow-hidden p-6 rounded-2xl border transition-all duration-300 ${
+                        activeTab === tab.key
+                          ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-400/50 shadow-2xl shadow-cyan-500/25'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="relative text-center">
+                        <div className="text-3xl mb-2">{tab.icon}</div>
+                        <div className="text-white font-semibold">{tab.label}</div>
+                        <div className="text-white/60 text-sm mt-1">{tab.desc}</div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creating Product NFT...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Create Product NFT on zkEVM Cardona
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Products Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Available Products' :
-                   userRole === 'buyer' && activeTab === 'orders' ? 'Your Purchase History' :
-                   userRole === 'buyer' && activeTab === 'owned' ? 'Products You Own' :
-                   userRole === 'manufacturer' ? 'My Products' : 
-                   userRole === 'transporter' ? 'Products in Transit' : 
-                   'Products List'}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products available for purchase with verification' :
-                   userRole === 'buyer' && activeTab === 'orders' ? 'Your order history and delivery status' :
-                   userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own' :
-                   userRole === 'manufacturer' ? 'Products you have created' :
-                   userRole === 'transporter' ? 'Products in your custody' :
-                   'All products in the system'}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  fetchProducts();
-                  if (userRole === 'buyer' && activeTab === 'orders') {
-                    fetchBuyerPurchases();
-                  }
-                }}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </button>
             </div>
-          </div>
+          )}
 
-          <div className="p-6">
-            {loading && (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-2 text-gray-600">Loading products...</p>
-              </div>
-            )}
-
-            {!loading && (userRole !== 'buyer' || activeTab !== 'orders') && products.length === 0 && (
-              <div className="text-center py-12">
-                <Package className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No products found</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  {userRole === 'manufacturer' ? 'Create your first product to get started' : 'No products available yet'}
-                </p>
-              </div>
-            )}
-
-            {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length === 0 && (
-              <div className="text-center py-12">
-                <ShoppingCart className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No purchases yet</h3>
-                <p className="mt-1 text-sm text-gray-500">Your purchase history will appear here</p>
-              </div>
-            )}
-
-            {/* Products Grid */}
-            {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && products.length > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map((product, index) => (
-                  <div key={product.token_id || product.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
-                    {/* Product Image */}
-                    {product.image_cid && (
-                      <div className="aspect-w-16 aspect-h-9">
-                        <img 
-                          src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
-                          alt="Product"
-                          className="w-full h-48 object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="p-6">
-                      {/* Product Header */}
-                      <div className="flex items-start justify-between mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900 truncate">
-                          {product.name || product.metadata?.name || `Product ${index + 1}`}
-                        </h4>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {product.category || product.metadata?.category || 'General'}
-                        </span>
-                      </div>
-
-                      {/* Product Details */}
-                      <div className="space-y-2 mb-4">
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {product.description || product.metadata?.description || 'No description available'}
-                        </p>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Price:</span>
-                          <span className="font-semibold text-green-600">
-                            {product.price || product.metadata?.price_eth || '0.000'} ETH
-                          </span>
+          {/* Ultra-Modern Create Form */}
+          {showCreateForm && userRole === 'manufacturer' && (
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
+              <div className="relative p-8">
+                <div className="text-center mb-8">
+                  <h3 className="text-3xl font-bold text-white mb-2">Create Product NFT</h3>
+                  <p className="text-white/70">Launch your product on zkEVM Cardona with IPFS metadata storage</p>
+                </div>
+                <form onSubmit={createProduct} className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Product Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newProduct.name}
+                        onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder="Enter product name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Category</label>
+                      <select
+                        value={newProduct.category}
+                        onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                      >
+                        <option value="" className="bg-slate-800">Select category</option>
+                        <option value="Electronics" className="bg-slate-800">Electronics</option>
+                        <option value="Food & Beverage" className="bg-slate-800">Food & Beverage</option>
+                        <option value="Pharmaceuticals" className="bg-slate-800">Pharmaceuticals</option>
+                        <option value="Textiles" className="bg-slate-800">Textiles</option>
+                        <option value="Automotive" className="bg-slate-800">Automotive</option>
+                        <option value="Other" className="bg-slate-800">Other</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="block text-white/90 font-medium">Description</label>
+                      <textarea
+                        value={newProduct.description}
+                        onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                        rows={3}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder="Enter product description"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Price (ETH)</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={newProduct.price}
+                        onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder="0.000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Manufacturing Location</label>
+                      <input
+                        type="text"
+                        value={newProduct.location}
+                        onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder="Manufacturing location"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Product Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-cyan-500 file:text-white file:font-semibold hover:file:bg-cyan-600 transition-all duration-200"
+                      />
+                      {productImage && (
+                        <div className="text-sm text-cyan-400 flex items-center space-x-2">
+                          <span>✅</span>
+                          <span>{productImage.file.name} selected</span>
                         </div>
-                        {product.token_id && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-500">Token ID:</span>
-                            <span className="font-mono text-xs text-gray-900">{product.token_id}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* QR Code */}
-                      <div className="flex justify-center mb-4">
-                        <QRCode 
-                          value={generateQRCode(product)} 
-                          size={80}
-                          className="border border-gray-200 rounded p-1"
-                        />
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {userRole === 'buyer' && activeTab === 'marketplace' && (
-                          <>
-                            <button
-                              onClick={() => handleBuyProduct(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <ShoppingCart className="w-4 h-4 mr-1" />
-                              Buy
-                            </button>
-                            <button
-                              onClick={() => handleVerifyProduct(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <Shield className="w-4 h-4 mr-1" />
-                              Verify
-                            </button>
-                          </>
-                        )}
-                        
-                        {userRole === 'transporter' && (
-                          <>
-                            <button
-                              onClick={() => handleCrossChainTransfer(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                            >
-                              <Truck className="w-4 h-4 mr-1" />
-                              Ship
-                            </button>
-                            <button
-                              onClick={() => handleCompleteShipping(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <Package className="w-4 h-4 mr-1" />
-                              Complete
-                            </button>
-                          </>
-                        )}
-                        
-                        {userRole === 'manufacturer' && (
-                          <>
-                            <button
-                              onClick={() => handleQualityCheck(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                            >
-                              <Shield className="w-4 h-4 mr-1" />
-                              QC
-                            </button>
-                            <button
-                              onClick={() => handleListInMarketplace(product.token_id)}
-                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <Store className="w-4 h-4 mr-1" />
-                              Sell
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Purchase History for Buyers */}
-            {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {purchases.map((purchase, index) => (
-                  <div key={purchase.purchase_id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <h4 className="text-lg font-semibold text-gray-900">
-                        Order #{purchase.purchase_id?.substring(0, 12)}...
-                      </h4>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        purchase.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {purchase.status}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <div><strong>Product ID:</strong> {purchase.product_id}</div>
-                      <div><strong>Price Paid:</strong> {purchase.price_eth} ETH</div>
-                      <div><strong>Purchase Date:</strong> {purchase.purchase_date}</div>
-                      {purchase.transaction_hash && (
-                        <div><strong>Transaction:</strong> {purchase.transaction_hash.substring(0, 20)}...</div>
                       )}
                     </div>
-
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                      <div className="text-xs text-blue-800">
-                        <div><strong>🔄 Payment:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}</div>
-                        <div><strong>🛒 NFT Transfer:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}</div>
-                      </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Product Video</label>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoUpload}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-purple-500 file:text-white file:font-semibold hover:file:bg-purple-600 transition-all duration-200"
+                      />
+                      {productVideo && (
+                        <div className="text-sm text-purple-400 flex items-center space-x-2">
+                          <span>✅</span>
+                          <span>{productVideo.file.name} selected</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  <div className="text-center">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="group relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 disabled:from-gray-500 disabled:to-gray-600 text-white px-12 py-4 rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-cyan-500/25 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
+                      <div className="relative flex items-center space-x-3">
+                        {loading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                            <span className="text-lg font-semibold">Creating Product NFT...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-6 h-6" />
+                            <span className="text-lg font-semibold">Create Product NFT on Base Sepolia</span>
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                </form>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Modern Products Section */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
+            <div className="relative p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-3xl font-bold text-white">
+                    {userRole === 'buyer' && activeTab === 'marketplace' ? '🛒 Marketplace Collection' :
+                     userRole === 'buyer' && activeTab === 'orders' ? '📋 Purchase History' :
+                     userRole === 'buyer' && activeTab === 'owned' ? '👤 Your Products' :
+                     userRole === 'manufacturer' ? '🏭 My Creations' : 
+                     userRole === 'transporter' ? '🚛 Products in Transit' : 
+                     '📦 Products List'}
+                  </h3>
+                  <p className="text-white/70 mt-2">
+                    {userRole === 'buyer' && activeTab === 'marketplace' ? 'Discover authentic products with verified supply chains' :
+                     userRole === 'buyer' && activeTab === 'orders' ? 'Track your purchase journey and delivery status' :
+                     userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own in your wallet' :
+                     userRole === 'manufacturer' ? 'Products you have created and launched' :
+                     userRole === 'transporter' ? 'Products in your custody for delivery' :
+                     'All products in the ecosystem'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchProducts();
+                    if (userRole === 'buyer' && activeTab === 'orders') {
+                      fetchBuyerPurchases();
+                    }
+                  }}
+                  className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 text-white px-6 py-3 rounded-2xl transition-all duration-300 hover:bg-white/20 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/0 to-blue-400/10 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
+                  <div className="relative flex items-center space-x-2">
+                    <RefreshCw className="w-5 h-5" />
+                    <span className="font-medium">Refresh</span>
+                  </div>
+                </button>
+              </div>
+
+              {loading && (
+                <div className="text-center py-20">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mb-4"></div>
+                  <p className="text-white/70 text-lg">Loading products...</p>
+                </div>
+              )}
+
+              {!loading && (userRole !== 'buyer' || activeTab !== 'orders') && products.length === 0 && (
+                <div className="text-center py-20">
+                  <div className="w-20 h-20 bg-gradient-to-r from-cyan-400/20 to-blue-400/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <Package className="w-10 h-10 text-cyan-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">No products found</h3>
+                  <p className="text-white/60">
+                    {userRole === 'manufacturer' ? 'Create your first product to get started' : 'No products available yet'}
+                  </p>
+                </div>
+              )}
+
+              {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length === 0 && (
+                <div className="text-center py-20">
+                  <div className="w-20 h-20 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <ShoppingCart className="w-10 h-10 text-purple-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">No purchases yet</h3>
+                  <p className="text-white/60">Your purchase history will appear here</p>
+                </div>
+              )}
+
+              {/* Modern Products Grid */}
+              {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && products.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {products.map((product, index) => (
+                    <div key={product.token_id || product.id || index} className="group relative">
+                      {/* Card Background */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-cyan-500/20"></div>
+                      
+                      {/* Gradient Overlay on Hover */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/0 to-blue-400/0 group-hover:from-cyan-400/10 group-hover:to-blue-400/10 rounded-3xl transition-all duration-500"></div>
+                      
+                      {/* Card Content */}
+                      <div className="relative p-8 space-y-6">
+                        {/* Product Image with Fallback */}
+                        {product.image_cid ? (
+                          <div className="aspect-w-16 aspect-h-9 rounded-2xl overflow-hidden">
+                            <img 
+                              src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
+                              alt="Product"
+                              className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-48 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 rounded-2xl flex items-center justify-center">
+                            <Package className="w-12 h-12 text-cyan-400" />
+                          </div>
+                        )}
+                        
+                        {/* Product Header */}
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <h4 className="text-xl font-bold text-white group-hover:text-cyan-100 transition-colors line-clamp-2">
+                              {product.name || product.metadata?.name || `Product ${index + 1}`}
+                            </h4>
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-100 border border-cyan-400/30">
+                              {product.category || product.metadata?.category || 'General'}
+                            </span>
+                          </div>
+                          
+                          <p className="text-white/70 text-sm line-clamp-2">
+                            {product.description || product.metadata?.description || 'No description available'}
+                          </p>
+                        </div>
+
+                        {/* Product Details */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                            <span className="text-white/70 text-sm">Price:</span>
+                            <span className="font-bold text-green-400 text-lg">
+                              {product.price || product.metadata?.price_eth || '0.000'} ETH
+                            </span>
+                          </div>
+                          {product.token_id && (
+                            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                              <span className="text-white/70 text-sm">Token ID:</span>
+                              <span className="font-mono text-xs text-cyan-400">{product.token_id}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* QR Code */}
+                        <div className="flex justify-center">
+                          <div className="p-3 bg-white rounded-2xl">
+                            <QRCode 
+                              value={generateQRCode(product)} 
+                              size={100}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Modern Action Buttons */}
+                        <div className="grid grid-cols-2 gap-4">
+                          {userRole === 'buyer' && activeTab === 'marketplace' && (
+                            <>
+                              <button
+                                onClick={() => handleBuyProduct(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-emerald-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <ShoppingCart className="w-4 h-4" />
+                                  <span className="font-semibold">Buy</span>
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => handleVerifyProduct(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <Shield className="w-4 h-4" />
+                                  <span className="font-semibold">Verify</span>
+                                </div>
+                              </button>
+                            </>
+                          )}
+                          
+                          {userRole === 'transporter' && (
+                            <>
+                              <button
+                                onClick={() => handleCrossChainTransfer(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-green-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <Truck className="w-4 h-4" />
+                                  <span className="font-semibold">Ship</span>
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => handleCompleteShipping(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <Package className="w-4 h-4" />
+                                  <span className="font-semibold">Complete</span>
+                                </div>
+                              </button>
+                            </>
+                          )}
+                          
+                          {userRole === 'manufacturer' && (
+                            <>
+                              <button
+                                onClick={() => handleQualityCheck(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <Shield className="w-4 h-4" />
+                                  <span className="font-semibold">QC</span>
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => handleListInMarketplace(product.token_id)}
+                                className="group/btn relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                                <div className="relative flex items-center justify-center space-x-2">
+                                  <Store className="w-4 h-4" />
+                                  <span className="font-semibold">Sell</span>
+                                </div>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Purchase History for Buyers */}
+              {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {purchases.map((purchase, index) => (
+                    <div key={purchase.purchase_id || index} className="group relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
+                      <div className="relative p-8 space-y-6">
+                        <div className="flex items-start justify-between">
+                          <h4 className="text-xl font-bold text-white">
+                            Order #{purchase.purchase_id?.substring(0, 12)}...
+                          </h4>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                            purchase.status === 'completed' 
+                              ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-400/30' 
+                              : 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-400/30'
+                          }`}>
+                            {purchase.status}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {[
+                            { label: 'Product ID', value: purchase.product_id },
+                            { label: 'Price Paid', value: `${purchase.price_eth} ETH` },
+                            { label: 'Purchase Date', value: purchase.purchase_date },
+                            { label: 'Transaction', value: purchase.transaction_hash?.substring(0, 20) + '...' }
+                          ].filter(item => item.value).map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                              <span className="text-white/70 text-sm font-medium">{item.label}:</span>
+                              <span className="text-white text-sm font-semibold">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-400/20">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-blue-200">Payment:</span>
+                              <span className={`font-semibold ${purchase.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-blue-200">NFT Transfer:</span>
+                              <span className={`font-semibold ${purchase.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Cross Chain Transfer Modal */}
       {showCrossChainTransfer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Cross-Chain Transfer</h3>
-            <CrossChainTransfer 
-              productId={transferProductId}
-              onClose={() => {
-                setShowCrossChainTransfer(false);
-                setTransferProductId(null);
-              }}
-            />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-xl rounded-3xl border border-white/30"></div>
+            <div className="relative bg-transparent p-8 max-w-md w-full mx-4">
+              <h3 className="text-2xl font-bold text-white mb-6 text-center">Cross-Chain Transfer</h3>
+              <CrossChainTransfer 
+                productId={transferProductId}
+                onClose={() => {
+                  setShowCrossChainTransfer(false);
+                  setTransferProductId(null);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -110,10 +110,11 @@ const ModernDashboard = ({ backendStatus }) => {
   const getRoleSpecificCards = () => {
     const baseCards = [
       {
-        title: "Network Status",
+        title: "Network Health",
         value: backendStatus.includes('✅') ? 'Connected' : 'Disconnected',
         color: backendStatus.includes('✅') ? 'green' : 'red',
-        icon: '🌐'
+        icon: '🌐',
+        gradient: 'from-green-400 to-emerald-600'
       }
     ];
 
@@ -125,19 +126,22 @@ const ModernDashboard = ({ backendStatus }) => {
             title: "Products Created",
             value: stats.totalProducts,
             color: 'blue',
-            icon: '📦'
+            icon: '📦',
+            gradient: 'from-blue-500 to-indigo-600'
           },
           {
             title: "Payments Processed", 
             value: stats.totalPayments,
             color: 'purple',
-            icon: '💰'
+            icon: '💰',
+            gradient: 'from-purple-500 to-pink-600'
           },
           {
-            title: "Active Verifications",
+            title: "Quality Rating",
             value: '98.5%',
             color: 'green',
-            icon: '✅'
+            icon: '✅',
+            gradient: 'from-green-400 to-teal-600'
           }
         ];
 
@@ -148,19 +152,22 @@ const ModernDashboard = ({ backendStatus }) => {
             title: "Deliveries Completed",
             value: stats.totalTransactions,
             color: 'blue',
-            icon: '🚛'
+            icon: '🚛',
+            gradient: 'from-blue-500 to-cyan-600'
           },
           {
-            title: "Incentives Earned",
+            title: "Earnings",
             value: '$2,450',
             color: 'green',
-            icon: '💎'
+            icon: '💎',
+            gradient: 'from-emerald-400 to-green-600'
           },
           {
             title: "Performance Score",
             value: '4.8/5',
             color: 'purple',
-            icon: '⭐'
+            icon: '⭐',
+            gradient: 'from-yellow-400 to-orange-500'
           }
         ];
 
@@ -171,19 +178,22 @@ const ModernDashboard = ({ backendStatus }) => {
             title: "Products Purchased",
             value: stats.totalTransactions,
             color: 'blue',
-            icon: '🛒'
+            icon: '🛒',
+            gradient: 'from-blue-500 to-indigo-600'
           },
           {
             title: "Marketplace Items",
             value: stats.marketplaceListings,
             color: 'purple',
-            icon: '🏪'
+            icon: '🏪',
+            gradient: 'from-purple-500 to-pink-600'
           },
           {
-            title: "Verified Authenticity",
+            title: "Authenticity Score",
             value: '100%',
             color: 'green',
-            icon: '🔐'
+            icon: '🔐',
+            gradient: 'from-green-400 to-emerald-600'
           }
         ];
 
@@ -194,19 +204,22 @@ const ModernDashboard = ({ backendStatus }) => {
             title: "Total Products",
             value: stats.totalProducts,
             color: 'blue',
-            icon: '📊'
+            icon: '📊',
+            gradient: 'from-blue-500 to-indigo-600'
           },
           {
             title: "Total Transactions",
             value: stats.totalTransactions,
             color: 'purple',
-            icon: '💫'
+            icon: '💫',
+            gradient: 'from-purple-500 to-pink-600'
           },
           {
             title: "Platform Health",
             value: '99.9%',
             color: 'green',
-            icon: '💚'
+            icon: '💚',
+            gradient: 'from-green-400 to-emerald-600'
           }
         ];
     }
@@ -217,229 +230,360 @@ const ModernDashboard = ({ backendStatus }) => {
       name: "Smart Payment System",
       status: "Operational",
       color: "green",
-      description: "Automated escrow payments running smoothly"
+      description: "Automated escrow payments running smoothly",
+      icon: "💳"
     },
     {
       name: "Dispute Resolution",
       status: "Operational", 
       color: "green",
-      description: "Consensus voting mechanism active"
+      description: "Consensus voting mechanism active",
+      icon: "⚖️"
     },
     {
       name: "Supply Chain Coordination",
       status: "Operational",
       color: "green", 
-      description: "Cross-chain coordination working"
+      description: "Cross-chain coordination working",
+      icon: "🔗"
     },
     {
       name: "Enhanced Verification",
       status: "Operational",
       color: "green",
-      description: "Product verification systems active"
+      description: "Product verification systems active",
+      icon: "🔍"
     },
     {
       name: "Marketplace Platform", 
       status: "Operational",
       color: "green",
-      description: "Secondary marketplace running"
+      description: "Secondary marketplace running",
+      icon: "🛍️"
     }
   ];
 
   const cards = getRoleSpecificCards();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {user?.username || 'User'}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {userRole === 'manufacturer' && 'Manage your product lifecycle and track supply chain operations'}
-                {userRole === 'transporter' && 'Monitor deliveries and optimize your transportation routes'}
-                {userRole === 'buyer' && 'Explore products and manage your purchases with confidence'}
-                {userRole === 'admin' && 'Oversee platform operations and manage all stakeholders'}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Current Role</div>
-              <div className="text-xl font-semibold text-blue-600 capitalize">{userRole}</div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-72 h-72 bg-gradient-to-r from-blue-400/30 to-cyan-400/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-1/2 -left-20 w-96 h-96 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute bottom-20 right-1/4 w-64 h-64 bg-gradient-to-r from-cyan-400/25 to-blue-400/25 rounded-full blur-3xl animate-pulse delay-500"></div>
+        
+        {/* Grid Pattern */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxnIGZpbGw9Im5vbmUiIGZpbGwtcnVsZT0iZXZlbm9kZCI+CiAgICAgICAgPGcgZmlsbD0iIzM3NDE1MSIgZmlsbC1vcGFjaXR5PSIwLjAzIj4KICAgICAgICAgICAgPGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMS41Ii8+CiAgICAgICAgPC9nPgogICAgPC9nPgo8L3N2Zz4=')] opacity-20"></div>
+      </div>
+
+      {/* Modern Hero Header */}
+      <div className="relative z-10 bg-white/5 backdrop-blur-xl border-b border-white/10">
+        <div className="px-8 py-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/25">
+                    <span className="text-2xl">
+                      {userRole === 'manufacturer' ? '🏭' : 
+                       userRole === 'transporter' ? '🚛' :
+                       userRole === 'buyer' ? '🛒' : '👤'}
+                    </span>
+                  </div>
+                  <div>
+                    <h1 className="text-5xl font-bold bg-gradient-to-r from-white via-cyan-100 to-blue-200 bg-clip-text text-transparent">
+                      Welcome back, {user?.username || 'User'}
+                    </h1>
+                    <p className="text-xl text-blue-100/80 mt-2 max-w-2xl">
+                      {userRole === 'manufacturer' && 'Master your product ecosystem with advanced blockchain technology and real-time analytics'}
+                      {userRole === 'transporter' && 'Optimize delivery operations with intelligent routing and performance tracking'}
+                      {userRole === 'buyer' && 'Discover authentic products with verified supply chains and secure transactions'}
+                      {userRole === 'admin' && 'Orchestrate the entire platform with comprehensive oversight and control'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-6">
+                  <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                    <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
+                    <span className="text-cyan-100 font-medium capitalize">{userRole} Dashboard</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                    <div className={`w-3 h-3 rounded-full ${backendStatus.includes('✅') ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                    <span className="text-white/90 font-medium">{backendStatus.includes('✅') ? 'Systems Online' : 'Checking...'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {cards.map((card, index) => (
-            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                  <p className={`text-2xl font-bold ${
-                    card.color === 'green' ? 'text-green-600' :
-                    card.color === 'blue' ? 'text-blue-600' :
-                    card.color === 'purple' ? 'text-purple-600' :
-                    card.color === 'red' ? 'text-red-600' : 'text-gray-600'
-                  }`}>
-                    {card.value}
-                  </p>
+      <div className="relative z-10 px-8 py-12">
+        <div className="max-w-7xl mx-auto space-y-12">
+          {/* Modern Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {cards.map((card, index) => (
+              <div key={index} className="group relative">
+                {/* Card Background with Glassmorphism */}
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-cyan-500/25"></div>
+                
+                {/* Gradient Overlay */}
+                <div className={`absolute inset-0 bg-gradient-to-r ${card.gradient} opacity-0 group-hover:opacity-10 rounded-3xl transition-all duration-500`}></div>
+                
+                {/* Card Content */}
+                <div className="relative p-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <p className="text-white/70 text-sm font-medium tracking-wide uppercase">{card.title}</p>
+                      <p className="text-4xl font-bold text-white group-hover:text-cyan-100 transition-colors duration-300">
+                        {card.value}
+                      </p>
+                    </div>
+                    <div className="text-4xl group-hover:scale-110 transition-transform duration-300">{card.icon}</div>
+                  </div>
+                  
+                  {/* Animated Progress Bar */}
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full bg-gradient-to-r ${card.gradient} rounded-full transform translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-1000 ease-out`}></div>
+                  </div>
                 </div>
-                <div className="text-3xl">{card.icon}</div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* System Status */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">System Status</h2>
-            <div className="space-y-4">
-              {systemStatus.map((system, index) => (
-                <div key={index} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{system.name}</h3>
-                    <p className="text-sm text-gray-600">{system.description}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      system.color === 'green' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className={`font-medium ${
-                      system.color === 'green' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {system.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
 
-          {/* Quick Actions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {userRole === 'manufacturer' && (
-                <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            {/* Enhanced System Status */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
+              <div className="relative p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center">
+                    <span className="text-white text-xl">⚡</span>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">System Performance</h2>
+                    <p className="text-white/70">All algorithms operating at peak efficiency</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  {systemStatus.map((system, index) => (
+                    <div key={index} className="group/item relative">
+                      <div className="flex items-center justify-between p-4 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 group-hover/item:border-white/20 transition-all duration-300">
+                        <div className="flex items-center space-x-4">
+                          <div className="text-2xl">{system.icon}</div>
+                          <div>
+                            <h3 className="font-semibold text-white group-hover/item:text-cyan-100 transition-colors">{system.name}</h3>
+                            <p className="text-sm text-white/60">{system.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse"></div>
+                          <span className="font-medium text-green-400">{system.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modern Quick Actions */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
+              <div className="relative p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-2xl flex items-center justify-center">
+                    <span className="text-white text-xl">🚀</span>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Quick Actions</h2>
+                    <p className="text-white/70">Streamlined workflows for maximum productivity</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {userRole === 'manufacturer' && (
+                    <>
+                      <button 
+                        onClick={() => window.location.href = '/products'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">📦</div>
+                          <div className="text-lg font-semibold">Create Product</div>
+                          <div className="text-sm opacity-90">Launch new NFT</div>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => window.location.href = '/enhanced-authenticity'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">🔐</div>
+                          <div className="text-lg font-semibold">Verify Products</div>
+                          <div className="text-sm opacity-90">Enhanced security</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                  
+                  {userRole === 'transporter' && (
+                    <>
+                      <button 
+                        onClick={() => window.location.href = '/qr-scanner'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">📱</div>
+                          <div className="text-lg font-semibold">Update Status</div>
+                          <div className="text-sm opacity-90">Scan & deliver</div>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => window.location.href = '/products'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">🚛</div>
+                          <div className="text-lg font-semibold">View Routes</div>
+                          <div className="text-sm opacity-90">Optimize delivery</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                  
+                  {userRole === 'buyer' && (
+                    <>
+                      <button 
+                        onClick={() => window.location.href = '/products'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">🛒</div>
+                          <div className="text-lg font-semibold">Shop Now</div>
+                          <div className="text-sm opacity-90">Discover products</div>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => window.location.href = '/qr-scanner'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">✅</div>
+                          <div className="text-lg font-semibold">Confirm Receipt</div>
+                          <div className="text-sm opacity-90">Complete purchase</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+
+                  {userRole === 'admin' && (
+                    <>
+                      <button 
+                        onClick={() => window.location.href = '/participants'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">👥</div>
+                          <div className="text-lg font-semibold">Admin Panel</div>
+                          <div className="text-sm opacity-90">Manage users</div>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => window.location.href = '/qr-scanner'}
+                        className="group/btn relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/25"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                        <div className="relative">
+                          <div className="text-2xl mb-2">📱</div>
+                          <div className="text-lg font-semibold">IPFS Scanner</div>
+                          <div className="text-sm opacity-90">Data management</div>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Universal Actions */}
                   <button 
-                    onClick={() => window.location.href = '/products'}
-                    className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors text-left"
+                    onClick={() => window.location.href = '/enhanced-consensus'}
+                    className="group/btn relative overflow-hidden bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-gray-500/25"
                   >
-                    <div className="text-lg font-semibold">Create Product</div>
-                    <div className="text-sm opacity-90">Start new product lifecycle</div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                    <div className="relative">
+                      <div className="text-2xl mb-2">🔗</div>
+                      <div className="text-lg font-semibold">Consensus Hub</div>
+                      <div className="text-sm opacity-90">Network decisions</div>
+                    </div>
                   </button>
+                  
                   <button 
                     onClick={() => window.location.href = '/enhanced-authenticity'}
-                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
+                    className="group/btn relative overflow-hidden bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white p-6 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/25"
                   >
-                    <div className="text-lg font-semibold">Verify Products</div>
-                    <div className="text-sm opacity-90">Enhanced verification tools</div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                    <div className="relative">
+                      <div className="text-2xl mb-2">🔍</div>
+                      <div className="text-lg font-semibold">Verification</div>
+                      <div className="text-sm opacity-90">Enhanced security</div>
+                    </div>
                   </button>
-                </>
-              )}
-              
-              {userRole === 'transporter' && (
-                <>
-                  <button 
-                    onClick={() => window.location.href = '/qr-scanner'}
-                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">Update Delivery</div>
-                    <div className="text-sm opacity-90">Scan QR & update status</div>
-                  </button>
-                  <button 
-                    onClick={() => window.location.href = '/products'}
-                    className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">View Shipments</div>
-                    <div className="text-sm opacity-90">Manage deliveries</div>
-                  </button>
-                </>
-              )}
-              
-              {userRole === 'buyer' && (
-                <>
-                  <button 
-                    onClick={() => window.location.href = '/products'}
-                    className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">Browse Products</div>
-                    <div className="text-sm opacity-90">Explore marketplace</div>
-                  </button>
-                  <button 
-                    onClick={() => window.location.href = '/qr-scanner'}
-                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">Confirm Receipt</div>
-                    <div className="text-sm opacity-90">Scan QR & confirm delivery</div>
-                  </button>
-                </>
-              )}
-
-              {userRole === 'admin' && (
-                <>
-                  <button 
-                    onClick={() => window.location.href = '/participants'}
-                    className="bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">Admin Panel</div>
-                    <div className="text-sm opacity-90">Manage participants</div>
-                  </button>
-                  <button 
-                    onClick={() => window.location.href = '/qr-scanner'}
-                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
-                  >
-                    <div className="text-lg font-semibold">IPFS Scanner</div>
-                    <div className="text-sm opacity-90">Scan & view IPFS data</div>
-                  </button>
-                </>
-              )}
-              
-              {/* Core Platform Features for All Users */}
-              <button 
-                onClick={() => window.location.href = '/enhanced-authenticity'}
-                className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition-colors text-left"
-              >
-                <div className="text-lg font-semibold">Product Verification</div>
-                <div className="text-sm opacity-90">Enhanced verification system</div>
-              </button>
-              
-              <button 
-                onClick={() => window.location.href = '/enhanced-consensus'}
-                className="bg-gray-600 text-white p-4 rounded-lg hover:bg-gray-700 transition-colors text-left"
-              >
-                <div className="text-lg font-semibold">Consensus Hub</div>
-                <div className="text-sm opacity-90">Participate in decisions</div>
-              </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Network Health */}
-        <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Network Health</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {networkStatus.multichain?.statistics?.total_products || 0}
+          {/* Modern Network Health */}
+          <div className="group relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
+            <div className="relative p-8">
+              <div className="flex items-center space-x-4 mb-8">
+                <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center">
+                  <span className="text-white text-xl">🌐</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Network Analytics</h2>
+                  <p className="text-white/70">Real-time blockchain performance metrics</p>
+                </div>
               </div>
-              <div className="text-gray-600">Products Tracked</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">
-                {networkStatus.multichain?.statistics?.total_transactions || 0}
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="text-center group/metric">
+                  <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-4 group-hover/metric:scale-110 transition-transform duration-300">
+                    <span className="text-white text-2xl font-bold">
+                      {networkStatus.multichain?.statistics?.total_products || 0}
+                    </span>
+                  </div>
+                  <div className="text-white/90 font-semibold">Products Tracked</div>
+                  <div className="text-white/60 text-sm">Across all chains</div>
+                </div>
+                
+                <div className="text-center group/metric">
+                  <div className="w-20 h-20 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-3xl flex items-center justify-center mx-auto mb-4 group-hover/metric:scale-110 transition-transform duration-300">
+                    <span className="text-white text-2xl font-bold">
+                      {networkStatus.multichain?.statistics?.total_transactions || 0}
+                    </span>
+                  </div>
+                  <div className="text-white/90 font-semibold">Transactions</div>
+                  <div className="text-white/60 text-sm">Cross-chain operations</div>
+                </div>
+                
+                <div className="text-center group/metric">
+                  <div className="w-20 h-20 bg-gradient-to-r from-purple-400 to-pink-500 rounded-3xl flex items-center justify-center mx-auto mb-4 group-hover/metric:scale-110 transition-transform duration-300">
+                    <span className="text-white text-2xl font-bold">99.9%</span>
+                  </div>
+                  <div className="text-white/90 font-semibold">Uptime</div>
+                  <div className="text-white/60 text-sm">Platform reliability</div>
+                </div>
               </div>
-              <div className="text-gray-600">Transactions</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">99.9%</div>
-              <div className="text-gray-600">Uptime</div>
             </div>
           </div>
         </div>

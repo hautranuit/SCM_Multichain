@@ -109,12 +109,16 @@ class PostSupplyChainService:
     
     async def get_database(self):
         """Get database instance"""
-        if blockchain_service.database:
+        if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
             return blockchain_service.database
         return None
     
     async def _ensure_collections(self):
         """Ensure required database collections exist"""
+        if self.database is None:
+            self.logger.warning("Database is None, skipping collection initialization")
+            return
+            
         collections = [
             "marketplace_listings",
             "ownership_transfers", 
@@ -842,7 +846,7 @@ class PostSupplyChainService:
             }
             
             # Check database connection
-            if self.database:
+            if self.database is not None:
                 try:
                     # Quick database query to verify connection
                     await self.database["marketplace_listings"].count_documents({})
@@ -853,7 +857,7 @@ class PostSupplyChainService:
             
             # Check blockchain service
             try:
-                if hasattr(blockchain_service, 'database') and blockchain_service.database:
+                if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
                     health_status["blockchain_service"] = "connected"
                 else:
                     health_status["blockchain_service"] = "disconnected"
@@ -870,7 +874,7 @@ class PostSupplyChainService:
                 health_status["ipfs_service"] = "error"
             
             # Get basic marketplace stats
-            if self.database:
+            if self.database is not None:
                 try:
                     total_listings = await self.database["marketplace_listings"].count_documents({})
                     active_listings = await self.database["marketplace_listings"].count_documents({"status": "active"})

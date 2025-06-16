@@ -813,7 +813,7 @@ class DisputeResolutionService:
                 "resolved_disputes": 0
             }
             
-            if self.database:
+            if self.database is not None:
                 try:
                     # Count available arbitrators
                     arbitrators_count = await self.database["arbitrator_candidates"].count_documents({

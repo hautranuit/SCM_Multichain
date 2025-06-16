@@ -123,7 +123,7 @@ class NFTTransferOrchestrator:
     
     async def get_database(self):
         """Get database instance"""
-        if supply_chain_orchestrator.database:
+        if hasattr(supply_chain_orchestrator, 'database') and supply_chain_orchestrator.database is not None:
             return supply_chain_orchestrator.database
         return None
     

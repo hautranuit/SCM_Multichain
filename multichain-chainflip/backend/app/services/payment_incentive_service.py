@@ -97,12 +97,16 @@ class PaymentIncentiveService:
     
     async def get_database(self):
         """Get database instance"""
-        if blockchain_service.database:
+        if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
             return blockchain_service.database
         return None
     
     async def _ensure_collections(self):
         """Ensure required database collections exist"""
+        if self.database is None:
+            self.logger.warning("Database is None, skipping collection initialization")
+            return
+            
         collections = [
             "escrow_payments",
             "payment_distributions", 
