@@ -106,7 +106,7 @@ class SupplyChainOrchestrator:
     
     async def get_database(self):
         """Get database instance"""
-        if blockchain_service.database:
+        if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
             return blockchain_service.database
         return None
     

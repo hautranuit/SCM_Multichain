@@ -147,7 +147,7 @@ class DisputeResolutionService:
         try:
             # Get database from blockchain service
             from .blockchain_service import blockchain_service
-            if blockchain_service.database:
+            if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
                 self.database = blockchain_service.database
             else:
                 raise Exception("Blockchain service database not initialized")

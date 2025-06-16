@@ -136,7 +136,7 @@ async def transfer_tokens_cross_chain(request: TokenTransferRequest):
         print(f"Escrow ID: {escrow_id}")
         
         # Try LayerZero OFT transfer first (new decentralized method)
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         print(f"🔄 Attempting LayerZero OFT transfer...")
@@ -171,7 +171,7 @@ async def transfer_tokens_cross_chain(request: TokenTransferRequest):
             print(f"⚠️ LayerZero OFT contracts not deployed yet, falling back to Real WETH bridge")
             
             # Fallback to Real WETH bridge (existing custodial method)
-            if real_weth_bridge_service.not database:
+            if not real_weth_bridge_service.database:
                 await real_weth_bridge_service.initialize()
             
             print(f"🔄 Attempting Real WETH bridge transfer...")
@@ -225,7 +225,7 @@ async def get_chain_balance(request: BalanceRequest):
     """Get ETH and WETH balance for an address using real contracts"""
     try:
         # Initialize service if needed
-        if not hasattr(real_weth_bridge_service, 'database') or real_weth_bridge_service.not database:
+        if not hasattr(real_weth_bridge_service, 'database') or not real_weth_bridge_service.database:
             await real_weth_bridge_service.initialize()
         
         result = await real_weth_bridge_service.get_balance_on_chain(
@@ -260,7 +260,7 @@ async def estimate_transfer_fee(request: FeeEstimateRequest):
     """Estimate cross-chain transfer fees using LayerZero OFT or Real WETH"""
     try:
         # Try LayerZero OFT estimation first (new method)
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         oft_estimate = await layerzero_oft_bridge_service.estimate_oft_transfer_fee(
@@ -288,7 +288,7 @@ async def estimate_transfer_fee(request: FeeEstimateRequest):
         print("⚠️ LayerZero OFT not available, falling back to Real WETH bridge")
         
         # Initialize WETH service if not already done
-        if real_weth_bridge_service.not database:
+        if not real_weth_bridge_service.database:
             await real_weth_bridge_service.initialize()
         
         # Simplified fee estimation for WETH bridge
@@ -321,7 +321,7 @@ async def get_transfer_status(transfer_id: str):
     """Get status of a specific real WETH transfer"""
     try:
         # Initialize service if needed
-        if not hasattr(real_weth_bridge_service, 'database') or real_weth_bridge_service.not database:
+        if not hasattr(real_weth_bridge_service, 'database') or not real_weth_bridge_service.database:
             await real_weth_bridge_service.initialize()
         
         result = await real_weth_bridge_service.get_transfer_status(transfer_id)
@@ -351,7 +351,7 @@ async def get_all_transfers(limit: int = 50, skip: int = 0):
     """Get list of all real WETH transfers"""
     try:
         # Initialize service if needed
-        if not hasattr(real_weth_bridge_service, 'database') or real_weth_bridge_service.not database:
+        if not hasattr(real_weth_bridge_service, 'database') or not real_weth_bridge_service.database:
             await real_weth_bridge_service.initialize()
         
         # Query transfers from database
@@ -463,7 +463,7 @@ async def debug_oft_contract(request: ContractDebugRequest):
     """Debug LayerZero OFT contract to understand available functions"""
     try:
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Run contract debug
@@ -489,7 +489,7 @@ async def test_oft_functions(request: ContractDebugRequest):
     """Test which LayerZero functions are available on deployed contract"""
     try:
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Run function availability test
@@ -515,7 +515,7 @@ async def investigate_contract_implementation(request: ContractDebugRequest):
     """Deep investigation of deployed LayerZero contract implementation"""
     try:
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Run deep contract investigation
@@ -544,7 +544,7 @@ async def test_and_fix_send(request: Dict[str, str]):
         to_chain = request.get("to_chain", "base_sepolia")
         
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Run send function tests and get fix recommendations
@@ -570,7 +570,7 @@ async def test_reverse_direction():
     """Test reverse direction transfer (zkEVM → Optimism) which should work"""
     try:
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Test reverse direction: Base Sepolia → Optimism (should work since Optimism has Base peer)
@@ -616,7 +616,7 @@ async def transfer_reverse_direction(request: TokenTransferRequest):
         print(f"Note: Testing reverse direction due to peer configuration issue")
         
         # Initialize LayerZero service if needed
-        if layerzero_oft_bridge_service.not database:
+        if not layerzero_oft_bridge_service.database:
             await layerzero_oft_bridge_service.initialize()
         
         # Execute reverse direction transfer
