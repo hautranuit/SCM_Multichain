@@ -24,7 +24,7 @@ const ModernDashboard = ({ backendStatus }) => {
       const networkResponse = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/network-status`);
       setNetworkStatus(networkResponse.data);
 
-      // Load algorithm-specific stats
+      // Load system-specific stats
       const promises = [
         loadPaymentStats(),
         loadConsensusStats(), 
@@ -174,7 +174,7 @@ const ModernDashboard = ({ backendStatus }) => {
             icon: '🛒'
           },
           {
-            title: "Marketplace Listings",
+            title: "Marketplace Items",
             value: stats.marketplaceListings,
             color: 'purple',
             icon: '🏪'
@@ -212,12 +212,12 @@ const ModernDashboard = ({ backendStatus }) => {
     }
   };
 
-  const algorithmStatus = [
+  const systemStatus = [
     {
-      name: "Payment & Incentive System",
+      name: "Smart Payment System",
       status: "Operational",
       color: "green",
-      description: "Smart escrow payments running smoothly"
+      description: "Automated escrow payments running smoothly"
     },
     {
       name: "Dispute Resolution",
@@ -226,19 +226,19 @@ const ModernDashboard = ({ backendStatus }) => {
       description: "Consensus voting mechanism active"
     },
     {
-      name: "Supply Chain Consensus",
+      name: "Supply Chain Coordination",
       status: "Operational",
       color: "green", 
       description: "Cross-chain coordination working"
     },
     {
-      name: "Enhanced Authenticity",
+      name: "Enhanced Verification",
       status: "Operational",
       color: "green",
-      description: "Verification algorithms active"
+      description: "Product verification systems active"
     },
     {
-      name: "Marketplace Management", 
+      name: "Marketplace Platform", 
       status: "Operational",
       color: "green",
       description: "Secondary marketplace running"
@@ -296,24 +296,24 @@ const ModernDashboard = ({ backendStatus }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Algorithm Status */}
+          {/* System Status */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Algorithm Status</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">System Status</h2>
             <div className="space-y-4">
-              {algorithmStatus.map((algorithm, index) => (
+              {systemStatus.map((system, index) => (
                 <div key={index} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{algorithm.name}</h3>
-                    <p className="text-sm text-gray-600">{algorithm.description}</p>
+                    <h3 className="font-semibold text-gray-900">{system.name}</h3>
+                    <p className="text-sm text-gray-600">{system.description}</p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className={`w-3 h-3 rounded-full ${
-                      algorithm.color === 'green' ? 'bg-green-500' : 'bg-red-500'
+                      system.color === 'green' ? 'bg-green-500' : 'bg-red-500'
                     }`}></div>
                     <span className={`font-medium ${
-                      algorithm.color === 'green' ? 'text-green-600' : 'text-red-600'
+                      system.color === 'green' ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {algorithm.status}
+                      {system.status}
                     </span>
                   </div>
                 </div>
@@ -350,8 +350,8 @@ const ModernDashboard = ({ backendStatus }) => {
                     onClick={() => window.location.href = '/qr-scanner'}
                     className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
                   >
-                    <div className="text-lg font-semibold">Scan QR Code</div>
-                    <div className="text-sm opacity-90">Update delivery status</div>
+                    <div className="text-lg font-semibold">Update Delivery</div>
+                    <div className="text-sm opacity-90">Scan QR & update status</div>
                   </button>
                   <button 
                     onClick={() => window.location.href = '/products'}
@@ -373,30 +373,41 @@ const ModernDashboard = ({ backendStatus }) => {
                     <div className="text-sm opacity-90">Explore marketplace</div>
                   </button>
                   <button 
-                    onClick={() => window.location.href = '/marketplace'}
+                    onClick={() => window.location.href = '/qr-scanner'}
+                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
+                  >
+                    <div className="text-lg font-semibold">Confirm Receipt</div>
+                    <div className="text-sm opacity-90">Scan QR & confirm delivery</div>
+                  </button>
+                </>
+              )}
+
+              {userRole === 'admin' && (
+                <>
+                  <button 
+                    onClick={() => window.location.href = '/participants'}
                     className="bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 transition-colors text-left"
                   >
-                    <div className="text-lg font-semibold">Marketplace</div>
-                    <div className="text-sm opacity-90">Secondary market & resales</div>
+                    <div className="text-lg font-semibold">Admin Panel</div>
+                    <div className="text-sm opacity-90">Manage participants</div>
+                  </button>
+                  <button 
+                    onClick={() => window.location.href = '/qr-scanner'}
+                    className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition-colors text-left"
+                  >
+                    <div className="text-lg font-semibold">IPFS Scanner</div>
+                    <div className="text-sm opacity-90">Scan & view IPFS data</div>
                   </button>
                 </>
               )}
               
-              {/* Algorithm 4 & 5 Feature Access for All Users */}
+              {/* Core Platform Features for All Users */}
               <button 
                 onClick={() => window.location.href = '/enhanced-authenticity'}
                 className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition-colors text-left"
               >
-                <div className="text-lg font-semibold">Enhanced Verification</div>
-                <div className="text-sm opacity-90">Algorithm 4 - Batch verification</div>
-              </button>
-              
-              <button 
-                onClick={() => window.location.href = '/marketplace'}
-                className="bg-teal-600 text-white p-4 rounded-lg hover:bg-teal-700 transition-colors text-left"
-              >
-                <div className="text-lg font-semibold">Secondary Market</div>
-                <div className="text-sm opacity-90">Algorithm 5 - Product marketplace</div>
+                <div className="text-lg font-semibold">Product Verification</div>
+                <div className="text-sm opacity-90">Enhanced verification system</div>
               </button>
               
               <button 
@@ -405,14 +416,6 @@ const ModernDashboard = ({ backendStatus }) => {
               >
                 <div className="text-lg font-semibold">Consensus Hub</div>
                 <div className="text-sm opacity-90">Participate in decisions</div>
-              </button>
-              
-              <button 
-                onClick={() => window.location.href = '/participants'}
-                className="bg-cyan-600 text-white p-4 rounded-lg hover:bg-cyan-700 transition-colors text-left"
-              >
-                <div className="text-lg font-semibold">Network</div>
-                <div className="text-sm opacity-90">View participants</div>
               </button>
             </div>
           </div>

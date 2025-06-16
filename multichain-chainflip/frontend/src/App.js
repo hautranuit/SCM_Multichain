@@ -288,41 +288,69 @@ const ModernAppLayout = ({ children, backendStatus }) => {
       }
     })();
 
-    // Algorithm-specific features
-    const algorithmItems = [
-      { id: 'enhanced-authenticity', name: 'Enhanced Verification', icon: '🔐', path: '/enhanced-authenticity' },
-      { id: 'marketplace', name: 'Marketplace', icon: '🏪', path: '/marketplace' },
-    ];
+    // Core platform features - available to all with role-specific restrictions applied in components
+    const platformFeatures = [];
+    
+    // Enhanced Verification - Available to all roles with different purposes
+    if (userRole === 'admin' || userRole === 'manufacturer') {
+      platformFeatures.push({ id: 'enhanced-authenticity', name: 'Product Verification', icon: '🔐', path: '/enhanced-authenticity' });
+    } else if (userRole === 'buyer') {
+      platformFeatures.push({ id: 'enhanced-authenticity', name: 'Authenticity Check', icon: '🔍', path: '/enhanced-authenticity' });
+    } else if (userRole === 'transporter') {
+      platformFeatures.push({ id: 'enhanced-authenticity', name: 'Cargo Verification', icon: '📋', path: '/enhanced-authenticity' });
+    }
+
+    // Marketplace - Only for buyers (integrated into product lifecycle)
+    if (userRole === 'buyer') {
+      // Note: Marketplace is integrated into products page for buyers, not separate tab
+    }
 
     // Common items for all roles
-    const commonItems = [
-      { id: 'participants', name: 'Network', icon: '🌐', path: '/participants' },
-      { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' },
+    const networkItems = [];
+    if (userRole === 'admin') {
+      networkItems.push({ id: 'participants', name: 'Admin Panel', icon: '👥', path: '/participants' });
+    } else {
+      networkItems.push({ id: 'participants', name: 'Network Status', icon: '🌐', path: '/participants' });
+    }
+
+    // QR Scanner with role-specific functionality
+    const qrScannerItem = (() => {
+      switch (userRole) {
+        case 'admin':
+          return { id: 'qr-scanner', name: 'IPFS Scanner', icon: '📱', path: '/qr-scanner' };
+        case 'transporter':
+          return { id: 'qr-scanner', name: 'Delivery Update', icon: '📱', path: '/qr-scanner' };
+        case 'buyer':
+          return { id: 'qr-scanner', name: 'Receipt Confirm', icon: '📱', path: '/qr-scanner' };
+        default:
+          return { id: 'qr-scanner', name: 'QR Scanner', icon: '📱', path: '/qr-scanner' };
+      }
+    })();
+
+    // Consensus Hub - Available to all for supply chain coordination and dispute resolution
+    const consensusItems = [
       { id: 'enhanced-consensus', name: 'Consensus Hub', icon: '🔗', path: '/enhanced-consensus' },
     ];
 
-    // Role-specific additional items
+    // Role-specific additional features
     const roleSpecificItems = [];
-    if (userRole === 'manufacturer') {
+    if (userRole === 'manufacturer' || userRole === 'admin') {
       roleSpecificItems.push(
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' }
       );
-    } else if (userRole === 'buyer') {
-      // Buyer gets marketplace features prominently
-    } else if (userRole === 'transporter') {
-      // Transporter gets delivery tools
-    } else {
-      // Admin or default - show all
+    }
+
+    // Admin-only features
+    if (userRole === 'admin') {
       roleSpecificItems.push(
-        { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' },
-        { id: 'consensus', name: 'Consensus System', icon: '⚡', path: '/consensus' }
+        { id: 'consensus', name: 'System Consensus', icon: '⚡', path: '/consensus' }
       );
     }
 
     // Analytics for all
     const analyticsItem = { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' };
 
-    return [...baseItems, productMenuItem, ...algorithmItems, ...commonItems, ...roleSpecificItems, analyticsItem];
+    return [...baseItems, productMenuItem, ...platformFeatures, ...networkItems, qrScannerItem, ...consensusItems, ...roleSpecificItems, analyticsItem];
   };
 
   const menuItems = getRoleBasedMenuItems();

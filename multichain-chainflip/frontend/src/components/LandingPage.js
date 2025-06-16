@@ -48,10 +48,10 @@ const LandingPage = () => {
     }
   ];
 
-  const algorithms = [
+  const systemFeatures = [
     {
-      title: "Payment & Incentive System",
-      description: "Smart escrow payments with performance-based incentives for transporters",
+      title: "Smart Payment System",
+      description: "Automated escrow payments with performance-based incentives for transporters",
       number: "01"
     },
     {
@@ -60,18 +60,18 @@ const LandingPage = () => {
       number: "02"
     },
     {
-      title: "Supply Chain Consensus",
+      title: "Supply Chain Coordination",
       description: "Cross-chain coordination for seamless multi-network operations",
       number: "03"
     },
     {
-      title: "Enhanced Authenticity",
-      description: "Advanced verification with batch processing and analytics",
+      title: "Enhanced Verification",
+      description: "Advanced product verification with batch processing and analytics",
       number: "04"
     },
     {
-      title: "Marketplace Management",
-      description: "Secondary marketplace for verified products with ownership transfers",
+      title: "Marketplace Platform",
+      description: "Secondary marketplace for verified products with secure ownership transfers",
       number: "05"
     }
   ];
@@ -130,7 +130,7 @@ const LandingPage = () => {
           </h1>
           
           <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-            Revolutionary multi-chain supply chain management powered by 5 sophisticated algorithms
+            Revolutionary multi-chain supply chain management powered by 5 sophisticated AI systems
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -164,7 +164,7 @@ const LandingPage = () => {
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-center">
               <div className="text-3xl font-bold text-cyan-300 mb-2">5</div>
-              <div className="text-blue-100">AI Algorithms</div>
+              <div className="text-blue-100">AI Systems</div>
             </div>
           </div>
         </div>
@@ -238,30 +238,30 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Algorithms Section */}
+      {/* Technology Section */}
       <section id="technology" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              5 Sophisticated <span className="text-blue-600">AI Algorithms</span>
+              5 Sophisticated <span className="text-blue-600">AI Systems</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Our platform is powered by cutting-edge artificial intelligence algorithms that revolutionize supply chain management
+              Our platform is powered by cutting-edge artificial intelligence systems that revolutionize supply chain management
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {algorithms.map((algorithm, index) => (
+            {systemFeatures.map((feature, index) => (
               <div key={index} className="group relative bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-8 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <div className="absolute top-6 right-6 text-6xl font-bold text-blue-100 group-hover:text-blue-200 transition-colors">
-                  {algorithm.number}
+                  {feature.number}
                 </div>
                 <div className="relative">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 group-hover:text-blue-600 transition-colors">
-                    {algorithm.title}
+                    {feature.title}
                   </h3>
                   <p className="text-gray-600 leading-relaxed">
-                    {algorithm.description}
+                    {feature.description}
                   </p>
                 </div>
               </div>
@@ -303,7 +303,7 @@ const LandingPage = () => {
             <div className="col-span-1 md:col-span-2">
               <div className="text-2xl font-bold text-blue-400 mb-4">ChainFLIP</div>
               <p className="text-gray-400 mb-4 max-w-md">
-                Revolutionary blockchain-powered supply chain management platform with 5 AI algorithms for unmatched efficiency and transparency.
+                Revolutionary blockchain-powered supply chain management platform with 5 AI systems for unmatched efficiency and transparency.
               </p>
               <div className="flex space-x-4">
                 <button className="text-gray-400 hover:text-white">LinkedIn</button>

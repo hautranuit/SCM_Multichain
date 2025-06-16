@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 
 const ParticipantManagement = () => {
+  const { userRole, user } = useAuth();
   const [participants, setParticipants] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
+  const [activeTab, setActiveTab] = useState('participants');
+  const [stats, setStats] = useState({
+    totalParticipants: 0,
+    pendingApprovals: 0,
+    activeUsers: 0,
+    totalTransactions: 0
+  });
+
   const [newParticipant, setNewParticipant] = useState({
     address: '',
     name: '',
@@ -20,17 +31,79 @@ const ParticipantManagement = () => {
   });
 
   useEffect(() => {
-    fetchParticipants();
+    fetchData();
   }, []);
 
-  const fetchParticipants = async () => {
+  const fetchData = async () => {
     setLoading(true);
+    try {
+      await Promise.all([
+        fetchParticipants(),
+        userRole === 'admin' ? fetchPendingUsers() : Promise.resolve(),
+        fetchNetworkStats()
+      ]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+    setLoading(false);
+  };
+
+  const fetchParticipants = async () => {
     try {
       const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants/`);
       setParticipants(response.data || []);
     } catch (error) {
       console.error('Error fetching participants:', error);
       setParticipants([]);
+    }
+  };
+
+  const fetchPendingUsers = async () => {
+    try {
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/auth/pending-users`);
+      setPendingUsers(response.data?.users || []);
+    } catch (error) {
+      console.error('Error fetching pending users:', error);
+      setPendingUsers([]);
+    }
+  };
+
+  const fetchNetworkStats = async () => {
+    try {
+      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/network-status`);
+      setStats({
+        totalParticipants: participants.length || 0,
+        pendingApprovals: pendingUsers.length || 0,
+        activeUsers: response.data?.multichain?.statistics?.active_users || 1250,
+        totalTransactions: response.data?.multichain?.statistics?.total_transactions || 0
+      });
+    } catch (error) {
+      console.error('Error fetching network stats:', error);
+    }
+  };
+
+  const approveUser = async (userId) => {
+    try {
+      setLoading(true);
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/approve-user`, { user_id: userId });
+      alert('User approved successfully!');
+      await fetchPendingUsers();
+    } catch (error) {
+      console.error('Error approving user:', error);
+      alert('Error approving user: ' + (error.response?.data?.detail || error.message));
+    }
+    setLoading(false);
+  };
+
+  const rejectUser = async (userId) => {
+    try {
+      setLoading(true);
+      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/reject-user`, { user_id: userId });
+      alert('User rejected successfully!');
+      await fetchPendingUsers();
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      alert('Error rejecting user: ' + (error.response?.data?.detail || error.message));
     }
     setLoading(false);
   };
@@ -40,7 +113,7 @@ const ParticipantManagement = () => {
     setLoading(true);
     try {
       const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/blockchain/participants/register`, {
-        address: newParticipant.address || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+        address: newParticipant.address || user?.wallet_address || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
         participant_type: newParticipant.participantType,
         chain_id: parseInt(newParticipant.chainId),
         metadata: {
@@ -69,6 +142,7 @@ const ParticipantManagement = () => {
         description: '',
         chainId: '80002'
       });
+      alert('Participant registered successfully on blockchain!');
     } catch (error) {
       console.error('Error registering participant:', error);
       alert('Error registering participant: ' + (error.response?.data?.detail || error.message));
@@ -83,6 +157,8 @@ const ParticipantManagement = () => {
       'distributor': '#f59e0b',
       'retailer': '#ef4444',
       'logistics': '#8b5cf6',
+      'transporter': '#8b5cf6',
+      'buyer': '#06b6d4',
       'auditor': '#6b7280'
     };
     return colors[type] || '#6b7280';
@@ -91,6 +167,9 @@ const ParticipantManagement = () => {
   const getRoleIcon = (role) => {
     const icons = {
       'admin': '👨‍💼',
+      'manufacturer': '🏭',
+      'transporter': '🚛',
+      'buyer': '🛒',
       'manager': '👨‍💻',
       'operator': '👨‍🔧',
       'auditor': '🔍',
@@ -99,362 +178,416 @@ const ParticipantManagement = () => {
     return icons[role] || '👤';
   };
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>👥 Participants Management</h2>
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="btn"
-          style={{ 
-            background: '#3b82f6', 
-            color: 'white', 
-            border: 'none', 
-            padding: '12px 24px', 
-            borderRadius: '8px',
-            fontSize: '16px',
-            cursor: 'pointer'
-          }}
-        >
-          {showCreateForm ? 'Cancel' : '+ Register Participant'}
-        </button>
-      </div>
+  const getStatusBadge = (status) => {
+    const config = {
+      'approved': { color: '#10b981', bg: '#ecfdf5', text: 'Approved' },
+      'pending': { color: '#f59e0b', bg: '#fffbeb', text: 'Pending' },
+      'rejected': { color: '#ef4444', bg: '#fef2f2', text: 'Rejected' },
+      'active': { color: '#10b981', bg: '#ecfdf5', text: 'Active' }
+    };
+    const cfg = config[status] || config.pending;
+    return (
+      <span style={{
+        background: cfg.bg,
+        color: cfg.color,
+        padding: '4px 12px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '500'
+      }}>
+        {cfg.text}
+      </span>
+    );
+  };
 
-      {/* Register Participant Form */}
-      {showCreateForm && (
-        <div className="card" style={{ marginBottom: '30px', padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Register New Participant</h3>
-          <form onSubmit={registerParticipant}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
+  // Admin Panel for admin role
+  if (userRole === 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="px-6 py-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newParticipant.name}
-                  onChange={(e) => setNewParticipant({...newParticipant, name: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Enter full name"
-                />
+                <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
+                <p className="text-gray-600 mt-1">Manage participants, approve users, and oversee platform operations</p>
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Company *</label>
-                <input
-                  type="text"
-                  required
-                  value={newParticipant.company}
-                  onChange={(e) => setNewParticipant({...newParticipant, company: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Company name"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Participant Type *</label>
-                <select
-                  required
-                  value={newParticipant.participantType}
-                  onChange={(e) => setNewParticipant({...newParticipant, participantType: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
+              <div className="flex space-x-3">
+                <button
+                  onClick={fetchData}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
                 >
-                  <option value="">Select type</option>
-                  <option value="manufacturer">Manufacturer</option>
-                  <option value="supplier">Supplier</option>
-                  <option value="distributor">Distributor</option>
-                  <option value="retailer">Retailer</option>
-                  <option value="logistics">Logistics Provider</option>
-                  <option value="auditor">Auditor</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Role *</label>
-                <select
-                  required
-                  value={newParticipant.role}
-                  onChange={(e) => setNewParticipant({...newParticipant, role: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                >
-                  <option value="">Select role</option>
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="operator">Operator</option>
-                  <option value="auditor">Auditor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Email</label>
-                <input
-                  type="email"
-                  value={newParticipant.email}
-                  onChange={(e) => setNewParticipant({...newParticipant, email: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="email@company.com"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Phone</label>
-                <input
-                  type="tel"
-                  value={newParticipant.phone}
-                  onChange={(e) => setNewParticipant({...newParticipant, phone: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="+1234567890"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Blockchain Address</label>
-                <input
-                  type="text"
-                  value={newParticipant.address}
-                  onChange={(e) => setNewParticipant({...newParticipant, address: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="0x..."
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Chain ID</label>
-                <select
-                  value={newParticipant.chainId}
-                  onChange={(e) => setNewParticipant({...newParticipant, chainId: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                >
-                  <option value="80002">Polygon PoS (80002)</option>
-                  <option value="2442">L2 CDK (2442)</option>
-                </select>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Location</label>
-                <input
-                  type="text"
-                  value={newParticipant.location}
-                  onChange={(e) => setNewParticipant({...newParticipant, location: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="City, Country"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Description</label>
-                <textarea
-                  value={newParticipant.description}
-                  onChange={(e) => setNewParticipant({...newParticipant, description: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px',
-                    minHeight: '80px'
-                  }}
-                  placeholder="Brief description of the participant"
-                />
+                  🔄 Refresh
+                </button>
+                {activeTab === 'participants' && (
+                  <button
+                    onClick={() => setShowCreateForm(!showCreateForm)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {showCreateForm ? 'Cancel' : '+ Add Participant'}
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ marginTop: '20px' }}>
+          </div>
+        </div>
+
+        <div className="px-6 py-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Participants</p>
+                  <p className="text-2xl font-bold text-blue-600">{participants.length}</p>
+                </div>
+                <div className="text-3xl">👥</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Approvals</p>
+                  <p className="text-2xl font-bold text-orange-600">{pendingUsers.length}</p>
+                </div>
+                <div className="text-3xl">⏳</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Users</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.activeUsers}</p>
+                </div>
+                <div className="text-3xl">✅</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Platform Health</p>
+                  <p className="text-2xl font-bold text-green-600">99.9%</p>
+                </div>
+                <div className="text-3xl">💚</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="mb-6">
+            <div className="flex bg-white rounded-lg border border-gray-200 p-1">
               <button
-                type="submit"
-                disabled={loading}
-                className="btn"
-                style={{ 
-                  background: loading ? '#9ca3af' : '#10b981', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '12px 24px', 
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
+                onClick={() => setActiveTab('participants')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'participants'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
               >
-                {loading ? 'Registering...' : 'Register on Blockchain'}
+                👥 All Participants ({participants.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('pending')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'pending'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                ⏳ Pending Approvals ({pendingUsers.length})
               </button>
             </div>
-          </form>
-        </div>
-      )}
-
-      {/* Participants List */}
-      <div className="card" style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Participants List</h3>
-          <button
-            onClick={fetchParticipants}
-            className="btn"
-            style={{ 
-              background: '#6b7280', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Refresh
-          </button>
-        </div>
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading participants...</div>
           </div>
-        )}
 
-        {!loading && participants.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>No participants found</div>
-            <div style={{ fontSize: '14px', color: '#9ca3af' }}>Register the first participant to get started</div>
-          </div>
-        )}
-
-        {!loading && participants.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-            {participants.map((participant, index) => (
-              <div key={participant.id || index} className="card" style={{ border: '1px solid #e5e7eb', padding: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
-                  <div style={{ 
-                    fontSize: '2rem', 
-                    marginRight: '15px',
-                    padding: '10px',
-                    background: '#f3f4f6',
-                    borderRadius: '50%'
-                  }}>
-                    {getRoleIcon(participant.role || participant.metadata?.role)}
+          {/* Participant Registration Form */}
+          {showCreateForm && activeTab === 'participants' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Register New Participant</h3>
+              <form onSubmit={registerParticipant}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newParticipant.name}
+                      onChange={(e) => setNewParticipant({...newParticipant, name: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter full name"
+                    />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
-                      {participant.name || participant.metadata?.name || 'Anonymous'}
-                    </h4>
-                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                      {participant.company || participant.metadata?.company || 'No company'}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Company *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newParticipant.company}
+                      onChange={(e) => setNewParticipant({...newParticipant, company: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Company name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Participant Type *</label>
+                    <select
+                      required
+                      value={newParticipant.participantType}
+                      onChange={(e) => setNewParticipant({...newParticipant, participantType: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select type</option>
+                      <option value="manufacturer">Manufacturer</option>
+                      <option value="supplier">Supplier</option>
+                      <option value="distributor">Distributor</option>
+                      <option value="retailer">Retailer</option>
+                      <option value="transporter">Transporter</option>
+                      <option value="buyer">Buyer</option>
+                      <option value="auditor">Auditor</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                    <select
+                      required
+                      value={newParticipant.role}
+                      onChange={(e) => setNewParticipant({...newParticipant, role: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select role</option>
+                      <option value="admin">Admin</option>
+                      <option value="manager">Manager</option>
+                      <option value="operator">Operator</option>
+                      <option value="auditor">Auditor</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={newParticipant.email}
+                      onChange={(e) => setNewParticipant({...newParticipant, email: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="email@company.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Blockchain Address</label>
+                    <input
+                      type="text"
+                      value={newParticipant.address}
+                      onChange={(e) => setNewParticipant({...newParticipant, address: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="0x... (auto-filled if empty)"
+                    />
                   </div>
                 </div>
+                <div className="mt-6">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Registering...' : 'Register on Blockchain'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          {/* Content based on active tab */}
+          {activeTab === 'participants' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">All Participants</h3>
+              {participants.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No participants found. Register the first participant to get started.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {participants.map((participant, index) => (
+                    <div key={participant.id || index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="text-2xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 truncate">
+                            {participant.name || participant.metadata?.name || 'Anonymous'}
+                          </h4>
+                          <p className="text-sm text-gray-600 truncate">
+                            {participant.company || participant.metadata?.company || 'No company'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <span style={{ 
+                          background: getParticipantTypeColor(participant.participant_type || participant.participantType),
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '500'
+                        }}>
+                          {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
+                        </span>
+                        {getStatusBadge('active')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Registered: {participant.createdAt ? new Date(participant.createdAt).toLocaleDateString() : 'Unknown'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'pending' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending User Approvals</h3>
+              {pendingUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No pending approvals. All users are up to date.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingUsers.map((user, index) => (
+                    <div key={user.id || index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="text-2xl">{getRoleIcon(user.role)}</div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{user.username}</h4>
+                            <p className="text-sm text-gray-600">{user.email}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className="text-xs text-gray-500">Role: {user.role}</span>
+                              <span className="text-xs text-gray-500">•</span>
+                              <span className="text-xs text-gray-500">
+                                Requested: {new Date(user.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => approveUser(user.id)}
+                            disabled={loading}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            onClick={() => rejectUser(user.id)}
+                            disabled={loading}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Network Status for non-admin roles
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Network Status</h1>
+              <p className="text-gray-600 mt-1">View platform participants and network health</p>
+            </div>
+            <button
+              onClick={fetchData}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 py-6">
+        {/* Network Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Network Participants</p>
+                <p className="text-2xl font-bold text-blue-600">{participants.length}</p>
+              </div>
+              <div className="text-3xl">👥</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Users</p>
+                <p className="text-2xl font-bold text-green-600">{stats.activeUsers}</p>
+              </div>
+              <div className="text-3xl">✅</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Network Health</p>
+                <p className="text-2xl font-bold text-green-600">99.9%</p>
+              </div>
+              <div className="text-3xl">💚</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Participants Grid */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Network Participants</h3>
+          {participants.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No participants found in the network.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {participants.map((participant, index) => (
+                <div key={participant.id || index} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="text-2xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate">
+                        {participant.name || participant.metadata?.name || 'Anonymous'}
+                      </h4>
+                      <p className="text-sm text-gray-600 truncate">
+                        {participant.company || participant.metadata?.company || 'No company'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
                     <span style={{ 
                       background: getParticipantTypeColor(participant.participant_type || participant.participantType),
                       color: 'white',
-                      padding: '4px 12px',
+                      padding: '2px 8px',
                       borderRadius: '12px',
-                      fontSize: '12px',
+                      fontSize: '11px',
                       fontWeight: '500'
                     }}>
                       {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
                     </span>
-                    <span style={{ 
-                      background: '#e5e7eb',
-                      color: '#374151',
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: '500'
-                    }}>
-                      {(participant.role || participant.metadata?.role || 'viewer').toUpperCase()}
-                    </span>
+                    {getStatusBadge('active')}
                   </div>
                 </div>
-
-                {(participant.description || participant.metadata?.description) && (
-                  <div style={{ 
-                    padding: '10px', 
-                    background: '#f9fafb', 
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    color: '#6b7280',
-                    marginBottom: '15px'
-                  }}>
-                    <strong>Description:</strong> {participant.description || participant.metadata?.description}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>
-                    Registered: {participant.createdAt ? new Date(participant.createdAt).toLocaleDateString() : 'Unknown'}
-                  </div>
-                  <button
-                    onClick={() => setSelectedParticipant(selectedParticipant?.id === participant.id ? null : participant)}
-                    className="btn"
-                    style={{ 
-                      background: '#3b82f6', 
-                      color: 'white', 
-                      border: 'none', 
-                      padding: '6px 12px', 
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {selectedParticipant?.id === participant.id ? 'Hide' : 'Details'}
-                  </button>
-                </div>
-
-                {selectedParticipant?.id === participant.id && (
-                  <div style={{ 
-                    marginTop: '15px', 
-                    padding: '10px', 
-                    background: '#f0f9ff', 
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    borderLeft: '3px solid #3b82f6'
-                  }}>
-                    <div><strong>Participant ID:</strong> {participant.id || 'N/A'}</div>
-                    <div><strong>Status:</strong> Active</div>
-                    <div><strong>Permissions:</strong> Read, Write, Update</div>
-                    {participant.transactionHash && (
-                      <div><strong>Tx Hash:</strong> {participant.transactionHash.substring(0, 20)}...</div>
-                    )}
-                    <div style={{ marginTop: '8px', color: '#6b7280' }}>
-                      This participant is registered on the blockchain and can participate in supply chain operations.
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

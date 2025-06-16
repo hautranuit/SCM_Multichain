@@ -1149,49 +1149,88 @@ const ProductManagement = () => {
             )}
 
             {!loading && products.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
                 {products.map((product, index) => (
-                  <div key={product.token_id || product.id || index} className="card" style={{ 
-                    border: '1px solid #e5e7eb', 
-                    padding: '15px',
-                    height: '400px',
+                  <div key={product.token_id || product.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style={{ 
+                    padding: '20px',
+                    minHeight: '500px',
                     display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
+                    flexDirection: 'column'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                    {/* Product Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                      <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#1f2937', lineHeight: '1.3' }}>
                         {product.name || product.metadata?.name || `Product ${index + 1}`}
                       </h4>
                       <span style={{ 
                         background: '#dbeafe', 
                         color: '#1e40af', 
-                        padding: '2px 8px', 
+                        padding: '4px 12px', 
                         borderRadius: '12px',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        whiteSpace: 'nowrap'
                       }}>
                         {product.category || product.metadata?.category || 'General'}
                       </span>
                     </div>
-                    
+
+                    {/* Product Details - Scrollable */}
                     <div style={{ 
                       fontSize: '14px', 
                       color: '#6b7280', 
-                      marginBottom: '10px',
+                      marginBottom: '15px',
                       flex: '1',
+                      maxHeight: '200px',
                       overflowY: 'auto',
-                      paddingRight: '5px'
+                      paddingRight: '10px',
+                      lineHeight: '1.5'
                     }}>
-                      <div><strong>Description:</strong> {product.description || product.metadata?.description || 'No description'}</div>
-                      <div><strong>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}</div>
-                      <div><strong>Price:</strong> {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH</div>
-                      {product.token_id && <div><strong>Token ID:</strong> {product.token_id}</div>}
-                      {product.metadata_cid && <div><strong>IPFS CID:</strong> {product.metadata_cid.substring(0, 20)}...</div>}
-                      {product.manufacturer && (
-                        <div><strong>Manufacturer:</strong> {product.manufacturer.substring(0, 10)}...</div>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong style={{ color: '#374151' }}>Description:</strong> 
+                        <span style={{ display: 'block', marginTop: '2px', wordWrap: 'break-word' }}>
+                          {product.description || product.metadata?.description || 'No description available'}
+                        </span>
+                      </div>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong style={{ color: '#374151' }}>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}
+                      </div>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong style={{ color: '#374151' }}>Price:</strong> 
+                        <span style={{ color: '#059669', fontWeight: '600' }}>
+                          {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH
+                        </span>
+                      </div>
+                      {product.token_id && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ color: '#374151' }}>Token ID:</strong> {product.token_id}
+                        </div>
                       )}
-                      {product.qr_hash && (
-                        <div><strong>QR Hash:</strong> {product.qr_hash.substring(0, 16)}...</div>
+                      {product.metadata_cid && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ color: '#374151' }}>IPFS CID:</strong> 
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                            {product.metadata_cid.substring(0, 20)}...
+                          </span>
+                        </div>
+                      )}
+                      {product.manufacturer && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ color: '#374151' }}>Manufacturer:</strong> 
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                            {product.manufacturer.substring(0, 15)}...
+                          </span>
+                        </div>
+                      )}
+                      {product.location && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ color: '#374151' }}>Location:</strong> {product.location}
+                        </div>
+                      )}
+                      {product.manufacturingDate && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ color: '#374151' }}>Manufacturing Date:</strong> {product.manufacturingDate}
+                        </div>
                       )}
                     </div>
 
