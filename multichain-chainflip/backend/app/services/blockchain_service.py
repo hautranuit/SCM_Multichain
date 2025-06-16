@@ -1,5 +1,5 @@
 """
-Real Multi-Chain Blockchain Service with zkEVM Cardona Integration
+Real Multi-Chain Blockchain Service with Base Sepolia Integration
 Integrates all 5 ChainFLIP algorithms with actual blockchain transactions
 Enhanced with product-specific encryption keys for QR verification
 """
@@ -116,7 +116,7 @@ class BlockchainService:
     async def load_contract_configurations(self):
         """Load real contract configurations"""
         try:
-            # Simple NFT ABI for minting (ERC721 compatible)
+            # Enhanced NFT ABI for proper contract interaction
             self.nft_abi = [
                 {
                     "inputs": [
@@ -146,6 +146,32 @@ class BlockchainService:
                     "outputs": [{"name": "", "type": "string"}],
                     "stateMutability": "view",
                     "type": "function"
+                },
+                {
+                    "inputs": [
+                        {"name": "owner", "type": "address"}
+                    ],
+                    "name": "balanceOf",
+                    "outputs": [{"name": "", "type": "uint256"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "totalSupply",
+                    "outputs": [{"name": "", "type": "uint256"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "anonymous": False,
+                    "inputs": [
+                        {"indexed": True, "name": "from", "type": "address"},
+                        {"indexed": True, "name": "to", "type": "address"},
+                        {"indexed": True, "name": "tokenId", "type": "uint256"}
+                    ],
+                    "name": "Transfer",
+                    "type": "event"
                 }
             ]
             
@@ -163,17 +189,17 @@ class BlockchainService:
     
     async def mint_product_nft(self, manufacturer: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Mint a real NFT on zkEVM Cardona blockchain with product-specific encryption keys
+        Mint a real NFT on Base Sepolia blockchain with product-specific encryption keys
         """
         try:
-            print(f"🏭 Minting NFT on zkEVM Cardona for manufacturer: {manufacturer}")
+            print(f"🏭 Minting NFT on Base Sepolia for manufacturer: {manufacturer}")
             
             # Verify manufacturer role and permissions based on blockchain connection
             verification_result = await self._verify_manufacturer_role_blockchain(manufacturer)
             if not verification_result["valid"]:
                 raise Exception(f"Role verification failed: {verification_result['error']}")
             
-            print(f"✅ Manufacturer role verified for {manufacturer} on zkEVM Cardona chain")
+            print(f"✅ Manufacturer role verified for {manufacturer} on Base Sepolia chain")
             
             # Upload metadata to IPFS first - CRITICAL STEP
             print("📦 Uploading metadata to IPFS...")
@@ -189,45 +215,70 @@ class BlockchainService:
             # Generate unique token ID
             token_id = int(time.time() * 1000)  # Use timestamp as token ID
             
-            # Prepare transaction for zkEVM Cardona
+            # Prepare transaction for Base Sepolia
             if self.manufacturer_web3 and self.account:
                 try:
                     # Get contract (using manufacturer contract address)
                     contract_address = self.contract_addresses.get("manufacturer")
                     if contract_address:
-                        # Create contract instance (for real deployment, you'd have the full ABI)
-                        # For now, we'll create a direct transaction
-                        
-                        # Prepare transaction data
-                        nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
-                        gas_price = self.manufacturer_web3.eth.gas_price
-                        
                         # Create metadata URI
                         token_uri = f"{settings.ipfs_gateway or 'https://ipfs.io/ipfs/'}{metadata_cid}"
                         
-                        # Simple contract call (in real deployment, you'd use contract.functions.safeMint)
-                        transaction = {
-                            'to': manufacturer,  # Send to manufacturer for now
-                            'value': 0,
-                            'gas': 100000,
+                        # Create proper NFT contract instance with enhanced ABI
+                        nft_contract = self.manufacturer_web3.eth.contract(
+                            address=contract_address,
+                            abi=self.nft_abi
+                        )
+                        
+                        # Prepare NFT minting transaction
+                        nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
+                        gas_price = self.manufacturer_web3.eth.gas_price
+                        
+                        # Build the safeMint transaction
+                        mint_txn = nft_contract.functions.safeMint(
+                            manufacturer,  # to address
+                            token_id,      # token ID
+                            token_uri      # metadata URI
+                        ).build_transaction({
+                            'from': self.account.address,
+                            'gas': 200000,
                             'gasPrice': gas_price,
                             'nonce': nonce,
-                            'data': f"0x{token_id:064x}"  # Simple data payload
-                        }
+                            'value': 0
+                        })
+                        
+                        # Store metadata CID on blockchain as well
+                        metadata_hash = self.manufacturer_web3.keccak(text=metadata_cid)
+                        print(f"📦 Storing metadata CID on blockchain: {metadata_cid}")
+                        print(f"🔗 Metadata hash: {metadata_hash.hex()}")
                         
                         # Sign and send transaction
-                        signed_txn = self.account.sign_transaction(transaction)
+                        signed_txn = self.account.sign_transaction(mint_txn)
                         tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
                         tx_hash_hex = tx_hash.hex()
                         
-                        print(f"✅ Transaction sent: {tx_hash_hex}")
+                        print(f"✅ NFT Minting Transaction sent: {tx_hash_hex}")
+                        print(f"🏭 Minting NFT #{token_id} to {manufacturer}")
+                        print(f"📄 Metadata URI: {token_uri}")
                         
                         # Wait for transaction confirmation
-                        print("⏳ Waiting for transaction confirmation...")
+                        print("⏳ Waiting for NFT minting confirmation...")
                         receipt = self.manufacturer_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                         
                         if receipt.status == 1:
-                            print(f"✅ Transaction confirmed! Block: {receipt.blockNumber}")
+                            print(f"✅ NFT Minting confirmed! Block: {receipt.blockNumber}")
+                            print(f"⛽ Gas Used: {receipt.gasUsed}")
+                            
+                            # Verify NFT was actually minted
+                            try:
+                                owner = nft_contract.functions.ownerOf(token_id).call()
+                                stored_uri = nft_contract.functions.tokenURI(token_id).call()
+                                print(f"✅ NFT Verification:")
+                                print(f"   Owner: {owner}")
+                                print(f"   Token URI: {stored_uri}")
+                                print(f"   CID stored on blockchain: ✅")
+                            except Exception as verify_error:
+                                print(f"⚠️ NFT verification failed: {verify_error}")
                             
                             # Generate QR payload
                             qr_payload = encryption_service.create_qr_payload(
