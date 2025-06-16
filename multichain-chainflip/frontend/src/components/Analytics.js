@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { BarChart3, TrendingUp, Activity, Database, RefreshCw, Users, Package, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 
 const Analytics = () => {
   const [analyticsData, setAnalyticsData] = useState({
@@ -128,247 +129,416 @@ const Analytics = () => {
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>📈 Analytics Dashboard</h2>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            style={{ 
-              padding: '8px 12px', 
-              border: '1px solid #e5e7eb', 
-              borderRadius: '6px',
-              background: 'white'
-            }}
-          >
-            <option value="24h">Last 24 Hours</option>
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-          </select>
-          <button
-            onClick={fetchAnalytics}
-            className="btn"
-            style={{ 
-              background: '#6b7280', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Overview Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📦</div>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#3b82f6', marginBottom: '5px' }}>
-            {formatNumber(analyticsData.overview.totalProducts)}
-          </div>
-          <div style={{ color: '#6b7280' }}>Total Products</div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '5px' }}>
-            +{Math.floor(Math.random() * 20) + 5}% this {timeRange}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>👥</div>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981', marginBottom: '5px' }}>
-            {formatNumber(analyticsData.overview.totalParticipants)}
-          </div>
-          <div style={{ color: '#6b7280' }}>Active Participants</div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '5px' }}>
-            +{Math.floor(Math.random() * 15) + 2}% this {timeRange}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🔗</div>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f59e0b', marginBottom: '5px' }}>
-            {formatNumber(analyticsData.overview.totalTransactions)}
-          </div>
-          <div style={{ color: '#6b7280' }}>Blockchain Transactions</div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '5px' }}>
-            +{Math.floor(Math.random() * 30) + 10}% this {timeRange}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>⛓️</div>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#8b5cf6', marginBottom: '5px' }}>
-            {analyticsData.overview.activeChains}
-          </div>
-          <div style={{ color: '#6b7280' }}>Active Chains</div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '5px' }}>
-            Polygon PoS & L2 CDK
-          </div>
-        </div>
-      </div>
-
-      {/* Main Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        {/* Transaction Trends */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Transaction Trends</h3>
-          {loading ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              Loading...
+    <div className="min-h-screen bg-gray-50">
+      {/* Modern Header with Gradient */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center">
+                <BarChart3 className="w-8 h-8 mr-3" />
+                Analytics Dashboard
+              </h1>
+              <p className="text-blue-100 mt-2 text-lg">
+                Real-time insights into your blockchain supply chain operations
+              </p>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={analyticsData.transactions}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="transactions" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="verified" stackId="2" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Performance Metrics */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Performance Metrics</h3>
-          {loading ? (
-            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              Loading...
+            <div className="flex items-center space-x-3">
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="24h" className="text-gray-900">Last 24 Hours</option>
+                <option value="7d" className="text-gray-900">Last 7 Days</option>
+                <option value="30d" className="text-gray-900">Last 30 Days</option>
+              </select>
+              <button
+                onClick={fetchAnalytics}
+                className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-lg shadow-sm text-sm font-medium text-white hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analyticsData.performance}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Distribution Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        {/* Participant Type Distribution */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Participant Types</h3>
-          {analyticsData.participants.length > 0 ? (
+      <div className="px-6 py-6">
+        {/* Overview Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Package className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <p className="text-sm font-medium text-gray-600">Total Products</p>
+                <div className="flex items-baseline">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatNumber(analyticsData.overview.totalProducts)}
+                  </p>
+                  <p className="ml-2 text-sm font-medium text-green-600">
+                    +{Math.floor(Math.random() * 20) + 5}%
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">vs last {timeRange}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <p className="text-sm font-medium text-gray-600">Active Participants</p>
+                <div className="flex items-baseline">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatNumber(analyticsData.overview.totalParticipants)}
+                  </p>
+                  <p className="ml-2 text-sm font-medium text-green-600">
+                    +{Math.floor(Math.random() * 15) + 2}%
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">vs last {timeRange}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-yellow-600" />
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <p className="text-sm font-medium text-gray-600">Blockchain Transactions</p>
+                <div className="flex items-baseline">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatNumber(analyticsData.overview.totalTransactions)}
+                  </p>
+                  <p className="ml-2 text-sm font-medium text-green-600">
+                    +{Math.floor(Math.random() * 30) + 10}%
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">vs last {timeRange}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Database className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <p className="text-sm font-medium text-gray-600">Active Chains</p>
+                <div className="flex items-baseline">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {analyticsData.overview.activeChains}
+                  </p>
+                  <p className="ml-2 text-sm font-medium text-blue-600">
+                    Multi-chain
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Polygon PoS & L2 CDK</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Transaction Trends */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Transaction Trends</h3>
+                <p className="text-sm text-gray-600">Daily transaction volume and verification rates</p>
+              </div>
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+            </div>
+            {loading ? (
+              <div className="h-80 flex items-center justify-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={analyticsData.transactions}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="transactions" 
+                    stackId="1" 
+                    stroke="#3b82f6" 
+                    fill="#3b82f6" 
+                    fillOpacity={0.3} 
+                    strokeWidth={2}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="verified" 
+                    stackId="2" 
+                    stroke="#10b981" 
+                    fill="#10b981" 
+                    fillOpacity={0.3} 
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Performance Metrics</h3>
+                <p className="text-sm text-gray-600">Key performance indicators for the platform</p>
+              </div>
+              <BarChart3 className="w-5 h-5 text-green-600" />
+            </div>
+            {loading ? (
+              <div className="h-80 flex items-center justify-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={analyticsData.performance}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }} 
+                  />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Distribution Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Participant Type Distribution */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Participant Types</h3>
+                <p className="text-sm text-gray-600">Distribution of network participants</p>
+              </div>
+              <Users className="w-5 h-5 text-indigo-600" />
+            </div>
+            {analyticsData.participants.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={getParticipantTypeDistribution()}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    {getParticipantTypeDistribution().map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '8px'
+                    }} 
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p>No participant data available</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Chain Distribution */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Chain Usage</h3>
+                <p className="text-sm text-gray-600">Multi-chain transaction distribution</p>
+              </div>
+              <Database className="w-5 h-5 text-purple-600" />
+            </div>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={getParticipantTypeDistribution()}
+                  data={getChainDistribution()}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  innerRadius={50}
+                  outerRadius={90}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
+                  label={({ name, value }) => `${name}: ${value}%`}
                 >
-                  {getParticipantTypeDistribution().map((entry, index) => (
+                  {getChainDistribution().map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'white', 
+                    border: '1px solid #e2e8f0', 
+                    borderRadius: '8px'
+                  }} 
+                />
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
-              No participant data available
+          </div>
+
+          {/* Real-time Activity */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Real-time Activity</h3>
+                <p className="text-sm text-gray-600">Live platform metrics</p>
+              </div>
+              <Activity className="w-5 h-5 text-green-600" />
             </div>
-          )}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-blue-600 text-sm">🔍</span>
+                  </div>
+                  <span className="text-sm font-medium text-blue-900">QR Code Scans</span>
+                </div>
+                <span className="text-sm font-bold text-blue-600">
+                  {Math.floor(Math.random() * 50) + 10}/hour
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  </div>
+                  <span className="text-sm font-medium text-green-900">Product Verifications</span>
+                </div>
+                <span className="text-sm font-bold text-green-600">
+                  {Math.floor(Math.random() * 30) + 5}/hour
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
+                    <Package className="w-4 h-4 text-yellow-600" />
+                  </div>
+                  <span className="text-sm font-medium text-yellow-900">New Products</span>
+                </div>
+                <span className="text-sm font-bold text-yellow-600">
+                  {Math.floor(Math.random() * 10) + 1}/hour
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                    <Users className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span className="text-sm font-medium text-purple-900">New Participants</span>
+                </div>
+                <span className="text-sm font-bold text-purple-600">
+                  {Math.floor(Math.random() * 5) + 1}/day
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Chain Distribution */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Chain Usage</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={getChainDistribution()}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
-              >
-                {getChainDistribution().map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Real-time Activity */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Real-time Activity</h3>
-          <div style={{ space: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f0f9ff', borderRadius: '6px', marginBottom: '10px' }}>
-              <span>🔍 QR Code Scans</span>
-              <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                {Math.floor(Math.random() * 50) + 10}/hour
-              </span>
+        {/* System Health */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">System Health & Performance</h3>
+              <p className="text-sm text-gray-600">Real-time system status and performance metrics</p>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f0fdf4', borderRadius: '6px', marginBottom: '10px' }}>
-              <span>✅ Product Verifications</span>
-              <span style={{ fontWeight: 'bold', color: '#10b981' }}>
-                {Math.floor(Math.random() * 30) + 5}/hour
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fffbeb', borderRadius: '6px', marginBottom: '10px' }}>
-              <span>📦 New Products</span>
-              <span style={{ fontWeight: 'bold', color: '#f59e0b' }}>
-                {Math.floor(Math.random() * 10) + 1}/hour
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fdf2f8', borderRadius: '6px' }}>
-              <span>👥 New Participants</span>
-              <span style={{ fontWeight: 'bold', color: '#ec4899' }}>
-                {Math.floor(Math.random() * 5) + 1}/day
-              </span>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-green-600">All Systems Operational</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* System Health */}
-      <div className="card" style={{ padding: '20px' }}>
-        <h3 style={{ marginBottom: '20px' }}>System Health & Performance</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#10b981', marginBottom: '5px' }}>✅ 99.9%</div>
-            <div style={{ color: '#6b7280' }}>Uptime</div>
-          </div>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#3b82f6', marginBottom: '5px' }}>⚡ 1.2s</div>
-            <div style={{ color: '#6b7280' }}>Avg Response Time</div>
-          </div>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#10b981', marginBottom: '5px' }}>🔐 100%</div>
-            <div style={{ color: '#6b7280' }}>Security Score</div>
-          </div>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#f59e0b', marginBottom: '5px' }}>⛓️ 2</div>
-            <div style={{ color: '#6b7280' }}>Active Chains</div>
-          </div>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#8b5cf6', marginBottom: '5px' }}>🤖 Active</div>
-            <div style={{ color: '#6b7280' }}>FL System</div>
-          </div>
-          <div style={{ textAlign: 'center', padding: '15px' }}>
-            <div style={{ fontSize: '1.5rem', color: '#10b981', marginBottom: '5px' }}>💾 Connected</div>
-            <div style={{ color: '#6b7280' }}>IPFS Storage</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <div className="text-2xl font-bold text-green-600 mb-1">99.9%</div>
+              <div className="text-sm text-gray-600">Uptime</div>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Activity className="w-8 h-8 text-blue-600" />
+              </div>
+              <div className="text-2xl font-bold text-blue-600 mb-1">1.2s</div>
+              <div className="text-sm text-gray-600">Avg Response</div>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Shield className="w-8 h-8 text-green-600" />
+              </div>
+              <div className="text-2xl font-bold text-green-600 mb-1">100%</div>
+              <div className="text-sm text-gray-600">Security Score</div>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Database className="w-8 h-8 text-purple-600" />
+              </div>
+              <div className="text-2xl font-bold text-purple-600 mb-1">2</div>
+              <div className="text-sm text-gray-600">Active Chains</div>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <TrendingUp className="w-8 h-8 text-indigo-600" />
+              </div>
+              <div className="text-2xl font-bold text-indigo-600 mb-1">Active</div>
+              <div className="text-sm text-gray-600">FL System</div>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <div className="text-2xl font-bold text-green-600 mb-1">Connected</div>
+              <div className="text-sm text-gray-600">IPFS Storage</div>
+            </div>
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import QRCode from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
-import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart } from 'lucide-react';
+import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
@@ -590,7 +590,6 @@ const ProductManagement = () => {
     }
   };
 
-
   const getCurrentDate = () => {
     return new Date().toISOString().split('T')[0];
   };
@@ -602,1097 +601,538 @@ const ProductManagement = () => {
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>
-            📦 {userRole === 'manufacturer' ? 'Create Product NFT' : 
-                 userRole === 'transporter' ? 'Shipping Process' :
-                 userRole === 'buyer' ? 'Market' : 
-                 'Product Management'}
-          </h2>
-          <p style={{ color: '#6b7280', margin: '5px 0' }}>
-            {userRole === 'manufacturer' 
-              ? 'Product lifecycle management with blockchain verification' 
-              : userRole === 'transporter'
-              ? 'Manage shipments and complete delivery processes'
-              : userRole === 'buyer'
-              ? 'Browse and purchase products from the marketplace'
-              : `View and manage products as ${userRole}`
-            }
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            onClick={loadMultiChainStats}
-            className="btn"
-            style={{ 
-              background: '#6b7280', 
-              color: 'white', 
-              border: 'none', 
-              padding: '10px 20px', 
-              borderRadius: '6px',
-              fontSize: '14px',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Refresh
-          </button>
-          {/* Only show Create Product NFT button for manufacturers */}
-          {userRole === 'manufacturer' && (
-            <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="btn"
-              style={{ 
-                background: '#3b82f6', 
-                color: 'white', 
-                border: 'none', 
-                padding: '12px 24px', 
-                borderRadius: '8px',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
-            >
-              {showCreateForm ? 'Cancel' : '+ Create Product NFT'}
-            </button>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Modern Header with Gradient */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">
+                📦 {userRole === 'manufacturer' ? 'Product Creation Studio' : 
+                     userRole === 'transporter' ? 'Shipping Dashboard' :
+                     userRole === 'buyer' ? 'Product Marketplace' : 
+                     'Product Management'}
+              </h1>
+              <p className="text-blue-100 mt-2 text-lg">
+                {userRole === 'manufacturer' 
+                  ? 'Create and manage NFT products with blockchain verification' 
+                  : userRole === 'transporter'
+                  ? 'Handle shipments and complete delivery processes with consensus'
+                  : userRole === 'buyer'
+                  ? 'Discover and purchase verified products from trusted manufacturers'
+                  : `Comprehensive product management for ${userRole} role`
+                }
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={loadMultiChainStats}
+                className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-md shadow-sm text-sm font-medium text-white hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
+              {/* Only show Create Product NFT button for manufacturers */}
+              {userRole === 'manufacturer' && (
+                <button
+                  onClick={() => setShowCreateForm(!showCreateForm)}
+                  className="inline-flex items-center px-6 py-2 bg-white text-blue-600 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {showCreateForm ? 'Cancel' : 'Create Product NFT'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Multi-Chain Stats */}
-      {multiChainStats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-800 mb-2">🏛️ Hub Chain</h3>
-            <div className="text-sm text-blue-700">
-              <div>Status: {multiChainStats.multichain?.polygon_pos_hub?.connected ? '✅ Connected' : '❌ Disconnected'}</div>
-              <div>Products: {multiChainStats.multichain?.statistics?.total_products || 0}</div>
-            </div>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="font-semibold text-green-800 mb-2">🏭 Manufacturer</h3>
-            <div className="text-sm text-green-700">
-              <div>Chain: zkEVM Cardona</div>
-              <div>Products: {multiChainStats.multichain?.statistics?.total_products || 0}</div>
-            </div>
-          </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-800 mb-2">🚛 Transporter</h3>
-            <div className="text-sm text-yellow-700">
-              <div>Chain: Arbitrum Sepolia</div>
-              <div>Shipments: {multiChainStats.multichain?.statistics?.total_transactions || 0}</div>
-            </div>
-          </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <h3 className="font-semibold text-purple-800 mb-2">🛒 Buyer</h3>
-            <div className="text-sm text-purple-700">
-              <div>Chain: Optimism Sepolia</div>
-              <div>Purchases: {multiChainStats.multichain?.statistics?.total_disputes || 0}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Buyer Tabs */}
-      {userRole === 'buyer' && (
-        <div className="mb-6">
-          <div className="flex bg-white rounded-lg border border-gray-200 p-1">
-            <button
-              onClick={() => setActiveTab('marketplace')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'marketplace'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              🛒 Market
-            </button>
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'orders'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              📋 Your Orders
-            </button>
-            <button
-              onClick={() => setActiveTab('owned')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'owned'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              👤 My Products
-            </button>
-          </div>
-          <div className="mt-3 text-sm text-gray-600 bg-blue-50 rounded-lg p-3">
-            {activeTab === 'marketplace' && (
-              <div>
-                <strong>🛒 Marketplace:</strong> Browse and purchase products with authenticity verification and secure payments.
-              </div>
-            )}
-            {activeTab === 'orders' && (
-              <div>
-                <strong>📋 Purchase History:</strong> Track your order status and payment processing with NFT ownership transfers and cross-chain transactions.
-              </div>
-            )}
-            {activeTab === 'owned' && (
-              <div>
-                <strong>👤 Owned Products:</strong> Products you currently own after successful purchases transferred to your wallet address.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Create Product Form - Only for Manufacturers */}
-      {showCreateForm && userRole === 'manufacturer' && (
-        <div className="card" style={{ marginBottom: '30px', padding: '20px' }}>
-          <h3 style={{ marginBottom: '20px' }}>Create Product NFT (zkEVM Cardona)</h3>
-          <form onSubmit={createProduct}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Product Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newProduct.name}
-                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Enter product name"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Unique Product ID</label>
-                <input
-                  type="text"
-                  value={newProduct.uniqueProductID}
-                  onChange={(e) => setNewProduct({...newProduct, uniqueProductID: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Auto-generated if empty"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Category/Product Type</label>
-                <select
-                  value={newProduct.category}
-                  onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                >
-                  <option value="">Select category</option>
-                  <option value="Electronics">Electronics</option>
-                  <option value="Food & Beverage">Food & Beverage</option>
-                  <option value="Pharmaceuticals">Pharmaceuticals</option>
-                  <option value="Textiles">Textiles</option>
-                  <option value="Automotive">Automotive</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Batch Number</label>
-                <input
-                  type="text"
-                  value={newProduct.batchNumber}
-                  onChange={(e) => setNewProduct({...newProduct, batchNumber: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Auto-generated if empty"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturing Date</label>
-                <input
-                  type="date"
-                  value={newProduct.manufacturingDate}
-                  onChange={(e) => setNewProduct({...newProduct, manufacturingDate: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  defaultValue={getCurrentDate()}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Expiration Date</label>
-                <input
-                  type="date"
-                  value={newProduct.expirationDate}
-                  onChange={(e) => setNewProduct({...newProduct, expirationDate: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Optional"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Description</label>
-                <textarea
-                  value={newProduct.description}
-                  onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px',
-                    minHeight: '80px'
-                  }}
-                  placeholder="Enter product description"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Price (ETH)</label>
-                <input
-                  type="number"
-                  step="0.001"
-                  value={newProduct.price}
-                  onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="0.000"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Manufacturing Location</label>
-                <input
-                  type="text"
-                  value={newProduct.location}
-                  onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                  placeholder="Manufacturing location"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Product Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                />
-                {productImage && (
-                  <div style={{ marginTop: '5px', fontSize: '12px', color: '#10b981' }}>
-                    ✅ {productImage.file.name} selected
+      <div className="px-6 py-6">
+        {/* Multi-Chain Stats Cards */}
+        {multiChainStats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">🏛️</span>
                   </div>
-                )}
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Product Video</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleVideoUpload}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px' 
-                  }}
-                />
-                {productVideo && (
-                  <div style={{ marginTop: '5px', fontSize: '12px', color: '#10b981' }}>
-                    ✅ {productVideo.file.name} selected
-                  </div>
-                )}
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
-                  Manufacturer Address 
-                  {!newProduct.manufacturer && (
-                    <span style={{ color: '#ef4444', fontSize: '12px', marginLeft: '5px' }}>
-                      (Will auto-populate from wallet)
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={newProduct.manufacturer}
-                  onChange={(e) => setNewProduct({...newProduct, manufacturer: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '4px',
-                    backgroundColor: !newProduct.manufacturer ? '#fef3c7' : 'white'
-                  }}
-                  placeholder="0x... (auto-populated from wallet if empty)"
-                />
-                {!newProduct.manufacturer && (
-                  <div style={{ fontSize: '12px', color: '#d97706', marginTop: '2px' }}>
-                    ⚠️ Manufacturer address will be auto-populated from your connected wallet
-                  </div>
-                )}
-              </div>
-            </div>
-            <div style={{ marginTop: '20px' }}>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn"
-                style={{ 
-                  background: loading ? '#9ca3af' : '#10b981', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '12px 24px', 
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {loading ? 'Creating Product NFT...' : '🚀 Create Product NFT on zkEVM Cardona'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Products List / Purchase History */}
-      <div className="card" style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div>
-            <h3 style={{ margin: 0 }}>
-              {userRole === 'buyer' && activeTab === 'marketplace' ? 'Available Products' :
-               userRole === 'buyer' && activeTab === 'orders' ? 'Your Purchase History' :
-               userRole === 'buyer' && activeTab === 'owned' ? 'Products You Own' :
-               userRole === 'manufacturer' ? 'My Products' : 
-               userRole === 'transporter' ? 'Products I\'m Shipping' : 
-               'Products List'}
-            </h3>
-            <p style={{ fontSize: '14px', color: '#6b7280', margin: '5px 0' }}>
-              {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products available for purchase, verified and ready for secure transactions' :
-               userRole === 'buyer' && activeTab === 'orders' ? 'Your order history with payment processing and delivery status' :
-               userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own after successful purchases' :
-               userRole === 'manufacturer' ? 'Products you have created and minted' :
-               userRole === 'transporter' ? 'Products currently in your custody for shipping' :
-               'All products in the system'}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              fetchProducts();
-              if (userRole === 'buyer' && activeTab === 'orders') {
-                fetchBuyerPurchases();
-              }
-            }}
-            className="btn"
-            style={{ 
-              background: '#6b7280', 
-              color: 'white', 
-              border: 'none', 
-              padding: '8px 16px', 
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            🔄 Refresh
-          </button>
-        </div>
-
-        {/* Purchase History for Buyers */}
-        {userRole === 'buyer' && activeTab === 'orders' && (
-          <>
-            {loading && (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading purchase history...</div>
-              </div>
-            )}
-
-            {!loading && purchases.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
-                  No purchases yet
                 </div>
-                <div style={{ fontSize: '14px', color: '#9ca3af' }}>
-                  Your purchase history will appear here after making orders
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-600">Hub Chain</h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <div>Status: {multiChainStats.multichain?.polygon_pos_hub?.connected ? '✅ Connected' : '❌ Disconnected'}</div>
+                    <div className="text-2xl font-bold text-blue-600">{multiChainStats.multichain?.statistics?.total_products || 0}</div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {!loading && purchases.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-                {purchases.map((purchase, index) => (
-                  <div key={purchase.purchase_id || index} className="card" style={{ 
-                    border: '1px solid #e5e7eb', 
-                    padding: '15px',
-                    height: '320px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
-                        Order #{purchase.purchase_id?.substring(0, 12)}...
-                      </h4>
-                      <span style={{ 
-                        background: purchase.status === 'completed' ? '#dcfce7' : '#fef3c7', 
-                        color: purchase.status === 'completed' ? '#16a34a' : '#d97706', 
-                        padding: '2px 8px', 
-                        borderRadius: '12px',
-                        fontSize: '12px'
-                      }}>
-                        {purchase.status}
-                      </span>
-                    </div>
-                    
-                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px' }}>
-                      <div><strong>Product ID:</strong> {purchase.product_id}</div>
-                      <div><strong>Price Paid:</strong> {purchase.price_eth} ETH</div>
-                      <div><strong>Payment Method:</strong> {purchase.payment_method}</div>
-                      <div><strong>Purchase Date:</strong> {purchase.purchase_date}</div>
-                      {purchase.transaction_hash && (
-                        <div><strong>Transaction:</strong> {purchase.transaction_hash.substring(0, 20)}...</div>
-                      )}
-                      {purchase.cross_chain && (
-                        <div><strong>Cross-Chain:</strong> {purchase.buyer_chain} → {purchase.hub_chain}</div>
-                      )}
-                    </div>
-
-                    {/* Payment Status */}
-                    <div style={{ 
-                      marginTop: '10px', 
-                      padding: '8px', 
-                      background: '#f0f9ff', 
-                      borderRadius: '6px',
-                      fontSize: '12px'
-                    }}>
-                      <div><strong>🔄 Payment:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}</div>
-                      <div><strong>🛒 NFT Transfer:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}</div>
-                    </div>
-
-                    {/* Product Details if available */}
-                    {purchase.product_details && (
-                      <div style={{ 
-                        marginTop: '10px', 
-                        padding: '8px', 
-                        background: '#f9fafb', 
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}>
-                        <div><strong>Product:</strong> {purchase.product_details.name || 'N/A'}</div>
-                        <div><strong>Category:</strong> {purchase.product_details.category || 'N/A'}</div>
-                        <div><strong>Manufacturer:</strong> {purchase.product_details.manufacturer?.substring(0, 10)}... || 'N/A'</div>
-                      </div>
-                    )}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">🏭</span>
                   </div>
-                ))}
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-600">Manufacturer</h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <div>zkEVM Cardona</div>
+                    <div className="text-2xl font-bold text-green-600">{multiChainStats.multichain?.statistics?.total_products || 0}</div>
+                  </div>
+                </div>
               </div>
-            )}
-          </>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">🚛</span>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-600">Transporter</h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <div>Arbitrum Sepolia</div>
+                    <div className="text-2xl font-bold text-yellow-600">{multiChainStats.multichain?.statistics?.total_transactions || 0}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xl">🛒</span>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-600">Buyer</h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <div>Optimism Sepolia</div>
+                    <div className="text-2xl font-bold text-purple-600">{multiChainStats.multichain?.statistics?.total_disputes || 0}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Products List for other tabs */}
-        {(userRole !== 'buyer' || activeTab !== 'orders') && (
-          <>
+        {/* Buyer Tabs */}
+        {userRole === 'buyer' && (
+          <div className="mb-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
+              <nav className="flex space-x-1">
+                <button
+                  onClick={() => setActiveTab('marketplace')}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    activeTab === 'marketplace'
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  🛒 Marketplace
+                </button>
+                <button
+                  onClick={() => setActiveTab('orders')}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    activeTab === 'orders'
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  📋 Your Orders
+                </button>
+                <button
+                  onClick={() => setActiveTab('owned')}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    activeTab === 'owned'
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  👤 My Products
+                </button>
+              </nav>
+            </div>
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              {activeTab === 'marketplace' && (
+                <div className="text-sm text-blue-800">
+                  <strong>🛒 Marketplace:</strong> Browse and purchase products with authenticity verification and secure payments.
+                </div>
+              )}
+              {activeTab === 'orders' && (
+                <div className="text-sm text-blue-800">
+                  <strong>📋 Purchase History:</strong> Track your order status and payment processing with NFT ownership transfers and cross-chain transactions.
+                </div>
+              )}
+              {activeTab === 'owned' && (
+                <div className="text-sm text-blue-800">
+                  <strong>👤 Owned Products:</strong> Products you currently own after successful purchases transferred to your wallet address.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Create Product Form - Only for Manufacturers */}
+        {showCreateForm && userRole === 'manufacturer' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div className="border-b border-gray-200 pb-4 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">Create Product NFT</h3>
+              <p className="text-sm text-gray-600 mt-1">Create a new product NFT on zkEVM Cardona with IPFS metadata storage</p>
+            </div>
+            <form onSubmit={createProduct}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter product name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select
+                    value={newProduct.category}
+                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select category</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Food & Beverage">Food & Beverage</option>
+                    <option value="Pharmaceuticals">Pharmaceuticals</option>
+                    <option value="Textiles">Textiles</option>
+                    <option value="Automotive">Automotive</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <textarea
+                    value={newProduct.description}
+                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter product description"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Price (ETH)</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={newProduct.price}
+                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Manufacturing Location</label>
+                  <input
+                    type="text"
+                    value={newProduct.location}
+                    onChange={(e) => setNewProduct({...newProduct, location: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Manufacturing location"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {productImage && (
+                    <div className="mt-2 text-sm text-green-600">
+                      ✅ {productImage.file.name} selected
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Video</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoUpload}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {productVideo && (
+                    <div className="mt-2 text-sm text-green-600">
+                      ✅ {productVideo.file.name} selected
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creating Product NFT...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Create Product NFT on zkEVM Cardona
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Products Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Available Products' :
+                   userRole === 'buyer' && activeTab === 'orders' ? 'Your Purchase History' :
+                   userRole === 'buyer' && activeTab === 'owned' ? 'Products You Own' :
+                   userRole === 'manufacturer' ? 'My Products' : 
+                   userRole === 'transporter' ? 'Products in Transit' : 
+                   'Products List'}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products available for purchase with verification' :
+                   userRole === 'buyer' && activeTab === 'orders' ? 'Your order history and delivery status' :
+                   userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own' :
+                   userRole === 'manufacturer' ? 'Products you have created' :
+                   userRole === 'transporter' ? 'Products in your custody' :
+                   'All products in the system'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  fetchProducts();
+                  if (userRole === 'buyer' && activeTab === 'orders') {
+                    fetchBuyerPurchases();
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
             {loading && (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '18px', color: '#6b7280' }}>Loading products...</div>
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p className="mt-2 text-gray-600">Loading products...</p>
               </div>
             )}
 
-            {!loading && products.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <div style={{ fontSize: '18px', color: '#6b7280', marginBottom: '10px' }}>
-                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'No products available for purchase' :
-                   userRole === 'buyer' && activeTab === 'owned' ? 'No products owned yet' :
-                   userRole === 'manufacturer' ? 'No products created yet' :
-                   userRole === 'transporter' ? 'No products to ship' :
-                   'No products found'}
-                </div>
-                <div style={{ fontSize: '14px', color: '#9ca3af' }}>
-                  {userRole === 'buyer' && activeTab === 'marketplace' ? 'Products will appear here when available for purchase' :
-                   userRole === 'buyer' && activeTab === 'owned' ? 'Products will appear here after successful purchases' :
-                   userRole === 'manufacturer' ? 'Create your first product to get started' :
-                   userRole === 'transporter' ? 'Products will appear here when you are assigned for shipping' :
-                   'No products available in the system'}
-                </div>
+            {!loading && (userRole !== 'buyer' || activeTab !== 'orders') && products.length === 0 && (
+              <div className="text-center py-12">
+                <Package className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No products found</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {userRole === 'manufacturer' ? 'Create your first product to get started' : 'No products available yet'}
+                </p>
               </div>
             )}
 
-            {!loading && products.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
+            {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length === 0 && (
+              <div className="text-center py-12">
+                <ShoppingCart className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No purchases yet</h3>
+                <p className="mt-1 text-sm text-gray-500">Your purchase history will appear here</p>
+              </div>
+            )}
+
+            {/* Products Grid */}
+            {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && products.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {products.map((product, index) => (
-                  <div key={product.token_id || product.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow" style={{ 
-                    padding: '20px',
-                    minHeight: '500px',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}>
-                    {/* Product Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                      <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#1f2937', lineHeight: '1.3' }}>
-                        {product.name || product.metadata?.name || `Product ${index + 1}`}
-                      </h4>
-                      <span style={{ 
-                        background: '#dbeafe', 
-                        color: '#1e40af', 
-                        padding: '4px 12px', 
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {product.category || product.metadata?.category || 'General'}
-                      </span>
-                    </div>
-
-                    {/* Product Details - Scrollable */}
-                    <div style={{ 
-                      fontSize: '14px', 
-                      color: '#6b7280', 
-                      marginBottom: '15px',
-                      flex: '1',
-                      maxHeight: '200px',
-                      overflowY: 'auto',
-                      paddingRight: '10px',
-                      lineHeight: '1.5'
-                    }}>
-                      <div style={{ marginBottom: '8px' }}>
-                        <strong style={{ color: '#374151' }}>Description:</strong> 
-                        <span style={{ display: 'block', marginTop: '2px', wordWrap: 'break-word' }}>
-                          {product.description || product.metadata?.description || 'No description available'}
-                        </span>
-                      </div>
-                      <div style={{ marginBottom: '8px' }}>
-                        <strong style={{ color: '#374151' }}>Batch:</strong> {product.batchNumber || product.metadata?.batchNumber || 'N/A'}
-                      </div>
-                      <div style={{ marginBottom: '8px' }}>
-                        <strong style={{ color: '#374151' }}>Price:</strong> 
-                        <span style={{ color: '#059669', fontWeight: '600' }}>
-                          {product.price || product.metadata?.price_eth || product.metadata?.price || product.mint_params?.price || '0.000'} ETH
-                        </span>
-                      </div>
-                      {product.token_id && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ color: '#374151' }}>Token ID:</strong> {product.token_id}
-                        </div>
-                      )}
-                      {product.metadata_cid && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ color: '#374151' }}>IPFS CID:</strong> 
-                          <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                            {product.metadata_cid.substring(0, 20)}...
-                          </span>
-                        </div>
-                      )}
-                      {product.manufacturer && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ color: '#374151' }}>Manufacturer:</strong> 
-                          <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                            {product.manufacturer.substring(0, 15)}...
-                          </span>
-                        </div>
-                      )}
-                      {product.location && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ color: '#374151' }}>Location:</strong> {product.location}
-                        </div>
-                      )}
-                      {product.manufacturingDate && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ color: '#374151' }}>Manufacturing Date:</strong> {product.manufacturingDate}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Trading Status for Buyers */}
-                    {userRole === 'buyer' && activeTab === 'marketplace' && (
-                      <div style={{ 
-                        marginBottom: '10px', 
-                        padding: '8px', 
-                        background: '#ecfdf5', 
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}>
-                        <div><strong>🛒 Status:</strong> Ready for Purchase</div>
-                        <div><strong>🔍 Verification:</strong> QR & NFT metadata available</div>
-                        <div><strong>💰 Payment:</strong> Cross-chain ETH accepted</div>
-                      </div>
-                    )}
-
-                    {/* Display IPFS images and videos if available */}
+                  <div key={product.token_id || product.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
+                    {/* Product Image */}
                     {product.image_cid && (
-                      <div style={{ marginBottom: '10px' }}>
+                      <div className="aspect-w-16 aspect-h-9">
                         <img 
                           src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.image_cid}`}
                           alt="Product"
-                          style={{ 
-                            width: '100%', 
-                            maxHeight: '200px', 
-                            objectFit: 'cover', 
-                            borderRadius: '6px',
-                            border: '1px solid #e5e7eb'
-                          }}
+                          className="w-full h-48 object-cover"
                           onError={(e) => {
                             e.target.style.display = 'none';
                           }}
                         />
                       </div>
                     )}
-
-                    {product.video_cid && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <video 
-                          controls
-                          style={{ 
-                            width: '100%', 
-                            maxHeight: '200px', 
-                            borderRadius: '6px',
-                            border: '1px solid #e5e7eb'
-                          }}
-                        >
-                          <source src={`${process.env.REACT_APP_IPFS_GATEWAY}${product.video_cid}`} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </video>
+                    
+                    <div className="p-6">
+                      {/* Product Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 truncate">
+                          {product.name || product.metadata?.name || `Product ${index + 1}`}
+                        </h4>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {product.category || product.metadata?.category || 'General'}
+                        </span>
                       </div>
-                    )}
 
-                    <div style={{ marginTop: '15px' }}>
-                      <div style={{ marginBottom: '10px', textAlign: 'center' }}>
+                      {/* Product Details */}
+                      <div className="space-y-2 mb-4">
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {product.description || product.metadata?.description || 'No description available'}
+                        </p>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Price:</span>
+                          <span className="font-semibold text-green-600">
+                            {product.price || product.metadata?.price_eth || '0.000'} ETH
+                          </span>
+                        </div>
+                        {product.token_id && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Token ID:</span>
+                            <span className="font-mono text-xs text-gray-900">{product.token_id}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* QR Code */}
+                      <div className="flex justify-center mb-4">
                         <QRCode 
                           value={generateQRCode(product)} 
-                          size={100}
-                          style={{ border: '1px solid #e5e7eb', padding: '5px' }}
+                          size={80}
+                          className="border border-gray-200 rounded p-1"
                         />
                       </div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '10px', textAlign: 'center' }}>
-                        {product.encrypted_qr_code ? '🔐 Encrypted QR with CID Link' : '📱 Basic QR Code'}
-                      </div>
-                      
-                      {/* Role-based Cross-Chain Operations */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '10px' }}>
-                        
-                        {/* BUYER BUTTONS: Buy, Bridge Pay, Verify */}
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2">
                         {userRole === 'buyer' && activeTab === 'marketplace' && (
                           <>
                             <button
                               onClick={() => handleBuyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#dc2626', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Purchase this product via cross-chain"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                              <ShoppingCart className="w-3 h-3 mr-1" />
+                              <ShoppingCart className="w-4 h-4 mr-1" />
                               Buy
                             </button>
-                            
-                            <button
-                              onClick={() => handleBridgePay(product)}
-                              className="btn"
-                              style={{ 
-                                background: '#059669', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Pay via Token Bridge"
-                            >
-                              🌉
-                              Bridge Pay
-                            </button>
-                            
                             <button
                               onClick={() => handleVerifyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#8b5cf6', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gridColumn: 'span 1'
-                              }}
-                              title="Verify authenticity"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                              <Shield className="w-3 h-3 mr-1" />
+                              <Shield className="w-4 h-4 mr-1" />
                               Verify
                             </button>
                           </>
                         )}
-
-                        {/* BUYER OWNED PRODUCTS */}
-                        {userRole === 'buyer' && activeTab === 'owned' && (
-                          <>
-                            <button
-                              onClick={() => handleVerifyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#8b5cf6', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gridColumn: 'span 2'
-                              }}
-                              title="Verify authenticity"
-                            >
-                              <Shield className="w-3 h-3 mr-1" />
-                              Verify Ownership
-                            </button>
-                          </>
-                        )}
-
-                        {/* TRANSPORTER BUTTONS: Ship, Complete Shipping, Verify */}
+                        
                         {userRole === 'transporter' && (
                           <>
                             <button
                               onClick={() => handleCrossChainTransfer(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#10b981', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Transfer to another chain"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                             >
-                              <Truck className="w-3 h-3 mr-1" />
+                              <Truck className="w-4 h-4 mr-1" />
                               Ship
                             </button>
-                            
                             <button
                               onClick={() => handleCompleteShipping(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#059669', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Complete shipping and mark as delivered"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                              <Package className="w-3 h-3 mr-1" />
-                              Complete Shipping
-                            </button>
-                            
-                            <button
-                              onClick={() => handleVerifyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#8b5cf6', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gridColumn: 'span 1'
-                              }}
-                              title="Verify authenticity"
-                            >
-                              <Shield className="w-3 h-3 mr-1" />
-                              Verify
+                              <Package className="w-4 h-4 mr-1" />
+                              Complete
                             </button>
                           </>
                         )}
-
-                        {/* MANUFACTURER BUTTONS: Ship, Verify, QC, Sell */}
+                        
                         {userRole === 'manufacturer' && (
                           <>
                             <button
-                              onClick={() => handleCrossChainTransfer(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#10b981', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Transfer to another chain"
-                            >
-                              <Truck className="w-3 h-3 mr-1" />
-                              Ship
-                            </button>
-                            
-                            <button
-                              onClick={() => handleVerifyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#8b5cf6', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Verify authenticity"
-                            >
-                              <Shield className="w-3 h-3 mr-1" />
-                              Verify
-                            </button>
-                            
-                            <button
                               onClick={() => handleQualityCheck(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#f59e0b', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Perform quality check"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
                             >
-                              <Eye className="w-3 h-3 mr-1" />
+                              <Shield className="w-4 h-4 mr-1" />
                               QC
                             </button>
-                            
                             <button
                               onClick={() => handleListInMarketplace(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#ec4899', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="List in marketplace"
+                              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                              <Store className="w-3 h-3 mr-1" />
-                              Sell
-                            </button>
-                          </>
-                        )}
-
-                        {/* ADMIN OR OTHER ROLES: Show all buttons */}
-                        {(userRole === 'admin' || (!userRole || (userRole !== 'manufacturer' && userRole !== 'transporter' && userRole !== 'buyer'))) && (
-                          <>
-                            <button
-                              onClick={() => handleCrossChainTransfer(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#10b981', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Transfer to another chain"
-                            >
-                              <Truck className="w-3 h-3 mr-1" />
-                              Ship
-                            </button>
-                            
-                            <button
-                              onClick={() => handleVerifyProduct(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#8b5cf6', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="Verify authenticity"
-                            >
-                              <Shield className="w-3 h-3 mr-1" />
-                              Verify
-                            </button>
-                            
-                            <button
-                              onClick={() => handleListInMarketplace(product.token_id)}
-                              className="btn"
-                              style={{ 
-                                background: '#ec4899', 
-                                color: 'white', 
-                                border: 'none', 
-                                padding: '6px 8px', 
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                              title="List in marketplace"
-                            >
-                              <Store className="w-3 h-3 mr-1" />
+                              <Store className="w-4 h-4 mr-1" />
                               Sell
                             </button>
                           </>
                         )}
                       </div>
-                      
-                      <button
-                        onClick={() => setSelectedProduct(selectedProduct?.token_id === product.token_id ? null : product)}
-                        className="btn"
-                        style={{ 
-                          background: '#3b82f6', 
-                          color: 'white', 
-                          border: 'none', 
-                          padding: '8px 12px', 
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          cursor: 'pointer',
-                          width: '100%'
-                        }}
-                      >
-                        {selectedProduct?.token_id === product.token_id ? 'Hide Details' : 'View Details'}
-                      </button>
                     </div>
-
-                    {selectedProduct?.token_id === product.token_id && (
-                      <div style={{ 
-                        marginTop: '15px', 
-                        padding: '10px', 
-                        background: '#f9fafb', 
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}>
-                        <div><strong>Token ID:</strong> {product.token_id || 'N/A'}</div>
-                        <div><strong>Created:</strong> {product.created_at ? new Date(product.created_at * 1000).toLocaleDateString() : 'N/A'}</div>
-                        <div><strong>Status:</strong> {product.status || 'Active'}</div>
-                        <div><strong>Chain ID:</strong> {product.chain_id || 'N/A'}</div>
-                        {product.transaction_hash && (
-                          <div><strong>Tx Hash:</strong> {product.transaction_hash.substring(0, 20)}...</div>
-                        )}
-                        {product.image_cid && (
-                          <div><strong>Image CID:</strong> {product.image_cid.substring(0, 20)}...</div>
-                        )}
-                        {product.video_cid && (
-                          <div><strong>Video CID:</strong> {product.video_cid.substring(0, 20)}...</div>
-                        )}
-                        {product.mint_params && (
-                          <div style={{ marginTop: '8px' }}>
-                            <strong>NFT Parameters:</strong>
-                            <div style={{ marginLeft: '10px', fontSize: '11px' }}>
-                              <div>Unique ID: {product.mint_params.uniqueProductID}</div>
-                              <div>Manufacturing Date: {product.mint_params.manufacturingDate}</div>
-                              <div>Product Type: {product.mint_params.productType}</div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             )}
-          </>
-        )}
+
+            {/* Purchase History for Buyers */}
+            {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {purchases.map((purchase, index) => (
+                  <div key={purchase.purchase_id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900">
+                        Order #{purchase.purchase_id?.substring(0, 12)}...
+                      </h4>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        purchase.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {purchase.status}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <div><strong>Product ID:</strong> {purchase.product_id}</div>
+                      <div><strong>Price Paid:</strong> {purchase.price_eth} ETH</div>
+                      <div><strong>Purchase Date:</strong> {purchase.purchase_date}</div>
+                      {purchase.transaction_hash && (
+                        <div><strong>Transaction:</strong> {purchase.transaction_hash.substring(0, 20)}...</div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                      <div className="text-xs text-blue-800">
+                        <div><strong>🔄 Payment:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}</div>
+                        <div><strong>🛒 NFT Transfer:</strong> {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Cross-Chain Transfer Modal */}
-      {showCrossChainTransfer && transferProductId && (
-        <CrossChainTransfer
-          productTokenId={transferProductId}
-          onClose={() => {
-            setShowCrossChainTransfer(false);
-            setTransferProductId(null);
-            fetchProducts(); // Refresh products after transfer
-          }}
-        />
+      {/* Cross Chain Transfer Modal */}
+      {showCrossChainTransfer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Cross-Chain Transfer</h3>
+            <CrossChainTransfer 
+              productId={transferProductId}
+              onClose={() => {
+                setShowCrossChainTransfer(false);
+                setTransferProductId(null);
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
