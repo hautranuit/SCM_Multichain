@@ -28,10 +28,13 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
         string memory name,
         string memory symbol,
         address initialOwner
-    ) ERC721(name, symbol) Ownable(initialOwner) {
+    ) ERC721(name, symbol) {
         // Grant the contract deployer the default admin role and minter role
         _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
         _grantRole(MINTER_ROLE, initialOwner);
+        
+        // Transfer ownership to the initial owner
+        _transferOwnership(initialOwner);
     }
     
     /**
@@ -57,18 +60,7 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
         address to,
         string memory uri
     ) public onlyRole(MINTER_ROLE) returns (uint256) {
-        uint256 tokenId = uint256(keccak256(abi.encodePacked(
-            block.timestamp,
-            block.prevrandao,
-            msg.sender,
-            to,
-            totalSupply()
-        )));
-        
-        // Ensure unique token ID
-        while (_ownerOf(tokenId) != address(0)) {
-            tokenId = uint256(keccak256(abi.encodePacked(tokenId, block.timestamp)));
-        }
+        uint256 tokenId = _getNextTokenId();
         
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
@@ -84,7 +76,7 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
         uint256 tokenId,
         string memory uri
     ) public onlyRole(MINTER_ROLE) {
-        require(_ownerOf(tokenId) != address(0), "ChainFLIPProductNFT: Token does not exist");
+        require(_exists(tokenId), "ChainFLIPProductNFT: Token does not exist");
         _setTokenURI(tokenId, uri);
         
         emit TokenURIUpdated(tokenId, uri, block.timestamp);
@@ -114,24 +106,26 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
      * @dev Check if a token exists
      */
     function exists(uint256 tokenId) public view returns (bool) {
-        return _ownerOf(tokenId) != address(0);
+        return _exists(tokenId);
     }
     
     /**
      * @dev Get total supply of minted tokens
+     * Simple counter-based implementation for gas efficiency
      */
+    uint256 private _tokenIdCounter = 1;
+    
     function totalSupply() public view returns (uint256) {
-        // Note: This is a simple implementation
-        // For gas optimization in production, consider using a counter
-        uint256 count = 0;
-        for (uint256 i = 1; i < type(uint256).max; i++) {
-            if (_ownerOf(i) != address(0)) {
-                count++;
-            }
-            // Break after checking reasonable range to avoid gas issues
-            if (i > 1000000) break;
-        }
-        return count;
+        return _tokenIdCounter - 1;
+    }
+    
+    /**
+     * @dev Internal function to get next token ID and increment counter
+     */
+    function _getNextTokenId() internal returns (uint256) {
+        uint256 tokenId = _tokenIdCounter;
+        _tokenIdCounter++;
+        return tokenId;
     }
     
     /**
@@ -173,13 +167,13 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
         _;
     }
     
-    // Override transfers to add pause functionality
+    // Override transfers to add pause functionality  
     function _beforeTokenTransfer(
         address from,
         address to,
         uint256 tokenId,
         uint256 batchSize
-    ) internal whenNotPaused override {
+    ) internal whenNotPaused override(ERC721) {
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
     

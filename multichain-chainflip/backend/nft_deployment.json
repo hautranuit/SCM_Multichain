@@ -1,0 +1,17 @@
+{
+  "contractName": "ChainFLIPProductNFT",
+  "contractAddress": "0x75d2E18211390A8f2bdA96BB4Bd2D45ba77d5baD",
+  "transactionHash": "0xda4fc9b7dfeb6a58adb3f10e643378ed9528a9df5e5a1ce80f9c2c48b6b08261",
+  "blockNumber": 27159105,
+  "gasUsed": "2782431",
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "deploymentTimestamp": 1750086520,
+  "contractVersion": "1.0.0",
+  "constructorParams": {
+    "name": "ChainFLIP Product NFT",
+    "symbol": "CFPNFT",
+    "initialOwner": "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+  }
+}

@@ -22,7 +22,8 @@ module.exports = {
         },
         baseSepolia: {
             url: process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org",
-            accounts: process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : [],
+            accounts: process.env.DEPLOYER_PRIVATE_KEY ? [`0x${process.env.DEPLOYER_PRIVATE_KEY}`] : 
+                     (process.env.PRIVATE_KEYS ? process.env.PRIVATE_KEYS.split(",").map(key => `0x${key.trim()}`) : []),
             chainId: 84532,
             gas: 5000000,
             gasPrice: 1000000000, // 1 gwei
