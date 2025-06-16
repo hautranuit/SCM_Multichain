@@ -265,9 +265,23 @@ class BlockchainService:
             }
             
             print("✅ Loaded real contract configurations")
+            print(f"📋 Contract addresses loaded:")
+            print(f"   NFT Core: {self.contract_addresses.get('nft_core', 'Not configured')}")
+            print(f"   Supply Chain NFT: {self.contract_addresses.get('supply_chain_nft', 'Not configured')}")
+            print(f"   Manufacturer: {self.contract_addresses.get('manufacturer', 'Not configured')}")
             
         except Exception as e:
             print(f"⚠️ Contract configuration loading error: {e}")
+    
+    @property
+    def contract_configs(self) -> Dict[str, str]:
+        """Get current contract configurations for debugging"""
+        return {
+            "nft_core_contract": self.contract_addresses.get("nft_core", ""),
+            "supply_chain_nft_contract": self.contract_addresses.get("supply_chain_nft", ""),
+            "manufacturer_contract": self.contract_addresses.get("manufacturer", ""),
+            "nft_minting_contract": self.contract_addresses.get("nft_core", ""),  # Which contract is used for NFT minting
+        }
     
     async def mint_product_nft(self, manufacturer: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -300,9 +314,10 @@ class BlockchainService:
             # Prepare transaction for Base Sepolia
             if self.manufacturer_web3 and self.account:
                 try:
-                    # Get contract (using manufacturer contract address)
-                    contract_address = self.contract_addresses.get("manufacturer")
+                    # Get contract (using NFT core contract address for NFT minting)
+                    contract_address = self.contract_addresses.get("nft_core")
                     if contract_address:
+                        print(f"🏭 Using NFT Core contract for minting: {contract_address}")
                         # Create metadata URI
                         token_uri = f"{settings.ipfs_gateway or 'https://ipfs.io/ipfs/'}{metadata_cid}"
                         
@@ -551,7 +566,7 @@ class BlockchainService:
                             raise Exception(f"Transaction failed with status: {receipt.status}")
                     
                     else:
-                        raise Exception("Manufacturer contract address not configured")
+                        raise Exception("NFT Core contract address not configured. Please check NFT_CORE_CONTRACT in .env file")
                         
                 except Exception as blockchain_error:
                     print(f"⚠️ Blockchain transaction error: {blockchain_error}")
