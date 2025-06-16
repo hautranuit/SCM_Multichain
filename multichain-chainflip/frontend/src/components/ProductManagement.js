@@ -821,14 +821,14 @@ const ProductManagement = () => {
             </div>
           )}
 
-          {/* Ultra-Modern Create Form */}
+          {/* Enhanced Product Creation Form with Missing Fields */}
           {showCreateForm && userRole === 'manufacturer' && (
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
               <div className="relative p-8">
                 <div className="text-center mb-8">
                   <h3 className="text-3xl font-bold text-white mb-2">Create Product NFT</h3>
-                  <p className="text-white/70">Launch your product on Base Sepolia with IPFS metadata storage</p>
+                  <p className="text-white/70">Launch your product on Base Sepolia with complete manufacturer information</p>
                 </div>
                 <form onSubmit={createProduct} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -841,6 +841,17 @@ const ProductManagement = () => {
                         onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
                         className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
                         placeholder="Enter product name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Unique Product ID *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newProduct.uniqueProductID}
+                        onChange={(e) => setNewProduct({...newProduct, uniqueProductID: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder={`PROD-${Date.now()}`}
                       />
                     </div>
                     <div className="space-y-2">
@@ -859,6 +870,17 @@ const ProductManagement = () => {
                         <option value="Other" className="bg-slate-800">Other</option>
                       </select>
                     </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Batch or Lot Number *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newProduct.batchNumber}
+                        onChange={(e) => setNewProduct({...newProduct, batchNumber: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        placeholder={`BATCH-${Date.now()}`}
+                      />
+                    </div>
                     <div className="md:col-span-2 space-y-2">
                       <label className="block text-white/90 font-medium">Description</label>
                       <textarea
@@ -868,6 +890,43 @@ const ProductManagement = () => {
                         className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
                         placeholder="Enter product description"
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Manufacturing Date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={newProduct.manufacturingDate}
+                        onChange={(e) => setNewProduct({...newProduct, manufacturingDate: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        max={getCurrentDate()}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Expiration Date</label>
+                      <input
+                        type="date"
+                        value={newProduct.expirationDate}
+                        onChange={(e) => setNewProduct({...newProduct, expirationDate: e.target.value})}
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        min={newProduct.manufacturingDate || getCurrentDate()}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-white/90 font-medium">Manufacturer ID (Base Sepolia)</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={newProduct.manufacturer}
+                          readOnly
+                          className="w-full px-4 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl text-white/80 cursor-not-allowed"
+                          placeholder="Connect wallet to auto-populate"
+                        />
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400">
+                          <span className="text-sm font-semibold">✓ Connected</span>
+                        </div>
+                      </div>
+                      <p className="text-white/50 text-xs">This is your connected wallet address on Base Sepolia chain</p>
                     </div>
                     <div className="space-y-2">
                       <label className="block text-white/90 font-medium">Price (ETH)</label>
@@ -1076,28 +1135,70 @@ const ProductManagement = () => {
                           </p>
                         </div>
 
-                        {/* Product Details - Fixed Height */}
-                        <div className="h-24 mb-4 space-y-3">
-                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                            <span className="text-white/70 text-sm">Price:</span>
-                            <span className="font-bold text-green-400 text-lg">
-                              {product.price || product.metadata?.price_eth || '0.000'} ETH
-                            </span>
-                          </div>
-                          {product.token_id && (
-                            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                              <span className="text-white/70 text-sm">Token ID:</span>
+                        {/* Enhanced Product Details - Expandable */}
+                        <div className="mb-4 space-y-2">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="p-2 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Price:</span>
+                              <span className="font-bold text-green-400">
+                                {product.price || product.metadata?.price_eth || '0.000'} ETH
+                              </span>
+                            </div>
+                            <div className="p-2 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Token ID:</span>
                               <span className="font-mono text-xs text-cyan-400 truncate">{product.token_id}</span>
+                            </div>
+                          </div>
+                          
+                          {/* New Fields Display */}
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            {(product.metadata?.uniqueProductID || product.uniqueProductID) && (
+                              <div className="p-2 bg-white/5 rounded-lg">
+                                <span className="text-white/70 block">Product ID:</span>
+                                <span className="font-mono text-xs text-cyan-400 truncate">{product.metadata?.uniqueProductID || product.uniqueProductID}</span>
+                              </div>
+                            )}
+                            {(product.metadata?.batchNumber || product.batchNumber) && (
+                              <div className="p-2 bg-white/5 rounded-lg">
+                                <span className="text-white/70 block">Batch:</span>
+                                <span className="font-mono text-xs text-cyan-400 truncate">{product.metadata?.batchNumber || product.batchNumber}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Manufacturing Details */}
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            {(product.metadata?.manufacturingDate || product.manufacturingDate) && (
+                              <div className="p-2 bg-white/5 rounded-lg">
+                                <span className="text-white/70 block">Mfg Date:</span>
+                                <span className="text-white text-xs">{product.metadata?.manufacturingDate || product.manufacturingDate}</span>
+                              </div>
+                            )}
+                            {(product.metadata?.expirationDate || product.expirationDate) && (
+                              <div className="p-2 bg-white/5 rounded-lg">
+                                <span className="text-white/70 block">Exp Date:</span>
+                                <span className="text-white text-xs">{product.metadata?.expirationDate || product.expirationDate}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Manufacturer Info */}
+                          {(product.manufacturer || product.metadata?.manufacturerID) && (
+                            <div className="p-2 bg-white/5 rounded-lg text-sm">
+                              <span className="text-white/70 block">Manufacturer:</span>
+                              <span className="font-mono text-xs text-cyan-400 truncate">
+                                {(product.manufacturer || product.metadata?.manufacturerID)?.substring(0, 20)}...
+                              </span>
                             </div>
                           )}
                         </div>
 
-                        {/* QR Code - Fixed Height */}
-                        <div className="h-24 flex justify-center items-center mb-6">
-                          <div className="p-3 bg-white rounded-2xl">
+                        {/* Compact QR Code - No longer covering info */}
+                        <div className="flex justify-center mb-4">
+                          <div className="p-2 bg-white rounded-xl">
                             <QRCode 
                               value={generateQRCode(product)} 
-                              size={80}
+                              size={60}
                             />
                           </div>
                         </div>
@@ -1252,11 +1353,12 @@ const ProductManagement = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-xl rounded-3xl border border-white/30"></div>
             <div className="relative bg-transparent p-8 max-w-md w-full mx-4">
               <h3 className="text-2xl font-bold text-white mb-6 text-center">Cross-Chain Transfer</h3>
-              <CrossChainTransfer 
+              <CrossChainTransfer
                 productId={transferProductId}
-                onClose={() => {
+                onClose={() => setShowCrossChainTransfer(false)}
+                onSuccess={() => {
                   setShowCrossChainTransfer(false);
-                  setTransferProductId(null);
+                  fetchProducts();
                 }}
               />
             </div>

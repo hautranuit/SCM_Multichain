@@ -41,23 +41,21 @@ class IPFSService:
         print(f"   Script path: {self.script_path}")
         
         if not has_token or not has_proof:
-            print(f"⚠️ WARNING: W3Storage credentials not available - using mock upload")
-            self.use_mock_upload = True
+            print(f"❌ ERROR: W3Storage credentials not available - UPLOAD WILL FAIL")
+            print(f"💡 Please check your .env file for W3STORAGE_TOKEN and W3STORAGE_PROOF")
         else:
             print(f"✅ W3Storage credentials loaded")
-            self.use_mock_upload = False
             
         print(f"🌐 IPFS Gateway: {self.ipfs_gateway}")
         
         # Check if Node.js script exists
         if not self.script_path.exists():
-            print(f"⚠️ WARNING: W3Storage upload script not found at {self.script_path}")
-            self.use_mock_upload = True
+            print(f"❌ ERROR: W3Storage upload script not found at {self.script_path}")
         else:
             print(f"✅ W3Storage upload script found")
         
     async def upload_to_ipfs(self, data: Dict[str, Any]) -> str:
-        """Upload data to IPFS using W3Storage or Mock upload"""
+        """Upload data to IPFS using W3Storage - NO MOCK FALLBACK"""
         try:
             print(f"📦 Uploading to IPFS...")
             
@@ -65,9 +63,12 @@ class IPFSService:
             json_data = json.dumps(data, indent=2)
             print(f"📄 Content Size: {len(json_data)} bytes")
             
-            # Use mock upload if W3Storage is not available
-            if self.use_mock_upload:
-                return await self._mock_upload(data)
+            # Check if W3Storage is properly configured
+            if not self.w3storage_token or not self.w3storage_proof:
+                raise Exception("W3Storage credentials are missing. Please check your .env file for W3STORAGE_TOKEN and W3STORAGE_PROOF")
+            
+            if not self.script_path.exists():
+                raise Exception(f"W3Storage upload script not found at {self.script_path}")
             
             # Try W3Storage upload
             cid = await self._upload_via_nodejs(data)
@@ -79,13 +80,11 @@ class IPFSService:
                 await self._test_cid_accessibility(cid)
                 return cid
             else:
-                print("❌ W3Storage upload failed, falling back to mock upload")
-                return await self._mock_upload(data)
+                raise Exception("W3Storage upload failed - check your credentials and network connection")
             
         except Exception as e:
             print(f"❌ IPFS Upload Failed: {e}")
-            print("🔄 Falling back to mock upload...")
-            return await self._mock_upload(data)
+            raise Exception(f"IPFS Upload Failed: {str(e)}")
     
     async def _mock_upload(self, data: Dict[str, Any]) -> str:
         """Generate a mock CID for testing purposes"""
@@ -147,18 +146,15 @@ class IPFSService:
                                 return cid
                             else:
                                 error_msg = response.get('error', 'Unknown error')
-                                print(f"❌ Node.js W3Storage upload failed: {error_msg}")
-                                return None
+                                raise Exception(f"W3Storage upload failed: {error_msg}")
                         else:
-                            print(f"❌ Node.js script returned empty output")
-                            return None
+                            raise Exception("W3Storage script returned empty output")
                             
                     except json.JSONDecodeError as e:
-                        print(f"❌ Failed to parse Node.js response: {e}")
-                        return None
+                        raise Exception(f"Failed to parse W3Storage response: {e}. Raw output: {result.stdout}")
                 else:
-                    print(f"❌ Node.js script failed with return code {result.returncode}")
-                    return None
+                    error_output = result.stderr if result.stderr else "Unknown error"
+                    raise Exception(f"W3Storage script failed with return code {result.returncode}: {error_output}")
                     
             finally:
                 # Clean up temporary file
@@ -168,11 +164,9 @@ class IPFSService:
                     pass
                     
         except subprocess.TimeoutExpired:
-            print(f"❌ Node.js script timed out after 60 seconds")
-            return None
+            raise Exception("W3Storage script timed out after 60 seconds")
         except Exception as e:
-            print(f"❌ Error running Node.js script: {e}")
-            return None
+            raise Exception(f"Error running W3Storage script: {e}")
     
     async def _test_cid_accessibility(self, cid: str):
         """Test if CID is accessible via IPFS gateways"""
