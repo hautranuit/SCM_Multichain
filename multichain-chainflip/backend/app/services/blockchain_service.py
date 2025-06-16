@@ -116,64 +116,146 @@ class BlockchainService:
     async def load_contract_configurations(self):
         """Load real contract configurations"""
         try:
-            # Enhanced NFT ABI for proper contract interaction
-            self.nft_abi = [
-                {
-                    "inputs": [
-                        {"name": "to", "type": "address"},
-                        {"name": "tokenId", "type": "uint256"},
-                        {"name": "uri", "type": "string"}
-                    ],
-                    "name": "safeMint",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {"name": "tokenId", "type": "uint256"}
-                    ],
-                    "name": "ownerOf",
-                    "outputs": [{"name": "", "type": "address"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {"name": "tokenId", "type": "uint256"}
-                    ],
-                    "name": "tokenURI",
-                    "outputs": [{"name": "", "type": "string"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {"name": "owner", "type": "address"}
-                    ],
-                    "name": "balanceOf",
-                    "outputs": [{"name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "totalSupply",
-                    "outputs": [{"name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "anonymous": False,
-                    "inputs": [
-                        {"indexed": True, "name": "from", "type": "address"},
-                        {"indexed": True, "name": "to", "type": "address"},
-                        {"indexed": True, "name": "tokenId", "type": "uint256"}
-                    ],
-                    "name": "Transfer",
-                    "type": "event"
-                }
+            # Multiple NFT ABI versions to try (different contract standards)
+            self.nft_abi_variants = [
+                # Standard ERC721 with safeMint(to, tokenId, uri)
+                [
+                    {
+                        "inputs": [
+                            {"name": "to", "type": "address"},
+                            {"name": "tokenId", "type": "uint256"},
+                            {"name": "uri", "type": "string"}
+                        ],
+                        "name": "safeMint",
+                        "outputs": [],
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "ownerOf",
+                        "outputs": [{"name": "", "type": "address"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "tokenURI",
+                        "outputs": [{"name": "", "type": "string"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "anonymous": False,
+                        "inputs": [
+                            {"indexed": True, "name": "from", "type": "address"},
+                            {"indexed": True, "name": "to", "type": "address"},
+                            {"indexed": True, "name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "Transfer",
+                        "type": "event"
+                    }
+                ],
+                # Alternative: safeMint(to, uri) - auto-generates tokenId
+                [
+                    {
+                        "inputs": [
+                            {"name": "to", "type": "address"},
+                            {"name": "uri", "type": "string"}
+                        ],
+                        "name": "safeMint",
+                        "outputs": [{"name": "tokenId", "type": "uint256"}],
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "ownerOf",
+                        "outputs": [{"name": "", "type": "address"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "tokenURI",
+                        "outputs": [{"name": "", "type": "string"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "anonymous": False,
+                        "inputs": [
+                            {"indexed": True, "name": "from", "type": "address"},
+                            {"indexed": True, "name": "to", "type": "address"},
+                            {"indexed": True, "name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "Transfer",
+                        "type": "event"
+                    }
+                ],
+                # Basic ERC721 mint function
+                [
+                    {
+                        "inputs": [
+                            {"name": "to", "type": "address"},
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "mint",
+                        "outputs": [],
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"},
+                            {"name": "uri", "type": "string"}
+                        ],
+                        "name": "setTokenURI",
+                        "outputs": [],
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "ownerOf",
+                        "outputs": [{"name": "", "type": "address"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "inputs": [
+                            {"name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "tokenURI",
+                        "outputs": [{"name": "", "type": "string"}],
+                        "stateMutability": "view",
+                        "type": "function"
+                    },
+                    {
+                        "anonymous": False,
+                        "inputs": [
+                            {"indexed": True, "name": "from", "type": "address"},
+                            {"indexed": True, "name": "to", "type": "address"},
+                            {"indexed": True, "name": "tokenId", "type": "uint256"}
+                        ],
+                        "name": "Transfer",
+                        "type": "event"
+                    }
+                ]
             ]
+            
+            # Use the first ABI variant by default
+            self.nft_abi = self.nft_abi_variants[0]
             
             # Contract addresses from environment
             self.contract_addresses = {
@@ -224,62 +306,177 @@ class BlockchainService:
                         # Create metadata URI
                         token_uri = f"{settings.ipfs_gateway or 'https://ipfs.io/ipfs/'}{metadata_cid}"
                         
-                        # Create proper NFT contract instance with enhanced ABI
-                        nft_contract = self.manufacturer_web3.eth.contract(
-                            address=contract_address,
-                            abi=self.nft_abi
-                        )
-                        
-                        # Prepare NFT minting transaction
-                        nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
-                        gas_price = self.manufacturer_web3.eth.gas_price
-                        
-                        # Build the safeMint transaction
-                        mint_txn = nft_contract.functions.safeMint(
-                            manufacturer,  # to address
-                            token_id,      # token ID
-                            token_uri      # metadata URI
-                        ).build_transaction({
-                            'from': self.account.address,
-                            'gas': 200000,
-                            'gasPrice': gas_price,
-                            'nonce': nonce,
-                            'value': 0
-                        })
+                        # Try different contract ABIs and minting approaches
+                        success = False
+                        last_error = None
+                        mint_txn = None
+                        tx_hash_hex = None
+                        receipt = None
                         
                         # Store metadata CID on blockchain as well
                         metadata_hash = self.manufacturer_web3.keccak(text=metadata_cid)
                         print(f"📦 Storing metadata CID on blockchain: {metadata_cid}")
                         print(f"🔗 Metadata hash: {metadata_hash.hex()}")
                         
-                        # Sign and send transaction
-                        signed_txn = self.account.sign_transaction(mint_txn)
-                        tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                        tx_hash_hex = tx_hash.hex()
+                        # First, let's check what kind of contract this is
+                        print(f"🔍 Investigating contract at: {contract_address}")
                         
-                        print(f"✅ NFT Minting Transaction sent: {tx_hash_hex}")
-                        print(f"🏭 Minting NFT #{token_id} to {manufacturer}")
-                        print(f"📄 Metadata URI: {token_uri}")
+                        # Try to get basic contract info
+                        try:
+                            # Check if it's a valid contract address
+                            code = self.manufacturer_web3.eth.get_code(contract_address)
+                            if code == b'\x00':
+                                print(f"❌ No contract deployed at {contract_address}")
+                                raise Exception(f"No contract found at address {contract_address}")
+                            else:
+                                print(f"✅ Contract found at {contract_address}, code length: {len(code)} bytes")
+                        except Exception as contract_check_error:
+                            print(f"❌ Contract address check failed: {contract_check_error}")
+                            raise Exception(f"Contract address validation failed: {contract_check_error}")
                         
-                        # Wait for transaction confirmation
-                        print("⏳ Waiting for NFT minting confirmation...")
-                        receipt = self.manufacturer_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-                        
-                        if receipt.status == 1:
-                            print(f"✅ NFT Minting confirmed! Block: {receipt.blockNumber}")
-                            print(f"⛽ Gas Used: {receipt.gasUsed}")
-                            
-                            # Verify NFT was actually minted
+                        # Try different ABI variants and minting approaches
+                        for i, abi_variant in enumerate(self.nft_abi_variants):
                             try:
-                                owner = nft_contract.functions.ownerOf(token_id).call()
-                                stored_uri = nft_contract.functions.tokenURI(token_id).call()
-                                print(f"✅ NFT Verification:")
-                                print(f"   Owner: {owner}")
-                                print(f"   Token URI: {stored_uri}")
-                                print(f"   CID stored on blockchain: ✅")
-                            except Exception as verify_error:
-                                print(f"⚠️ NFT verification failed: {verify_error}")
+                                print(f"🔄 Trying ABI variant {i+1}/{len(self.nft_abi_variants)}")
+                                
+                                # Create contract instance with current ABI
+                                nft_contract = self.manufacturer_web3.eth.contract(
+                                    address=contract_address,
+                                    abi=abi_variant
+                                )
+                                
+                                # Prepare transaction parameters
+                                nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
+                                gas_price = self.manufacturer_web3.eth.gas_price
+                                
+                                # Try different minting function signatures
+                                if i == 0:
+                                    # Try safeMint(to, tokenId, uri)
+                                    print(f"🔄 Attempting: safeMint(to, tokenId, uri)")
+                                    mint_txn = nft_contract.functions.safeMint(
+                                        manufacturer,  # to address
+                                        token_id,      # token ID
+                                        token_uri      # metadata URI
+                                    ).build_transaction({
+                                        'from': self.account.address,
+                                        'gas': 300000,  # Increased gas limit
+                                        'gasPrice': gas_price,
+                                        'nonce': nonce,
+                                        'value': 0
+                                    })
+                                    
+                                elif i == 1:
+                                    # Try safeMint(to, uri) - auto-generates tokenId
+                                    print(f"🔄 Attempting: safeMint(to, uri)")
+                                    mint_txn = nft_contract.functions.safeMint(
+                                        manufacturer,  # to address
+                                        token_uri      # metadata URI
+                                    ).build_transaction({
+                                        'from': self.account.address,
+                                        'gas': 300000,
+                                        'gasPrice': gas_price,
+                                        'nonce': nonce,
+                                        'value': 0
+                                    })
+                                    
+                                elif i == 2:
+                                    # Try mint(to, tokenId) + setTokenURI(tokenId, uri)
+                                    print(f"🔄 Attempting: mint(to, tokenId) + setTokenURI(tokenId, uri)")
+                                    mint_txn = nft_contract.functions.mint(
+                                        manufacturer,  # to address
+                                        token_id       # token ID
+                                    ).build_transaction({
+                                        'from': self.account.address,
+                                        'gas': 300000,
+                                        'gasPrice': gas_price,
+                                        'nonce': nonce,
+                                        'value': 0
+                                    })
+                                
+                                # Sign and send transaction
+                                print(f"🔐 Signing transaction with account: {self.account.address}")
+                                signed_txn = self.account.sign_transaction(mint_txn)
+                                tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                                tx_hash_hex = tx_hash.hex()
+                                
+                                print(f"✅ NFT Minting Transaction sent: {tx_hash_hex}")
+                                print(f"🏭 Minting NFT #{token_id} to {manufacturer}")
+                                print(f"📄 Metadata URI: {token_uri}")
+                                
+                                # Wait for transaction confirmation
+                                print("⏳ Waiting for NFT minting confirmation...")
+                                receipt = self.manufacturer_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                                
+                                if receipt.status == 1:
+                                    print(f"✅ NFT Minting confirmed! Block: {receipt.blockNumber}")
+                                    print(f"⛽ Gas Used: {receipt.gasUsed}")
+                                    
+                                    # If using mint + setTokenURI approach, set the URI
+                                    if i == 2:
+                                        try:
+                                            print(f"🔗 Setting token URI for token {token_id}")
+                                            uri_nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
+                                            uri_txn = nft_contract.functions.setTokenURI(
+                                                token_id,
+                                                token_uri
+                                            ).build_transaction({
+                                                'from': self.account.address,
+                                                'gas': 100000,
+                                                'gasPrice': gas_price,
+                                                'nonce': uri_nonce,
+                                                'value': 0
+                                            })
+                                            
+                                            signed_uri_txn = self.account.sign_transaction(uri_txn)
+                                            uri_tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_uri_txn.raw_transaction)
+                                            uri_receipt = self.manufacturer_web3.eth.wait_for_transaction_receipt(uri_tx_hash, timeout=60)
+                                            
+                                            if uri_receipt.status == 1:
+                                                print(f"✅ Token URI set successfully")
+                                            else:
+                                                print(f"⚠️ Token URI setting failed, but NFT was minted")
+                                        except Exception as uri_error:
+                                            print(f"⚠️ Failed to set token URI: {uri_error}")
+                                    
+                                    success = True
+                                    break
+                                else:
+                                    last_error = f"Transaction failed with status: {receipt.status}"
+                                    print(f"❌ Transaction failed with status: {receipt.status}")
+                                    continue
+                                    
+                            except Exception as mint_error:
+                                last_error = str(mint_error)
+                                print(f"❌ ABI variant {i+1} failed: {mint_error}")
+                                continue
+                        
+                        if not success:
+                            print(f"❌ All minting approaches failed. Last error: {last_error}")
+                            print(f"💡 Contract at {contract_address} may not be a standard NFT contract")
+                            print(f"🔄 Falling back to cached product creation...")
+                            # Fallback to cached creation
+                            return await self._create_cached_product_fallback(manufacturer, metadata, metadata_cid)
                             
+                        # Verify NFT was actually minted (try with the successful ABI)
+                        try:
+                            # Use the ABI that worked
+                            working_abi = self.nft_abi_variants[i] if success else self.nft_abi_variants[0]
+                            nft_contract = self.manufacturer_web3.eth.contract(
+                                address=contract_address,
+                                abi=working_abi
+                            )
+                            
+                            owner = nft_contract.functions.ownerOf(token_id).call()
+                            stored_uri = nft_contract.functions.tokenURI(token_id).call()
+                            print(f"✅ NFT Verification:")
+                            print(f"   Owner: {owner}")
+                            print(f"   Token URI: {stored_uri}")
+                            print(f"   CID stored on blockchain: ✅")
+                        except Exception as verify_error:
+                            print(f"⚠️ NFT verification failed: {verify_error}")
+                            # Continue anyway, since the transaction was successful
+                        # Continue with QR generation and database storage
+                        if success and receipt and receipt.status == 1:
                             # Generate QR payload
                             qr_payload = encryption_service.create_qr_payload(
                                 token_id=str(token_id),

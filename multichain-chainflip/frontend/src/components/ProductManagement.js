@@ -327,22 +327,41 @@ const ProductManagement = () => {
 
   const handleListInMarketplace = async (productTokenId) => {
     try {
-      const price = prompt('Enter price in ETH for marketplace listing:');
-      if (!price || isNaN(price)) {
-        alert('Please enter a valid price in ETH');
+      // Get the product to use its existing price
+      const product = products.find(p => p.token_id === productTokenId);
+      if (!product) {
+        alert('Product not found');
         return;
       }
+
+      // Use existing product price instead of prompting
+      const existingPrice = product.price || product.metadata?.price || product.metadata?.price_eth;
+      
+      if (!existingPrice || isNaN(existingPrice) || parseFloat(existingPrice) <= 0) {
+        alert('❌ Cannot list product: No valid price set during creation.\n\nPlease ensure the product has a price before listing for sale.');
+        return;
+      }
+
+      const confirmation = window.confirm(
+        `🛒 List Product For Sale\n\n` +
+        `📦 Product: ${product.name || 'Unknown Product'}\n` +
+        `💰 Price: ${existingPrice} ETH\n\n` +
+        `This will make your product available in the buyer marketplace.\n\n` +
+        `Continue with listing?`
+      );
+
+      if (!confirmation) return;
 
       setLoading(true);
 
       // Use Algorithm 5: Post Supply Chain Management (Marketplace)
       const result = await blockchainService.listProductForSale({
         product_id: productTokenId,
-        price: parseFloat(price),
+        price: parseFloat(existingPrice),
         target_chains: [80002, 84532, 421614, 11155420] // All chains
       });
 
-      alert(`🛒 Product listed in marketplace!\n\n💰 Price: ${price} ETH\n📅 Listed: ${new Date(result.listing_timestamp * 1000).toLocaleString()}\n🌐 Available on ${result.listed_on_chains.length} chains`);
+      alert(`🛒 Product successfully listed for sale!\n\n💰 Price: ${existingPrice} ETH\n📅 Listed: ${new Date(result.listing_timestamp * 1000).toLocaleString()}\n🌐 Available on ${result.listed_on_chains.length} chains\n\n✅ Buyers can now discover and purchase your product!`);
       
       await fetchProducts();
     } catch (error) {
@@ -887,7 +906,7 @@ const ProductManagement = () => {
                         value={newProduct.description}
                         onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
                         rows={3}
-                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 transition-all duration-200 max-h-20 overflow-y-auto resize-none"
                         placeholder="Enter product description"
                       />
                     </div>
@@ -1130,7 +1149,7 @@ const ProductManagement = () => {
                             </span>
                           </div>
                           
-                          <p className="text-white/70 text-sm line-clamp-2">
+                          <p className="text-white/70 text-sm line-clamp-2 max-h-10 overflow-y-auto">
                             {product.description || product.metadata?.description || 'No description available'}
                           </p>
                         </div>
@@ -1258,23 +1277,13 @@ const ProductManagement = () => {
                           {userRole === 'manufacturer' && (
                             <>
                               <button
-                                onClick={() => handleQualityCheck(product.token_id)}
-                                className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/25"
-                              >
-                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
-                                <div className="relative flex items-center justify-center space-x-2">
-                                  <Shield className="w-4 h-4" />
-                                  <span className="font-semibold">QC</span>
-                                </div>
-                              </button>
-                              <button
                                 onClick={() => handleListInMarketplace(product.token_id)}
-                                className="group/btn relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
+                                className="col-span-2 group/btn relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
                               >
                                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
                                 <div className="relative flex items-center justify-center space-x-2">
                                   <Store className="w-4 h-4" />
-                                  <span className="font-semibold">Sell</span>
+                                  <span className="font-semibold">List For Sale</span>
                                 </div>
                               </button>
                             </>
@@ -1298,43 +1307,71 @@ const ProductManagement = () => {
                             Order #{purchase.purchase_id?.substring(0, 12)}...
                           </h4>
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            purchase.status === 'completed' 
-                              ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-400/30' 
-                              : 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-400/30'
+                            purchase.status === 'completed' ? 'bg-green-500/20 text-green-100 border border-green-400/30' :
+                            purchase.status === 'shipped' ? 'bg-blue-500/20 text-blue-100 border border-blue-400/30' :
+                            purchase.status === 'pending' ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' :
+                            'bg-gray-500/20 text-gray-100 border border-gray-400/30'
                           }`}>
                             {purchase.status}
                           </span>
                         </div>
                         
-                        <div className="space-y-3 flex-1">
-                          {[
-                            { label: 'Product ID', value: purchase.product_id },
-                            { label: 'Price Paid', value: `${purchase.price_eth} ETH` },
-                            { label: 'Purchase Date', value: purchase.purchase_date },
-                            { label: 'Transaction', value: purchase.transaction_hash?.substring(0, 20) + '...' }
-                          ].filter(item => item.value).map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                              <span className="text-white/70 text-sm font-medium">{item.label}:</span>
-                              <span className="text-white text-sm font-semibold">{item.value}</span>
+                        <div className="space-y-4 flex-1">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Product:</span>
+                              <span className="font-semibold text-white">{purchase.product_name || 'Unknown'}</span>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-400/20 mt-4">
-                          <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <span className="text-blue-200">Payment:</span>
-                              <span className={`font-semibold ${purchase.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                {purchase.status === 'completed' ? '✅ Complete' : '⏳ Processing'}
-                              </span>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Price:</span>
+                              <span className="font-bold text-green-400">{purchase.price || '0.000'} ETH</span>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-blue-200">NFT Transfer:</span>
-                              <span className={`font-semibold ${purchase.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                {purchase.status === 'completed' ? '✅ Complete' : '⏳ Pending'}
-                              </span>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Date:</span>
+                              <span className="text-white text-xs">{new Date(purchase.purchase_timestamp * 1000).toLocaleDateString()}</span>
+                            </div>
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block">Chain:</span>
+                              <span className="text-cyan-400 text-xs">{purchase.chain_name || 'Multi-Chain'}</span>
                             </div>
                           </div>
+                          
+                          {purchase.shipping_details && (
+                            <div className="p-3 bg-white/5 rounded-lg">
+                              <span className="text-white/70 block mb-2">Shipping:</span>
+                              <div className="text-xs text-white/80">
+                                <p>From: {purchase.shipping_details.origin}</p>
+                                <p>To: {purchase.shipping_details.destination}</p>
+                                <p>Transporter: {purchase.shipping_details.transporter?.substring(0, 10)}...</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-6 grid grid-cols-2 gap-4">
+                          <button
+                            onClick={() => handleVerifyProduct(purchase.product_id)}
+                            className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/25"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                            <div className="relative flex items-center justify-center space-x-2">
+                              <Shield className="w-4 h-4" />
+                              <span className="font-semibold">Verify</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const details = `Purchase Details:\n\nOrder ID: ${purchase.purchase_id}\nProduct: ${purchase.product_name}\nPrice: ${purchase.price} ETH\nStatus: ${purchase.status}\nDate: ${new Date(purchase.purchase_timestamp * 1000).toLocaleString()}\n${purchase.transaction_hash ? `\nTransaction: ${purchase.transaction_hash}` : ''}`;
+                              alert(details);
+                            }}
+                            className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/25"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
+                            <div className="relative flex items-center justify-center space-x-2">
+                              <Eye className="w-4 h-4" />
+                              <span className="font-semibold">Details</span>
+                            </div>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1346,22 +1383,28 @@ const ProductManagement = () => {
         </div>
       </div>
 
-      {/* Cross Chain Transfer Modal */}
+      {/* Cross-Chain Transfer Modal */}
       {showCrossChainTransfer && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-xl rounded-3xl border border-white/30"></div>
-            <div className="relative bg-transparent p-8 max-w-md w-full mx-4">
-              <h3 className="text-2xl font-bold text-white mb-6 text-center">Cross-Chain Transfer</h3>
-              <CrossChainTransfer
-                productId={transferProductId}
-                onClose={() => setShowCrossChainTransfer(false)}
-                onSuccess={() => {
-                  setShowCrossChainTransfer(false);
-                  fetchProducts();
-                }}
-              />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-slate-800 p-8 rounded-3xl border border-white/20 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Cross-Chain Transfer</h2>
+              <button
+                onClick={() => setShowCrossChainTransfer(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <span className="text-2xl">✕</span>
+              </button>
             </div>
+            
+            <CrossChainTransfer 
+              productId={transferProductId}
+              onClose={() => setShowCrossChainTransfer(false)}
+              onSuccess={() => {
+                setShowCrossChainTransfer(false);
+                fetchProducts();
+              }}
+            />
           </div>
         </div>
       )}
