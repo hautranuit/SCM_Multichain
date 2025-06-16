@@ -57,25 +57,77 @@ async function initW3Storage() {
     const modules = await loadW3StorageModules();
     const { Client, StoreMemory, Proof, Signer } = modules;
     
-    const W3UP_KEY = process.env.W3STORAGE_TOKEN;
-    const W3UP_PROOF = process.env.W3STORAGE_PROOF;
+    // Read credentials from files or environment variables
+    let W3UP_KEY, W3UP_PROOF;
+    
+    // Check for credential files first (more reliable for special characters)
+    if (process.env.W3STORAGE_TOKEN_FILE && process.env.W3STORAGE_PROOF_FILE) {
+        console.error('🔍 Reading credentials from files...');
+        try {
+            W3UP_KEY = fs.readFileSync(process.env.W3STORAGE_TOKEN_FILE, 'utf8').trim();
+            W3UP_PROOF = fs.readFileSync(process.env.W3STORAGE_PROOF_FILE, 'utf8').trim();
+            console.error('✅ Credentials loaded from files');
+        } catch (fileError) {
+            console.error('❌ Failed to read credential files:', fileError.message);
+            throw new Error(`Failed to read credential files: ${fileError.message}`);
+        }
+    } else {
+        // Fallback to environment variables
+        console.error('🔍 Reading credentials from environment variables...');
+        W3UP_KEY = process.env.W3STORAGE_TOKEN;
+        W3UP_PROOF = process.env.W3STORAGE_PROOF;
+    }
     
     console.error(`🔑 Token present: ${W3UP_KEY ? 'YES' : 'NO'}`);
     console.error(`🔏 Proof present: ${W3UP_PROOF ? 'YES' : 'NO'}`);
     
     if (!W3UP_KEY || !W3UP_PROOF) {
-        throw new Error('Missing W3STORAGE_TOKEN or W3STORAGE_PROOF environment variables');
+        throw new Error('Missing W3STORAGE_TOKEN or W3STORAGE_PROOF');
+    }
+    
+    // Validate credentials format before parsing
+    console.error('🔍 Validating credential formats...');
+    
+    if (W3UP_KEY.length < 50) {
+        throw new Error(`W3STORAGE_TOKEN appears too short (${W3UP_KEY.length} chars). Expected longer token.`);
+    }
+    
+    if (W3UP_PROOF.length < 100) {
+        throw new Error(`W3STORAGE_PROOF appears too short (${W3UP_PROOF.length} chars). Expected longer proof.`);
+    }
+    
+    // Check for common corruption patterns
+    if (W3UP_PROOF.includes('…') || W3UP_PROOF.includes('...')) {
+        throw new Error('W3STORAGE_PROOF appears to be truncated (contains ellipsis). Please get the complete proof.');
     }
     
     console.error('🔐 Parsing credentials...');
-    const principal = Signer.parse(W3UP_KEY);
+    
+    let principal;
+    try {
+        principal = Signer.parse(W3UP_KEY);
+        console.error('✅ W3STORAGE_TOKEN parsed successfully');
+    } catch (tokenError) {
+        throw new Error(`Failed to parse W3STORAGE_TOKEN: ${tokenError.message}. Please regenerate your token.`);
+    }
+    
     const store = new StoreMemory();
     
     console.error('🌐 Creating W3Storage client...');
     const client = await Client({ principal, store });
     
     console.error('📋 Parsing proof...');
-    const proof = await Proof.parse(W3UP_PROOF);
+    let proof;
+    try {
+        proof = await Proof.parse(W3UP_PROOF);
+        console.error('✅ W3STORAGE_PROOF parsed successfully');
+    } catch (proofError) {
+        console.error('❌ W3STORAGE_PROOF parsing failed');
+        console.error(`🔍 Proof length: ${W3UP_PROOF.length} characters`);
+        console.error(`🔍 Proof preview: ${W3UP_PROOF.substring(0, 100)}...`);
+        console.error(`🔍 Proof ending: ...${W3UP_PROOF.substring(W3UP_PROOF.length - 100)}`);
+        throw new Error(`Failed to parse W3STORAGE_PROOF: ${proofError.message}. Error details: ${proofError.stack}`);
+    }
     
     try {
         console.error('🔗 Adding space...');
@@ -233,10 +285,38 @@ async function main() {
     } catch (error) {
         console.error('❌ Error:', error.message);
         console.error('❌ Stack:', error.stack);
+        
+        // Provide specific guidance based on error type
+        if (error.message.includes('W3STORAGE_PROOF') || error.message.includes('Unexpected end of data')) {
+            console.error('');
+            console.error('🚨 W3STORAGE CREDENTIALS ISSUE DETECTED:');
+            console.error('');
+            console.error('Your W3Storage credentials appear to be corrupted or incomplete.');
+            console.error('');
+            console.error('To fix this issue:');
+            console.error('1. Go to https://console.web3.storage/');
+            console.error('2. Generate new API credentials');
+            console.error('3. Copy the COMPLETE token and proof (no truncation)');
+            console.error('4. Update your .env file with the new credentials');
+            console.error('5. Restart your backend server');
+            console.error('');
+            console.error('⚠️  Make sure to copy the ENTIRE proof string - it should be very long!');
+            console.error('');
+        } else if (error.message.includes('network') || error.message.includes('ENOTFOUND')) {
+            console.error('');
+            console.error('🌐 NETWORK ISSUE DETECTED:');
+            console.error('');
+            console.error('Unable to connect to W3Storage servers.');
+            console.error('Please check your internet connection and try again.');
+            console.error('');
+        }
+        
         // Output error JSON to stdout for Python to parse
         console.log(JSON.stringify({
             success: false,
-            error: error.message
+            error: error.message,
+            error_type: error.message.includes('W3STORAGE_PROOF') ? 'credentials' : 
+                       error.message.includes('network') ? 'network' : 'unknown'
         }));
         process.exit(1);
     }

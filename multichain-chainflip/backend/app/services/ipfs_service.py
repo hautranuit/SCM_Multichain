@@ -41,21 +41,32 @@ class IPFSService:
         print(f"   Script path: {self.script_path}")
         
         if not has_token or not has_proof:
-            print(f"❌ ERROR: W3Storage credentials not available - UPLOAD WILL FAIL")
+            print(f"❌ W3Storage credentials missing")
             print(f"💡 Please check your .env file for W3STORAGE_TOKEN and W3STORAGE_PROOF")
+            print(f"🚨 WARNING: Product creation will FAIL without valid credentials")
         else:
             print(f"✅ W3Storage credentials loaded")
+            # Quick validation of proof format
+            if has_proof:
+                proof_len = len(self.w3storage_proof)
+                if proof_len < 100:
+                    print(f"⚠️ Warning: W3Storage proof seems too short ({proof_len} chars)")
+                elif "Unexpected end of data" in str(self.w3storage_proof):
+                    print(f"⚠️ Warning: W3Storage proof may be corrupted")
+                else:
+                    print(f"✅ W3Storage proof appears valid ({proof_len} chars)")
             
         print(f"🌐 IPFS Gateway: {self.ipfs_gateway}")
         
         # Check if Node.js script exists
         if not self.script_path.exists():
             print(f"❌ ERROR: W3Storage upload script not found at {self.script_path}")
+            print(f"🚨 WARNING: Product creation will FAIL without upload script")
         else:
             print(f"✅ W3Storage upload script found")
         
     async def upload_to_ipfs(self, data: Dict[str, Any]) -> str:
-        """Upload data to IPFS using W3Storage - NO MOCK FALLBACK"""
+        """Upload data to IPFS using W3Storage - FAIL if upload fails"""
         try:
             print(f"📦 Uploading to IPFS...")
             
@@ -70,7 +81,7 @@ class IPFSService:
             if not self.script_path.exists():
                 raise Exception(f"W3Storage upload script not found at {self.script_path}")
             
-            # Try W3Storage upload
+            # Try W3Storage upload - NO FALLBACK TO MOCK
             cid = await self._upload_via_nodejs(data)
             if cid:
                 print(f"✅ W3Storage Upload Success - CID: {cid}")
@@ -84,6 +95,8 @@ class IPFSService:
             
         except Exception as e:
             print(f"❌ IPFS Upload Failed: {e}")
+            print(f"🚨 CRITICAL: Product creation will fail because IPFS upload is required")
+            print(f"💡 To fix: Check your W3Storage credentials and network connection")
             raise Exception(f"IPFS Upload Failed: {str(e)}")
     
     async def _mock_upload(self, data: Dict[str, Any]) -> str:
@@ -109,20 +122,29 @@ class IPFSService:
             return "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
     
     async def _upload_via_nodejs(self, data: Dict[str, Any]) -> Optional[str]:
-        """Upload to W3Storage using Node.js w3up client"""
+        """Upload to W3Storage using Node.js w3up client with improved credential handling"""
         try:
             # Create temporary file with JSON data
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
                 json.dump(data, temp_file, indent=2)
                 temp_file_path = temp_file.name
             
+            # Create temporary files for credentials to avoid environment variable corruption
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.token', delete=False) as token_file:
+                token_file.write(self.w3storage_token)
+                token_file_path = token_file.name
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.proof', delete=False) as proof_file:
+                proof_file.write(self.w3storage_proof)
+                proof_file_path = proof_file.name
+            
             try:
-                # Set environment variables for the Node.js script
+                # Set minimal environment - pass credential file paths instead of content
                 env = os.environ.copy()
-                env['W3STORAGE_TOKEN'] = self.w3storage_token
-                env['W3STORAGE_PROOF'] = self.w3storage_proof
+                env['W3STORAGE_TOKEN_FILE'] = token_file_path
+                env['W3STORAGE_PROOF_FILE'] = proof_file_path
                 
-                # Run Node.js script with proper UTF-8 encoding
+                # Run Node.js script with credential file paths
                 result = subprocess.run([
                     'node', str(self.script_path), temp_file_path, 'metadata.json'
                 ], 
@@ -133,6 +155,10 @@ class IPFSService:
                 env=env,
                 timeout=60  # 60 second timeout
                 )
+                
+                # Log both stdout and stderr for debugging
+                if result.stderr:
+                    print(f"🔍 Node.js stderr: {result.stderr}")
                 
                 if result.returncode == 0:
                     # Parse the JSON output - the script should output clean JSON to stdout
@@ -151,15 +177,30 @@ class IPFSService:
                             raise Exception("W3Storage script returned empty output")
                             
                     except json.JSONDecodeError as e:
+                        print(f"❌ Failed to parse W3Storage response as JSON: {e}")
+                        print(f"📄 Raw stdout: {result.stdout}")
+                        print(f"📄 Raw stderr: {result.stderr}")
                         raise Exception(f"Failed to parse W3Storage response: {e}. Raw output: {result.stdout}")
                 else:
                     error_output = result.stderr if result.stderr else "Unknown error"
-                    raise Exception(f"W3Storage script failed with return code {result.returncode}: {error_output}")
+                    print(f"❌ W3Storage script failed with return code {result.returncode}")
+                    print(f"📄 stderr: {error_output}")
+                    print(f"📄 stdout: {result.stdout}")
+                    
+                    # Check for common error patterns
+                    if "Unexpected end of data" in error_output:
+                        raise Exception("W3Storage credentials appear to be corrupted during transfer. Using file-based credential passing to avoid corruption.")
+                    elif "ENOTFOUND" in error_output or "network" in error_output.lower():
+                        raise Exception("Network error connecting to W3Storage. Check your internet connection")
+                    else:
+                        raise Exception(f"W3Storage script failed: {error_output}")
                     
             finally:
-                # Clean up temporary file
+                # Clean up temporary files
                 try:
                     os.unlink(temp_file_path)
+                    os.unlink(token_file_path)
+                    os.unlink(proof_file_path)
                 except OSError:
                     pass
                     

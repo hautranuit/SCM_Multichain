@@ -116,12 +116,21 @@ async def upload_file_to_ipfs(request: FileUploadRequest):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 async def upload_binary_to_w3storage(file_content: bytes, filename: str, mime_type: str) -> Optional[str]:
-    """Upload binary file directly to W3Storage"""
+    """Upload binary file directly to W3Storage using file-based credentials"""
     try:
-        # Create temporary file
+        # Create temporary file for the binary content
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{filename.split('.')[-1]}") as temp_file:
             temp_file.write(file_content)
             temp_file_path = temp_file.name
+        
+        # Create temporary files for credentials to avoid environment variable corruption
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.token', delete=False) as token_file:
+            token_file.write(ipfs_service.w3storage_token)
+            token_file_path = token_file.name
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.proof', delete=False) as proof_file:
+            proof_file.write(ipfs_service.w3storage_proof)
+            proof_file_path = proof_file.name
         
         try:
             # Find the W3Storage upload script
@@ -131,10 +140,10 @@ async def upload_binary_to_w3storage(file_content: bytes, filename: str, mime_ty
                 print(f"❌ W3Storage script not found at: {script_path}")
                 return None
             
-            # Set environment variables
+            # Set environment variables with credential file paths
             env = os.environ.copy()
-            env['W3STORAGE_TOKEN'] = ipfs_service.w3storage_token
-            env['W3STORAGE_PROOF'] = ipfs_service.w3storage_proof
+            env['W3STORAGE_TOKEN_FILE'] = token_file_path
+            env['W3STORAGE_PROOF_FILE'] = proof_file_path
             
             # Run Node.js script
             result = subprocess.run([
@@ -171,9 +180,11 @@ async def upload_binary_to_w3storage(file_content: bytes, filename: str, mime_ty
                 return None
                 
         finally:
-            # Clean up temporary file
+            # Clean up temporary files
             try:
                 os.unlink(temp_file_path)
+                os.unlink(token_file_path)
+                os.unlink(proof_file_path)
             except OSError:
                 pass
                 

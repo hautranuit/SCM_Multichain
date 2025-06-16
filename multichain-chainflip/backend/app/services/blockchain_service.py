@@ -175,12 +175,15 @@ class BlockchainService:
             
             print(f"✅ Manufacturer role verified for {manufacturer} on zkEVM Cardona chain")
             
-            # Upload metadata to IPFS first
+            # Upload metadata to IPFS first - CRITICAL STEP
             print("📦 Uploading metadata to IPFS...")
             try:
                 metadata_cid = await ipfs_service.upload_to_ipfs(metadata)
+                print(f"✅ Metadata uploaded to IPFS successfully: {metadata_cid}")
             except Exception as ipfs_error:
                 print(f"❌ IPFS upload failed: {ipfs_error}")
+                print(f"🚨 CRITICAL ERROR: Cannot create NFT without proper IPFS metadata")
+                print(f"💡 Please fix your W3Storage credentials/connection and try again")
                 raise Exception(f"Failed to upload metadata to IPFS: {ipfs_error}")
             
             # Generate unique token ID
