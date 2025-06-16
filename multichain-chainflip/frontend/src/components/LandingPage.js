@@ -130,7 +130,7 @@ const LandingPage = () => {
           </h1>
           
           <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-            Revolutionary multi-chain supply chain management powered by 5 sophisticated AI systems
+            Revolutionary multi-chain supply chain management powered by cutting-edge blockchain technology and decentralized innovation
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -164,7 +164,7 @@ const LandingPage = () => {
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 text-center">
               <div className="text-3xl font-bold text-cyan-300 mb-2">5</div>
-              <div className="text-blue-100">AI Systems</div>
+              <div className="text-blue-100">Blockchain Systems</div>
             </div>
           </div>
         </div>
@@ -243,10 +243,10 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              5 Sophisticated <span className="text-blue-600">AI Systems</span>
+              5 Blockchain-Powered <span className="text-blue-600">Systems</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Our platform is powered by cutting-edge artificial intelligence systems that revolutionize supply chain management
+              Our platform leverages advanced blockchain technology, IPFS storage, encrypted QR codes, and cross-chain interoperability to deliver transparency, cost reduction, and real-time traceability
             </p>
           </div>
 
@@ -303,7 +303,7 @@ const LandingPage = () => {
             <div className="col-span-1 md:col-span-2">
               <div className="text-2xl font-bold text-blue-400 mb-4">ChainFLIP</div>
               <p className="text-gray-400 mb-4 max-w-md">
-                Revolutionary blockchain-powered supply chain management platform with 5 AI systems for unmatched efficiency and transparency.
+                Revolutionary blockchain-powered supply chain management platform with 5 innovative systems for unmatched efficiency, transparency, and cross-chain interoperability.
               </p>
               <div className="flex space-x-4">
                 <button className="text-gray-400 hover:text-white">LinkedIn</button>
@@ -334,7 +334,7 @@ const LandingPage = () => {
           </div>
           
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 ChainFLIP. All rights reserved. Blockchain supply chain management platform.</p>
+            <p>&copy; 2024 ChainFLIP. All rights reserved. Multi-chain blockchain supply chain management platform.</p>
           </div>
         </div>
       </footer>

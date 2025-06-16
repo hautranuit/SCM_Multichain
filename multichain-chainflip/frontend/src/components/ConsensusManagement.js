@@ -312,92 +312,80 @@ const ConsensusManagement = () => {
         </div>
         <button
           onClick={loadConsensusData}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
         </button>
       </div>
 
-      {shipments.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <Truck className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No shipments found</h3>
-          <p className="text-sm text-gray-500">
-            Create a shipment from the Product Management page to start consensus voting.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="divide-y divide-gray-200">
-            {shipments.map((shipment) => (
-              <div key={shipment.shipment_id} className="p-6 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                      <Package className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-blue-600">
-                        {shipment.shipment_id}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {shipment.start_location} → {shipment.end_location}
-                      </p>
-                    </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {shipments.length === 0 ? (
+          <div className="text-center py-8">
+            <Package className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No shipments</h3>
+            <p className="mt-1 text-sm text-gray-500">No shipments requiring consensus at this time</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {shipments.map((shipment, index) => (
+              <div key={shipment.shipment_id || index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-medium text-gray-900">{shipment.shipment_id}</div>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getShipmentStatusColor(shipment.status)}`}>
+                    {shipment.status}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <span className="text-sm text-gray-500">From:</span>
+                    <div className="font-medium">{shipment.start_location}</div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getShipmentStatusColor(shipment.status)}`}>
-                      {shipment.status || 'pending'}
-                    </span>
-                    {shipment.status !== 'approved' && shipment.status !== 'rejected' && (
-                      <button
-                        onClick={() => openVoteModal(shipment)}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <Vote className="w-4 h-4 mr-2" />
-                        Vote
-                      </button>
-                    )}
+                  <div>
+                    <span className="text-sm text-gray-500">To:</span>
+                    <div className="font-medium">{shipment.end_location}</div>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Fee:</span>
+                    <div className="font-medium">${shipment.transport_fee}</div>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Distance:</span>
-                    <span className="ml-2 font-medium">{shipment.distance || 0} km</span>
+                
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    Distance: {shipment.distance} km | Votes: {shipment.consensus_votes?.length || 0}
                   </div>
-                  <div>
-                    <span className="text-gray-500">Transport Fee:</span>
-                    <span className="ml-2 font-medium">${shipment.transport_fee || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Votes:</span>
-                    <span className="ml-2 font-medium">{shipment.consensus_votes?.length || 0}</span>
-                  </div>
+                  
+                  {shipment.status === 'pending' && (
+                    <button
+                      onClick={() => openVoteModal(shipment)}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <Vote className="w-4 h-4 mr-1" />
+                      Vote
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 
-  const renderBatchProcessingTab = () => (
+  const renderBatchesTab = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">
-            Batch Processing ({userRole === 'admin' ? 'Primary Node' : 'Secondary Node'})
-          </h3>
-          <p className="text-sm text-gray-600">
-            Process transaction batches for consensus validation
-          </p>
+          <h3 className="text-lg font-semibold text-gray-900">Transaction Batch Processing</h3>
+          <p className="text-sm text-gray-600">Create and validate transaction batches</p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={addTransactionToBatch}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Transaction
@@ -405,84 +393,88 @@ const ConsensusManagement = () => {
           <button
             onClick={handleCreateBatch}
             disabled={batchTransactions.length === 0 || loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            <Layers className="w-4 h-4 mr-2" />
+            <Target className="w-4 h-4 mr-2" />
             {userRole === 'admin' ? 'Validate Batch' : 'Propose Batch'}
           </button>
         </div>
       </div>
 
-      {/* Current Batch */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-          <Target className="w-5 h-5 mr-2" />
-          Current Batch ({batchTransactions.length} transactions)
-        </h4>
-        {batchTransactions.length === 0 ? (
-          <div className="text-center py-8">
-            <Layers className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-gray-500">No transactions in current batch.</p>
-            <p className="text-sm text-gray-400 mt-1">Click "Add Transaction" to start building a batch.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {batchTransactions.map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+      {/* Pending Batch */}
+      {batchTransactions.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2" />
+            Pending Batch ({batchTransactions.length} transactions)
+          </h4>
+          
+          <div className="space-y-3 mb-6">
+            {batchTransactions.map((tx, index) => (
+              <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{tx.type}: {tx.product_id}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    From: {tx.from.substring(0, 10)}... → To: {tx.to.substring(0, 10)}...
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(tx.timestamp).toLocaleString()}
-                  </p>
+                  <div className="font-medium text-gray-900">{tx.type} - {tx.product_id}</div>
+                  <div className="text-sm text-gray-500">{tx.from.substring(0, 10)}... → {tx.to.substring(0, 10)}...</div>
                 </div>
                 <button
                   onClick={() => removeTransactionFromBatch(tx.id)}
-                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                  className="text-red-600 hover:text-red-800"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             ))}
           </div>
-        )}
-      </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="text-sm text-blue-800">
+              <strong>Node Type:</strong> {userRole === 'admin' ? 'Primary Node (Can validate directly)' : 'Secondary Node (Requires approval)'}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Recent Batches */}
+      {/* Existing Batches */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-          <Clock className="w-5 h-5 mr-2" />
-          Recent Batches
-        </h4>
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Batches</h4>
+        
         {batches.length === 0 ? (
           <div className="text-center py-8">
-            <Layers className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-gray-500">No batches found.</p>
+            <Layers className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No batches</h3>
+            <p className="mt-1 text-sm text-gray-500">No transaction batches created yet</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {batches.slice(0, 10).map((batch) => (
-              <div key={batch.batch_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-center">
-                  <div className={`w-3 h-3 rounded-full mr-3 ${
-                    batch.consensus_reached ? 'bg-green-500' : 
-                    batch.status === 'proposed' ? 'bg-yellow-500' : 'bg-gray-500'
-                  }`}></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{batch.batch_id}</p>
-                    <p className="text-xs text-gray-500">
-                      {batch.transactions?.length || 0} transactions • {batch.node_type} node
-                    </p>
+          <div className="space-y-4">
+            {batches.map((batch, index) => (
+              <div key={batch.batch_id || index} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-medium text-gray-900">{batch.batch_id}</div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      batch.status === 'validated' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {batch.status}
+                    </span>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      batch.node_type === 'primary' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {batch.node_type}
+                    </span>
                   </div>
                 </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                  batch.consensus_reached ? 'bg-green-100 text-green-800' : 
-                  batch.status === 'proposed' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {batch.consensus_reached ? 'Approved' : batch.status}
-                </span>
+                
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div>Transactions: {batch.transactions?.length || 0}</div>
+                  <div className="flex items-center">
+                    {batch.consensus_reached ? (
+                      <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500 mr-1" />
+                    )}
+                    Consensus: {batch.consensus_reached ? 'Reached' : 'Pending'}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -500,90 +492,92 @@ const ConsensusManagement = () => {
             <div>
               <h1 className="text-3xl font-bold flex items-center">
                 <Vote className="w-8 h-8 mr-3" />
-                Algorithm 3: Supply Chain Consensus
+                Consensus Management
               </h1>
               <p className="text-indigo-100 mt-2 text-lg">
-                Batch processing with federated learning validation for supply chain transactions
+                Supply chain consensus voting and batch transaction processing with federated learning
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-lg">
-                <div className="text-sm font-medium">Node Type</div>
-                <div className="text-lg font-bold">
-                  {userRole === 'admin' ? 'Primary' : 'Secondary'}
-                </div>
-              </div>
+              <button
+                onClick={loadConsensusData}
+                className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-lg shadow-sm text-sm font-medium text-white hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="px-6 py-6">
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
-          <nav className="flex space-x-8 px-6">
-            {[
-              { id: 'overview', name: 'Overview', icon: BarChart3 },
-              { id: 'shipments', name: 'Consensus Voting', icon: Vote },
-              { id: 'batches', name: 'Batch Processing', icon: Layers }
-            ].map((tab) => {
-              const IconComponent = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <IconComponent className="w-4 h-4 mr-2" />
-                  {tab.name}
-                </button>
-              );
-            })}
-          </nav>
+        {/* Navigation Tabs */}
+        <div className="mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1">
+            <nav className="flex space-x-1">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === 'overview'
+                    ? 'bg-indigo-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                📊 Overview
+              </button>
+              <button
+                onClick={() => setActiveTab('shipments')}
+                className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === 'shipments'
+                    ? 'bg-indigo-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                🚛 Shipments
+              </button>
+              <button
+                onClick={() => setActiveTab('batches')}
+                className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === 'batches'
+                    ? 'bg-indigo-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                📦 Batches
+              </button>
+            </nav>
+          </div>
         </div>
 
         {/* Tab Content */}
         {loading && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-            <p className="text-gray-600">Loading consensus data...</p>
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <p className="mt-2 text-gray-600">Loading consensus data...</p>
           </div>
         )}
 
-        {!loading && (
-          <>
-            {activeTab === 'overview' && renderOverviewTab()}
-            {activeTab === 'shipments' && renderShipmentsTab()}
-            {activeTab === 'batches' && renderBatchProcessingTab()}
-          </>
-        )}
+        {!loading && activeTab === 'overview' && renderOverviewTab()}
+        {!loading && activeTab === 'shipments' && renderShipmentsTab()}
+        {!loading && activeTab === 'batches' && renderBatchesTab()}
       </div>
 
       {/* Vote Modal */}
       {showVoteModal && selectedShipment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <Vote className="w-6 h-6 text-indigo-600 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">
-                Vote on Shipment
-              </h3>
-            </div>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Vote on Shipment: {selectedShipment.shipment_id}
+            </h3>
             
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm font-medium text-gray-900 mb-2">
-                {selectedShipment.shipment_id}
-              </p>
-              <p className="text-sm text-gray-600 mb-1">
-                <strong>Route:</strong> {selectedShipment.start_location} → {selectedShipment.end_location}
-              </p>
-              <p className="text-sm text-gray-600">
-                <strong>Distance:</strong> {selectedShipment.distance} km
-              </p>
+            <div className="mb-4">
+              <div className="text-sm text-gray-600 space-y-1">
+                <div><strong>From:</strong> {selectedShipment.start_location}</div>
+                <div><strong>To:</strong> {selectedShipment.end_location}</div>
+                <div><strong>Distance:</strong> {selectedShipment.distance} km</div>
+                <div><strong>Fee:</strong> ${selectedShipment.transport_fee}</div>
+              </div>
             </div>
             
             <div className="mb-6">
@@ -594,16 +588,16 @@ const ConsensusManagement = () => {
                 value={voteReason}
                 onChange={(e) => setVoteReason(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Explain your reasoning for approving or rejecting this shipment..."
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Enter your reasoning..."
               />
             </div>
             
-            <div className="flex space-x-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               <button
                 onClick={() => handleVoteSubmission(selectedShipment.shipment_id, true)}
                 disabled={loading || !voteReason.trim()}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Approve
@@ -611,7 +605,7 @@ const ConsensusManagement = () => {
               <button
                 onClick={() => handleVoteSubmission(selectedShipment.shipment_id, false)}
                 disabled={loading || !voteReason.trim()}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 <XCircle className="w-4 h-4 mr-2" />
                 Reject

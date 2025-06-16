@@ -152,7 +152,7 @@ class SCCConsensusService:
         try:
             # Get database from blockchain service
             from .blockchain_service import blockchain_service
-            if blockchain_service.database is not None:
+            if blockchain_service.database:
                 self.database = blockchain_service.database
                 # Ensure collections exist
                 await self._ensure_collections()
