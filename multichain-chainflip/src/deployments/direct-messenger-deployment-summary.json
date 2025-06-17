@@ -1,0 +1,59 @@
+{
+  "deploymentDate": "2025-06-17T17:08:36.102Z",
+  "deploymentStatus": "SUCCESS",
+  "contractName": "DirectLayerZeroMessenger",
+  "deployedChains": 4,
+  "contracts": {
+    "baseSepolia": {
+      "chainName": "Base Sepolia (Manufacturer)",
+      "layerZeroEid": 40245,
+      "chainId": 84532,
+      "contractAddress": "0x1208F8F0E40381F14E41621906D13C9c3CaAa061",
+      "layerZeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+      "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+      "deploymentHash": "0x9cc1f7a9985f1d55b3ac9505c1c9ecba4c0fb2cb845af4ad3f4f83e1c76e1b87",
+      "role": "manufacturer"
+    },
+    "optimismSepolia": {
+      "chainName": "OP Sepolia (Buyer)",
+      "layerZeroEid": 40232,
+      "chainId": 11155420,
+      "contractAddress": "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c",
+      "layerZeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+      "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+      "deploymentHash": "0xac8672e5fdd5ac1ec7e43f8aa799809932603fe4822c735e151b5eac8615f562",
+      "role": "buyer"
+    },
+    "arbitrumSepolia": {
+      "chainName": "Arbitrum Sepolia (Additional)",
+      "layerZeroEid": 40231,
+      "chainId": 421614,
+      "contractAddress": "0x25409B7ee450493248fD003A759304FF7f748c53",
+      "layerZeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+      "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+      "deploymentHash": "0x2b5933082a96251e2a27009dc150f22a37cb727706b74ff4b3adc9589b7aea8c",
+      "role": "additional"
+    },
+    "amoy": {
+      "chainName": "Polygon Amoy (Hub)",
+      "layerZeroEid": 40267,
+      "chainId": 80002,
+      "contractAddress": "0x34705a7e91b465AE55844583EC16715C88bD457a",
+      "layerZeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+      "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+      "deploymentHash": "0xdf7e06affa67fde6c0c7271709a5726926701080ad7cfade12e3ed1dc18f1549",
+      "role": "hub"
+    }
+  },
+  "nextSteps": [
+    "Configure trusted remotes between all contracts",
+    "Update backend service with new contract addresses",
+    "Test cross-chain CID sync functionality",
+    "Integrate with existing ChainFLIP system"
+  ],
+  "estimatedCosts": {
+    "totalDeploymentCost": "~$2.00-3.00 USD",
+    "perMessageCost": "~$0.20-0.50 USD",
+    "gasUsedPerDeployment": "~2,500,000 gas"
+  }
+}

@@ -1,21 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@layerzerolabs/contracts/interfaces/ILayerZeroReceiver.sol";
-import "@layerzerolabs/contracts/interfaces/ILayerZeroEndpoint.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+/**
+ * @title ILayerZeroEndpoint
+ * @dev LayerZero endpoint interface
+ */
+interface ILayerZeroEndpoint {
+    function send(
+        uint16 _dstChainId,
+        bytes calldata _destination,
+        bytes calldata _payload,
+        address payable _refundAddress,
+        address _zroPaymentAddress,
+        bytes calldata _adapterParams
+    ) external payable;
+    
+    function estimateFees(
+        uint16 _dstChainId,
+        address _userApplication,
+        bytes calldata _payload,
+        bool _payInZRO,
+        bytes calldata _adapterParam
+    ) external view returns (uint nativeFee, uint zroFee);
+}
 
 /**
  * @title DirectLayerZeroMessenger
- * @dev Direct LayerZero messaging contract for ChainFLIP multi-chain CID sync
- * Implements ILayerZeroReceiver for arbitrary message passing across 4 chains:
+ * @dev Simplified LayerZero messaging contract for ChainFLIP multi-chain CID sync
+ * Supports cross-chain messaging across 4 chains:
  * - Base Sepolia (40245): Manufacturer chain
  * - OP Sepolia (40232): Buyer chain  
  * - Arbitrum Sepolia (40231): Additional chain
  * - Polygon Amoy (40267): Hub chain
  */
-contract DirectLayerZeroMessenger is ILayerZeroReceiver, AccessControl, ReentrancyGuard {
+contract DirectLayerZeroMessenger is AccessControl, ReentrancyGuard {
     
     // LayerZero endpoint
     ILayerZeroEndpoint public immutable lzEndpoint;
@@ -86,7 +107,7 @@ contract DirectLayerZeroMessenger is ILayerZeroReceiver, AccessControl, Reentran
         _grantRole(SENDER_ROLE, initialAdmin);
         _grantRole(OPERATOR_ROLE, initialAdmin);
         
-        // Initialize chain configurations with correct LayerZero V2 endpoint IDs
+        // Initialize chain configurations
         _initializeChainConfigs();
     }
     
@@ -137,7 +158,7 @@ contract DirectLayerZeroMessenger is ILayerZeroReceiver, AccessControl, Reentran
     }
     
     /**
-     * @dev Send cross-chain message to all other chains or specific target
+     * @dev Send cross-chain message to specific target chain
      */
     function sendCrossChainMessage(
         uint16 targetEid,
@@ -198,7 +219,17 @@ contract DirectLayerZeroMessenger is ILayerZeroReceiver, AccessControl, Reentran
         
         uint16 currentEid = _getCurrentEid();
         uint256 totalValue = msg.value;
-        uint256 valuePerMessage = totalValue / (supportedEids.length - 1); // Exclude current chain
+        uint256 chainsToSend = 0;
+        
+        // Count chains to send to (excluding current chain and chains without trusted remotes)
+        for (uint i = 0; i < supportedEids.length; i++) {
+            if (supportedEids[i] != currentEid && chainConfigs[supportedEids[i]].trustedRemote.length > 0) {
+                chainsToSend++;
+            }
+        }
+        
+        require(chainsToSend > 0, "No target chains available");
+        uint256 valuePerMessage = totalValue / chainsToSend;
         
         // Send to all other chains
         for (uint i = 0; i < supportedEids.length; i++) {
@@ -246,13 +277,14 @@ contract DirectLayerZeroMessenger is ILayerZeroReceiver, AccessControl, Reentran
     
     /**
      * @dev LayerZero receive function - called when message arrives from another chain
+     * This function should be called by the LayerZero endpoint
      */
     function lzReceive(
         uint16 srcEid,
         bytes memory srcAddress,
         uint64 nonce,
         bytes memory payload
-    ) external override {
+    ) external {
         require(msg.sender == address(lzEndpoint), "Only LayerZero endpoint");
         require(chainConfigs[srcEid].isActive, "Source chain not supported");
         

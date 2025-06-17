@@ -33,6 +33,7 @@ async function main() {
       lzEndpoint = LAYERZERO_ENDPOINTS.arbitrum_sepolia;
       chainInfo = { name: "Arbitrum Sepolia", eid: 40231, chainId: 421614 };
       break;
+    case "amoy":
     case "polygonAmoy":
       lzEndpoint = LAYERZERO_ENDPOINTS.polygon_amoy;
       chainInfo = { name: "Polygon Amoy", eid: 40267, chainId: 80002 };
