@@ -1476,41 +1476,31 @@ class BlockchainService:
                 "oft_recipient": polygon_oft_contract  # Actual LayerZero recipient
             }
             
-            # Use real LayerZero cross-chain messaging
+            # Use Direct LayerZero messaging for 4-chain CID sync
             try:
-                print(f"🚀 Importing LayerZero bridge service...")
-                from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+                print(f"🚀 Importing Direct LayerZero messaging service...")
+                from app.services.direct_layerzero_messaging_service import direct_layerzero_messaging_service
                 
-                # Prepare cross-chain message data
-                cross_chain_message = {
-                    "type": "CID_SYNC",
-                    "token_id": token_id,
-                    "metadata_cid": metadata_cid,
-                    "manufacturer": manufacturer,
-                    "source_chain": "base_sepolia",
-                    "source_contract": product_data.get("contract_address"),
-                    "source_transaction": product_data.get("transaction_hash"),
-                    "product_name": product_data.get("name"),
-                    "timestamp": time.time(),
-                    "nft_owner": manufacturer,
-                    "sync_request_id": str(uuid.uuid4())
-                }
+                # Initialize direct messaging service if not already done
+                if not hasattr(direct_layerzero_messaging_service, 'database') or direct_layerzero_messaging_service.database is None:
+                    await direct_layerzero_messaging_service.initialize()
                 
-                print(f"📋 Cross-chain message prepared:")
-                print(f"   Type: {cross_chain_message['type']}")
-                print(f"   Token ID: {cross_chain_message['token_id']}")
-                print(f"   CID: {cross_chain_message['metadata_cid']}")
-                print(f"   Source: {cross_chain_message['source_chain']}")
-                print(f"   Target: polygon_amoy")
-                print(f"   Recipient: {polygon_oft_contract} (OFT Contract)")
+                print(f"📋 Preparing CID sync to all chains:")
+                print(f"   Type: CID_SYNC")
+                print(f"   Token ID: {token_id}")
+                print(f"   CID: {metadata_cid}")
+                print(f"   Source: base_sepolia")
+                print(f"   Targets: OP Sepolia, Arbitrum Sepolia, Polygon Amoy")
+                print(f"   Manufacturer: {manufacturer}")
                 
-                # Send cross-chain message using LayerZero
-                print(f"🌉 Sending cross-chain message via LayerZero...")
-                layerzero_result = await layerzero_oft_bridge_service.send_cross_chain_message(
+                # Send CID sync to all other chains using Direct LayerZero messaging
+                print(f"🌐 Sending CID sync to all chains via Direct LayerZero...")
+                layerzero_result = await direct_layerzero_messaging_service.send_cid_sync_to_all_chains(
                     source_chain="base_sepolia",
-                    target_chain="polygon_amoy", 
-                    message_data=cross_chain_message,
-                    recipient_address=polygon_oft_contract  # Send to OFT contract, not EOA
+                    token_id=token_id,
+                    metadata_cid=metadata_cid,
+                    manufacturer=manufacturer,
+                    product_data=product_data
                 )
                 
                 if layerzero_result.get("success"):
