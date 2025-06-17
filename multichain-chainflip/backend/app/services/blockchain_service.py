@@ -1446,15 +1446,18 @@ class BlockchainService:
         product_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        ENHANCEMENT: Sync CID to Hub chain (Polygon Amoy) for dual storage
-        Stores CID references on both chains for redundancy and global lookup
+        ENHANCEMENT: Real Cross-Chain CID Sync to Hub chain (Polygon Amoy) using LayerZero
+        Sends CID to admin account 0x032041b4b356fEE1496805DD4749f181bC736FFA on Polygon Amoy
         """
         try:
-            print(f"🌐 Syncing CID to Hub chain for token {token_id}")
+            print(f"🌐 === REAL CROSS-CHAIN CID SYNC ===")
+            print(f"🏭 Token ID: {token_id}")
+            print(f"📦 CID: {metadata_cid}")
+            print(f"👤 Manufacturer: {manufacturer}")
+            print(f"🎯 Target: Admin account on Polygon Amoy")
             
-            if not self.pos_web3:
-                print("⚠️ Hub chain not connected, storing in database registry only")
-                return await self._store_hub_registry_fallback(token_id, metadata_cid, manufacturer, product_data)
+            # Admin account address on Polygon Amoy
+            admin_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
             
             # Create hub registry entry
             hub_registry_data = {
@@ -1466,30 +1469,98 @@ class BlockchainService:
                 "source_tx": product_data.get("transaction_hash"),
                 "product_name": product_data.get("name"),
                 "created_at": time.time(),
-                "sync_status": "pending"
+                "sync_status": "pending",
+                "admin_recipient": admin_address
             }
             
-            # For now, simulate hub contract interaction (in production, would call actual hub contract)
-            mock_hub_tx = f"0x{uuid.uuid4().hex}"
-            
-            # Update registry
-            hub_registry_data.update({
-                "hub_tx_hash": mock_hub_tx,
-                "sync_status": "completed",
-                "synced_at": time.time()
-            })
-            
-            # Store in hub registry collection
-            await self.database.hub_cid_registry.insert_one(hub_registry_data)
-            
-            print(f"✅ CID synced to hub: {metadata_cid} -> Hub TX: {mock_hub_tx}")
-            
-            return {
-                "success": True,
-                "hub_tx_hash": mock_hub_tx,
-                "hub_registry_id": str(hub_registry_data.get("_id")),
-                "sync_method": "hub_contract"
-            }
+            # Use real LayerZero cross-chain messaging
+            try:
+                print(f"🚀 Importing LayerZero bridge service...")
+                from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+                
+                # Prepare cross-chain message data
+                cross_chain_message = {
+                    "type": "CID_SYNC",
+                    "token_id": token_id,
+                    "metadata_cid": metadata_cid,
+                    "manufacturer": manufacturer,
+                    "source_chain": "base_sepolia",
+                    "source_contract": product_data.get("contract_address"),
+                    "source_transaction": product_data.get("transaction_hash"),
+                    "product_name": product_data.get("name"),
+                    "timestamp": time.time(),
+                    "nft_owner": manufacturer,
+                    "sync_request_id": str(uuid.uuid4())
+                }
+                
+                print(f"📋 Cross-chain message prepared:")
+                print(f"   Type: {cross_chain_message['type']}")
+                print(f"   Token ID: {cross_chain_message['token_id']}")
+                print(f"   CID: {cross_chain_message['metadata_cid']}")
+                print(f"   Source: {cross_chain_message['source_chain']}")
+                print(f"   Target: polygon_amoy")
+                print(f"   Recipient: {admin_address}")
+                
+                # Send cross-chain message using LayerZero
+                print(f"🌉 Sending cross-chain message via LayerZero...")
+                layerzero_result = await layerzero_oft_bridge_service.send_cross_chain_message(
+                    source_chain="base_sepolia",
+                    target_chain="polygon_amoy", 
+                    message_data=cross_chain_message,
+                    recipient_address=admin_address
+                )
+                
+                if layerzero_result.get("success"):
+                    print(f"✅ LayerZero cross-chain message sent successfully!")
+                    print(f"🔗 Transaction Hash: {layerzero_result.get('transaction_hash')}")
+                    print(f"⛽ Gas Used: {layerzero_result.get('gas_used')}")
+                    print(f"💰 LayerZero Fee: {layerzero_result.get('layerzero_fee_paid')} ETH")
+                    print(f"📊 Block: {layerzero_result.get('block_number')}")
+                    
+                    # Update registry with real transaction data
+                    hub_registry_data.update({
+                        "hub_tx_hash": layerzero_result.get('transaction_hash'),
+                        "sync_status": "sent_via_layerzero",
+                        "synced_at": time.time(),
+                        "layerzero_fee": layerzero_result.get('layerzero_fee_paid'),
+                        "gas_used": layerzero_result.get('gas_used'),
+                        "block_number": layerzero_result.get('block_number'),
+                        "destination_eid": layerzero_result.get('destination_eid')
+                    })
+                    
+                    # Store in hub registry collection
+                    result = await self.database.hub_cid_registry.insert_one(hub_registry_data)
+                    
+                    print(f"✅ CID sync completed using real LayerZero messaging")
+                    print(f"📝 Registry ID: {str(result.inserted_id)}")
+                    
+                    return {
+                        "success": True,
+                        "hub_tx_hash": layerzero_result.get('transaction_hash'),
+                        "hub_registry_id": str(result.inserted_id),
+                        "sync_method": "layerzero_real",
+                        "layerzero_fee": layerzero_result.get('layerzero_fee_paid'),
+                        "admin_recipient": admin_address,
+                        "destination_chain": "polygon_amoy",
+                        "message_type": "CID_SYNC"
+                    }
+                    
+                else:
+                    print(f"❌ LayerZero message failed: {layerzero_result.get('error')}")
+                    raise Exception(f"LayerZero messaging failed: {layerzero_result.get('error')}")
+                    
+            except Exception as layerzero_error:
+                print(f"❌ LayerZero cross-chain messaging error: {layerzero_error}")
+                print(f"🔄 Falling back to database registry only...")
+                
+                # Fallback to database registry
+                hub_registry_data.update({
+                    "sync_status": "layerzero_failed", 
+                    "error": str(layerzero_error),
+                    "fallback_reason": "LayerZero messaging unavailable"
+                })
+                
+                return await self._store_hub_registry_fallback(token_id, metadata_cid, manufacturer, product_data)
             
         except Exception as e:
             print(f"❌ Hub CID sync error: {e}")

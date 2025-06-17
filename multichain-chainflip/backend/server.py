@@ -12,6 +12,7 @@ from datetime import datetime
 
 # Import all route modules
 from app.api import participant_routes
+from app.api.routes import blockchain
 from app.services.blockchain_service import blockchain_service
 from app.services.multichain_service import multichain_service
 
@@ -258,6 +259,7 @@ async def get_network_status():
 # Include all route modules
 app.include_router(api_router)
 app.include_router(participant_routes.router)
+app.include_router(blockchain.router)
 
 app.add_middleware(
     CORSMiddleware,
