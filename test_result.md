@@ -166,6 +166,21 @@ backend:
       - working: true
         agent: "testing"
         comment: "Cross-algorithm integrations are working correctly. Successfully tested Algorithm 3 → Algorithm 1 (Supply Chain to Payment) integration, Algorithm 4 ↔ Algorithm 5 (Authenticity to Marketplace) integration, Algorithm 2 (Dispute Resolution) integration with other algorithms, and Algorithm 1 ↔ Algorithm 5 (Payment to Marketplace) integration. All integrations function as expected."
+        
+  - task: "ChainFLIP Cross-Chain CID Sync"
+    implemented: true
+    working: true
+    file: "/app/multichain-chainflip/backend/app/services/blockchain_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Initial state - needs testing"
+      - working: true
+        agent: "testing"
+        comment: "Successfully tested the cross-chain CID sync functionality. The /api/blockchain/products/mint endpoint works correctly and mints NFTs on Base Sepolia. The cross-chain CID sync to Polygon Amoy via LayerZero is working properly. The hub_cid_registry database collection is being populated with the synced CIDs. The LayerZero messaging is successfully sending CID data to the admin account 0x032041b4b356fEE1496805DD4749f181bC736FFA on Polygon Amoy. The blockchain connections to Base Sepolia and Polygon Amoy are working correctly. The overall system health is good."
 
 frontend:
   - task: "Issue 6: Product Panel Fixed Size"
@@ -194,6 +209,7 @@ test_plan:
     - "Algorithm 4: Enhanced Authenticity Verification"
     - "Algorithm 5: Post Supply Chain Marketplace"
     - "Cross-Algorithm Integration"
+    - "ChainFLIP Cross-Chain CID Sync"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -209,3 +225,5 @@ agent_communication:
     message: "Starting comprehensive verification and testing of all 5 algorithms. Backend is running successfully at http://localhost:8001 with all dependencies installed. All algorithm routes are accessible and services initialized. Ready for full system testing."
   - agent: "testing"
     message: "Completed comprehensive testing of all 5 algorithms and their cross-algorithm integrations. Created a detailed backend_test.py script that tests all endpoints and integration points. All algorithms are functioning correctly, and all tests passed successfully. The backend implementation is robust and meets all the requirements specified in the review request."
+  - agent: "testing"
+    message: "Successfully tested the ChainFLIP cross-chain CID sync functionality. The NFT minting endpoint works correctly and mints NFTs on Base Sepolia. The cross-chain CID sync to Polygon Amoy via LayerZero is working properly. The hub_cid_registry database collection is being populated with the synced CIDs. The LayerZero messaging is successfully sending CID data to the admin account on Polygon Amoy. The blockchain connections to Base Sepolia and Polygon Amoy are working correctly. All the recent fixes (web3 dependencies, LayerZero nonce handling, increased gas price) are working as expected."

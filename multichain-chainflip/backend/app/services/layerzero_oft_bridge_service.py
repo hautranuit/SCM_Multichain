@@ -1383,7 +1383,7 @@ class LayerZeroOFTBridgeService:
             
             # Build and send the message transaction
             print(f"\n📤 === SENDING LAYERZERO MESSAGE TRANSACTION ===")
-            nonce = source_web3.eth.get_transaction_count(self.current_account.address)
+            nonce = source_web3.eth.get_transaction_count(self.current_account.address, 'pending')
             
             transaction = oft_contract.functions.send(
                 send_param,
@@ -1393,7 +1393,7 @@ class LayerZeroOFTBridgeService:
                 'from': self.current_account.address,
                 'value': messaging_fee_wei,
                 'gas': 1000000,  # Sufficient gas for message sending
-                'gasPrice': source_web3.eth.gas_price,
+                'gasPrice': int(source_web3.eth.gas_price * 1.2),  # 20% higher gas price
                 'nonce': nonce,
                 'chainId': source_web3.eth.chain_id
             })
