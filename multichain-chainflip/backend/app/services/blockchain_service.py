@@ -1447,7 +1447,7 @@ class BlockchainService:
     ) -> Dict[str, Any]:
         """
         ENHANCEMENT: Real Cross-Chain CID Sync to Hub chain (Polygon Amoy) using LayerZero
-        Sends CID to admin account 0x032041b4b356fEE1496805DD4749f181bC736FFA on Polygon Amoy
+        Sends CID to OFT contract 0x36DDc43D2FfA30588CcAC8C2979b69225c292a73 on Polygon Amoy
         """
         try:
             print(f"🌐 === REAL CROSS-CHAIN CID SYNC ===")
@@ -1456,8 +1456,10 @@ class BlockchainService:
             print(f"👤 Manufacturer: {manufacturer}")
             print(f"🎯 Target: Admin account on Polygon Amoy")
             
-            # Admin account address on Polygon Amoy
-            admin_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+            # Use OFT contract address on Polygon Amoy instead of EOA
+            # LayerZero messages must be sent to contracts that implement ILayerZeroReceiver
+            polygon_oft_contract = "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73"
+            admin_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"  # Keep for registry tracking
             
             # Create hub registry entry
             hub_registry_data = {
@@ -1470,7 +1472,8 @@ class BlockchainService:
                 "product_name": product_data.get("name"),
                 "created_at": time.time(),
                 "sync_status": "pending",
-                "admin_recipient": admin_address
+                "admin_recipient": admin_address,  # Admin for tracking
+                "oft_recipient": polygon_oft_contract  # Actual LayerZero recipient
             }
             
             # Use real LayerZero cross-chain messaging
@@ -1499,7 +1502,7 @@ class BlockchainService:
                 print(f"   CID: {cross_chain_message['metadata_cid']}")
                 print(f"   Source: {cross_chain_message['source_chain']}")
                 print(f"   Target: polygon_amoy")
-                print(f"   Recipient: {admin_address}")
+                print(f"   Recipient: {polygon_oft_contract} (OFT Contract)")
                 
                 # Send cross-chain message using LayerZero
                 print(f"🌉 Sending cross-chain message via LayerZero...")
@@ -1507,7 +1510,7 @@ class BlockchainService:
                     source_chain="base_sepolia",
                     target_chain="polygon_amoy", 
                     message_data=cross_chain_message,
-                    recipient_address=admin_address
+                    recipient_address=polygon_oft_contract  # Send to OFT contract, not EOA
                 )
                 
                 if layerzero_result.get("success"):
@@ -1541,8 +1544,10 @@ class BlockchainService:
                         "sync_method": "layerzero_real",
                         "layerzero_fee": layerzero_result.get('layerzero_fee_paid'),
                         "admin_recipient": admin_address,
+                        "oft_recipient": polygon_oft_contract,  # Actual LayerZero recipient
                         "destination_chain": "polygon_amoy",
-                        "message_type": "CID_SYNC"
+                        "message_type": "CID_SYNC",
+                        "recipient_type": "OFT_contract"  # Indicate this is now a contract
                     }
                     
                 else:
