@@ -57,6 +57,9 @@ CHAIN_CONFIGS = {
     }
 }
 
+# Target admin address for cross-chain CID sync on Polygon Amoy
+TARGET_ADMIN_ADDRESS = "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73"  # Polygon Amoy admin
+
 # DirectLayerZeroMessenger ABI (essential functions only)
 DIRECT_MESSENGER_ABI = [
     {
@@ -191,12 +194,12 @@ class DirectLayerZeroMessagingService:
 
     async def _load_contract_addresses(self):
         """Load DirectLayerZeroMessenger contract addresses"""
-        # For now, use placeholder addresses - these will be updated after deployment
+        # DirectLayerZeroMessenger Contract Addresses - Updated 2025-06-17 with deployed contracts
         self.contract_addresses = {
-            "base_sepolia": "0x0000000000000000000000000000000000000001",
-            "op_sepolia": "0x0000000000000000000000000000000000000002", 
-            "arbitrum_sepolia": "0x0000000000000000000000000000000000000003",
-            "polygon_amoy": "0x0000000000000000000000000000000000000004"
+            "base_sepolia": settings.direct_messenger_base_sepolia or "0x1208F8F0E40381F14E41621906D13C9c3CaAa061",
+            "op_sepolia": settings.direct_messenger_op_sepolia or "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c", 
+            "arbitrum_sepolia": settings.direct_messenger_arbitrum_sepolia or "0x25409B7ee450493248fD003A759304FF7f748c53",
+            "polygon_amoy": settings.direct_messenger_polygon_amoy or "0x34705a7e91b465AE55844583EC16715C88bD457a"
         }
         
         print("📄 Loaded DirectLayerZeroMessenger contract addresses:")
@@ -207,7 +210,7 @@ class DirectLayerZeroMessagingService:
         """Initialize contract instances"""
         for chain_name, web3 in self.web3_connections.items():
             contract_address = self.contract_addresses.get(chain_name)
-            if contract_address and contract_address != "0x0000000000000000000000000000000000000001":
+            if contract_address and contract_address.startswith("0x") and contract_address != "0x0000000000000000000000000000000000000000":
                 try:
                     contract = web3.eth.contract(
                         address=contract_address,
@@ -217,6 +220,8 @@ class DirectLayerZeroMessagingService:
                     print(f"✅ Contract instance created for {CHAIN_CONFIGS[chain_name]['name']}")
                 except Exception as e:
                     print(f"❌ Failed to create contract instance for {chain_name}: {e}")
+            else:
+                print(f"⚠️ No valid contract address for {chain_name}: {contract_address}")
 
     async def send_cid_sync_to_all_chains(
         self,
@@ -277,21 +282,33 @@ class DirectLayerZeroMessagingService:
                     "error": f"Insufficient balance for LayerZero fees. Need: {total_fee_eth} ETH, Have: {account_balance_eth} ETH"
                 }
             
-            # Execute syncCIDToAllChains transaction
-            print(f"🚀 Executing syncCIDToAllChains transaction...")
+            # Execute direct cross-chain message to Polygon Amoy only
+            print(f"🚀 Executing direct cross-chain message to Polygon Amoy...")
             
             nonce = source_web3.eth.get_transaction_count(self.account.address)
             gas_price = source_web3.eth.gas_price
             
-            # Build transaction
-            transaction = source_contract.functions.syncCIDToAllChains(
-                token_id,
-                metadata_cid,
-                manufacturer
+            # Prepare payload for Polygon Amoy
+            target_eid = CHAIN_CONFIGS["polygon_amoy"]["layerzero_eid"]  # 40267
+            payload_data = {
+                "type": "CID_SYNC",
+                "token_id": token_id,
+                "metadata_cid": metadata_cid,
+                "manufacturer": manufacturer,
+                "source_chain_id": source_web3.eth.chain_id,
+                "timestamp": int(time.time())
+            }
+            payload_bytes = json.dumps(payload_data).encode('utf-8')
+            
+            # Build transaction for direct cross-chain message
+            transaction = source_contract.functions.sendCrossChainMessage(
+                target_eid,
+                "CID_SYNC",
+                payload_bytes
             ).build_transaction({
                 'from': self.account.address,
                 'value': total_fee_wei,  # LayerZero fees
-                'gas': 2000000,  # High gas limit for complex operation
+                'gas': 500000,  # Lower gas limit for single message
                 'gasPrice': gas_price,
                 'nonce': nonce,
                 'chainId': source_web3.eth.chain_id
@@ -333,8 +350,9 @@ class DirectLayerZeroMessagingService:
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
                     "layerzero_fee_paid": float(total_fee_eth),
-                    "sync_method": "direct_layerzero_all_chains",
-                    "target_chains": [chain for chain in CHAIN_CONFIGS.keys() if chain != source_chain],
+                    "sync_method": "direct_layerzero_polygon_only",
+                    "target_chains": ["polygon_amoy"],
+                    "target_admin": TARGET_ADMIN_ADDRESS,
                     "events": sync_events,
                     "timestamp": time.time(),
                     "status": "sent"
@@ -395,8 +413,8 @@ class DirectLayerZeroMessagingService:
             
             payload_bytes = json.dumps(payload_data).encode('utf-8')
             
-            # Calculate number of target chains
-            target_chains = [chain for chain in CHAIN_CONFIGS.keys() if chain != source_chain]
+            # Calculate number of target chains - SIMPLIFIED: Only Polygon Amoy
+            target_chains = ["polygon_amoy"]  # Only send to Polygon Amoy
             
             # Estimate fee per message (use a reasonable estimate)
             estimated_fee_per_message = Web3.to_wei(0.0001, 'ether')  # 0.0001 ETH per message
