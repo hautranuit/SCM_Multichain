@@ -16,8 +16,27 @@ from app.core.config import get_settings
 from app.core.database import get_database
 from app.services.ipfs_service import ipfs_service
 from app.services.encryption_service import encryption_service
+import os
 
 settings = get_settings()
+
+def get_private_key_for_address(address: str) -> str:
+    """
+    Look up private key for a given address from environment variables
+    Environment format: ACCOUNT_0x{address}={private_key}
+    """
+    # Normalize address to checksum format
+    normalized_address = Web3.to_checksum_address(address)
+    env_key = f"ACCOUNT_{normalized_address}"
+    
+    private_key = os.environ.get(env_key)
+    if private_key:
+        print(f"✅ Found private key for address {normalized_address}")
+        return private_key
+    else:
+        # Fallback to deployer private key
+        print(f"⚠️ No private key found for {normalized_address}, using deployer key")
+        return settings.deployer_private_key
 
 class BlockchainService:
     def __init__(self):
@@ -341,12 +360,28 @@ class BlockchainService:
             "nft_minting_contract": self.contract_addresses.get("nft_core", ""),  # Which contract is used for NFT minting
         }
     
-    async def mint_product_nft(self, manufacturer: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def mint_product_nft(self, manufacturer: str, metadata: Dict[str, Any], manufacturer_private_key: str = None) -> Dict[str, Any]:
         """
         Mint a real NFT on Base Sepolia blockchain with product-specific encryption keys
         """
         try:
             print(f"🏭 Minting NFT on Base Sepolia for manufacturer: {manufacturer}")
+            
+            # Get the manufacturer's private key (either provided or lookup from .env)
+            if manufacturer_private_key:
+                print(f"🔑 Using provided private key for manufacturer")
+                actual_private_key = manufacturer_private_key
+            else:
+                print(f"🔍 Looking up private key for manufacturer: {manufacturer}")
+                actual_private_key = get_private_key_for_address(manufacturer)
+            
+            # Create account object for the manufacturer
+            manufacturer_account = Account.from_key(actual_private_key)
+            print(f"🔐 Using manufacturer account for NFT minting: {manufacturer_account.address}")
+            
+            # Verify the manufacturer address matches the account
+            if manufacturer_account.address.lower() != manufacturer.lower():
+                raise Exception(f"Manufacturer address {manufacturer} doesn't match private key account {manufacturer_account.address}")
             
             # Verify manufacturer role and permissions based on blockchain connection
             verification_result = await self._verify_manufacturer_role_blockchain(manufacturer)
@@ -418,7 +453,7 @@ class BlockchainService:
                             )
                             
                             # Prepare transaction parameters
-                            nonce = self.manufacturer_web3.eth.get_transaction_count(self.account.address)
+                            nonce = self.manufacturer_web3.eth.get_transaction_count(manufacturer_account.address)
                             gas_price = self.manufacturer_web3.eth.gas_price
                             
                             # Use safeMint(to, uri) - auto-generates tokenId
@@ -427,7 +462,7 @@ class BlockchainService:
                                 manufacturer,  # to address
                                 token_uri      # metadata URI
                             ).build_transaction({
-                                'from': self.account.address,
+                                'from': manufacturer_account.address,
                                 'gas': 300000,
                                 'gasPrice': gas_price,
                                 'nonce': nonce,
@@ -435,8 +470,8 @@ class BlockchainService:
                             })
                             
                             # Sign and send transaction
-                            print(f"🔐 Signing transaction with account: {self.account.address}")
-                            signed_txn = self.account.sign_transaction(mint_txn)
+                            print(f"🔐 Signing transaction with manufacturer account: {manufacturer_account.address}")
+                            signed_txn = manufacturer_account.sign_transaction(mint_txn)
                             tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
                             tx_hash_hex = tx_hash.hex()
                             
@@ -609,7 +644,8 @@ class BlockchainService:
                                 token_id=str(token_id),
                                 metadata_cid=metadata_cid,
                                 manufacturer=manufacturer,
-                                product_data=product_data
+                                product_data=product_data,
+                                manufacturer_private_key=actual_private_key
                             )
                             
                             return {
@@ -1443,7 +1479,8 @@ class BlockchainService:
         token_id: str,
         metadata_cid: str,
         manufacturer: str,
-        product_data: Dict[str, Any]
+        product_data: Dict[str, Any],
+        manufacturer_private_key: str = None
     ) -> Dict[str, Any]:
         """
         ENHANCEMENT: Real Cross-Chain CID Sync to Hub chain (Polygon Amoy) using LayerZero
@@ -1500,7 +1537,8 @@ class BlockchainService:
                     token_id=token_id,
                     metadata_cid=metadata_cid,
                     manufacturer=manufacturer,
-                    product_data=product_data
+                    product_data=product_data,
+                    manufacturer_private_key=manufacturer_private_key
                 )
                 
                 if layerzero_result.get("success"):

@@ -758,7 +758,8 @@ async def mint_product(
         # Mint the product using the enhanced blockchain service
         result = await blockchain_service.mint_product_nft(
             manufacturer=manufacturer_address,
-            metadata=metadata
+            metadata=metadata,
+            manufacturer_private_key=product_data.manufacturer_private_key
         )
         
         return {
