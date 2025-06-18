@@ -307,6 +307,183 @@ class PurchaseStatus:
     COMPLETED = 6
     REFUNDED = 7
 
+# Fixed ETHWrapper ABI - Owner-Mediated Minting Pattern
+ETHWRAPPER_ABI = [
+    {
+        "inputs": [
+            {"internalType": "address", "name": "_cfWETH", "type": "address"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "internalType": "address", "name": "user", "type": "address"},
+            {"indexed": False, "internalType": "uint256", "name": "ethAmount", "type": "uint256"},
+            {"indexed": False, "internalType": "uint256", "name": "tokensReceived", "type": "uint256"}
+        ],
+        "name": "Deposit",
+        "type": "event"
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "internalType": "address", "name": "user", "type": "address"},
+            {"indexed": False, "internalType": "uint256", "name": "ethAmount", "type": "uint256"}
+        ],
+        "name": "DepositRequested",
+        "type": "event"
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "internalType": "address", "name": "user", "type": "address"},
+            {"indexed": False, "internalType": "uint256", "name": "tokenAmount", "type": "uint256"},
+            {"indexed": False, "internalType": "uint256", "name": "ethReceived", "type": "uint256"}
+        ],
+        "name": "Withdraw",
+        "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "addLiquidity",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "cfWETH",
+        "outputs": [
+            {"internalType": "contract ChainFlipOFT", "name": "", "type": "address"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "deposit",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getContractBalance",
+        "outputs": [
+            {"internalType": "uint256", "name": "", "type": "uint256"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getOFTAddress",
+        "outputs": [
+            {"internalType": "address", "name": "", "type": "address"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint32", "name": "_eid", "type": "uint32"}
+        ],
+        "name": "getPeer",
+        "outputs": [
+            {"internalType": "bytes32", "name": "", "type": "bytes32"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "user", "type": "address"}
+        ],
+        "name": "getPendingDeposit",
+        "outputs": [
+            {"internalType": "uint256", "name": "", "type": "uint256"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "user", "type": "address"}
+        ],
+        "name": "getTokenBalance",
+        "outputs": [
+            {"internalType": "uint256", "name": "", "type": "uint256"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [
+            {"internalType": "address", "name": "", "type": "address"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "", "type": "address"}
+        ],
+        "name": "pendingDeposits",
+        "outputs": [
+            {"internalType": "uint256", "name": "", "type": "uint256"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "user", "type": "address"},
+            {"internalType": "uint256", "name": "amount", "type": "uint256"}
+        ],
+        "name": "processBurn",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "user", "type": "address"},
+            {"internalType": "uint256", "name": "amount", "type": "uint256"}
+        ],
+        "name": "processPendingDeposit",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint32", "name": "_eid", "type": "uint32"},
+            {"internalType": "bytes32", "name": "_peer", "type": "bytes32"}
+        ],
+        "name": "setPeer",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint256", "name": "amount", "type": "uint256"}
+        ],
+        "name": "withdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "stateMutability": "payable",
+        "type": "receive"
+    }
+]
+
 # Marketplace Category enum
 class MarketplaceCategory:
     ELECTRONICS = 0

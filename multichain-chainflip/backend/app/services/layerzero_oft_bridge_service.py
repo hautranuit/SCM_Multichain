@@ -13,6 +13,7 @@ from web3 import Web3
 from eth_account import Account
 from app.core.config import get_settings
 from app.core.database import get_database
+from app.services.contract_abis import ETHWRAPPER_ABI
 
 settings = get_settings()
 
@@ -150,23 +151,7 @@ LAYERZERO_OFT_ABI = [
     }
 ]
 
-# ETH Wrapper ABI (for deposit/withdraw only)
-ETH_WRAPPER_ABI = [
-    {
-        "inputs": [],
-        "name": "deposit",
-        "outputs": [],
-        "stateMutability": "payable",
-        "type": "function"
-    },
-    {
-        "inputs": [{"name": "amount", "type": "uint256"}],
-        "name": "withdraw",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-]
+
 
 class LayerZeroOFTBridgeService:
     def __init__(self):
@@ -314,7 +299,7 @@ class LayerZeroOFTBridgeService:
                     if config.get('wrapper_address'):
                         wrapper_contract = web3.eth.contract(
                             address=config['wrapper_address'],
-                            abi=ETH_WRAPPER_ABI
+                            abi=ETHWRAPPER_ABI
                         )
                         self.wrapper_instances[chain_name] = wrapper_contract
                         print(f"   🔧 Wrapper contract for ETH conversion: {config['wrapper_address']}")
@@ -526,6 +511,48 @@ class LayerZeroOFTBridgeService:
             receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             
             if receipt.status == 1:
+                print(f"✅ ETH deposit transaction successful!")
+                
+                # Now process the minting using owner account
+                print(f"🔐 Processing owner-mediated minting...")
+                
+                # Get owner account info
+                owner_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+                owner_account_info = address_key_manager.get_account_info_for_address(owner_address)
+                
+                if not owner_account_info:
+                    return {"success": False, "error": f"No private key available for owner address {owner_address}"}
+                
+                owner_account = owner_account_info['account']
+                
+                # Use owner account to mint tokens directly on OFT contract
+                owner_nonce = web3.eth.get_transaction_count(owner_account.address)
+                
+                # Call mint function directly on OFT contract as owner
+                mint_transaction = oft_contract.functions.mint(
+                    user_account.address, 
+                    amount_wei
+                ).build_transaction({
+                    'from': owner_account.address,
+                    'gas': 200000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': owner_nonce,
+                    'chainId': web3.eth.chain_id
+                })
+                
+                # Sign and send minting transaction
+                signed_mint_txn = web3.eth.account.sign_transaction(mint_transaction, owner_account.key)
+                mint_tx_hash = web3.eth.send_raw_transaction(signed_mint_txn.raw_transaction)
+                print(f"📤 Owner minting transaction sent: {mint_tx_hash.hex()}")
+                
+                # Wait for minting transaction receipt
+                mint_receipt = web3.eth.wait_for_transaction_receipt(mint_tx_hash, timeout=300)
+                
+                if mint_receipt.status == 1:
+                    print(f"✅ Owner-mediated minting successful!")
+                else:
+                    return {"success": False, "error": "Owner minting transaction failed"}
+                
                 # Check new balances
                 new_eth_balance = web3.eth.get_balance(user_account.address)
                 new_eth_balance_eth = float(Web3.from_wei(new_eth_balance, 'ether'))
@@ -545,14 +572,16 @@ class LayerZeroOFTBridgeService:
                 
                 return {
                     "success": True,
-                    "transaction_hash": tx_hash.hex(),
+                    "deposit_transaction_hash": tx_hash.hex(),
+                    "mint_transaction_hash": mint_tx_hash.hex(),
                     "amount_deposited": amount_eth,
                     "cfweth_received": cfweth_received,
                     "new_eth_balance": new_eth_balance_eth,
                     "new_cfweth_balance": new_cfweth_balance_eth,
-                    "gas_used": receipt.gasUsed,
+                    "deposit_gas_used": receipt.gasUsed,
+                    "mint_gas_used": mint_receipt.gasUsed,
                     "block_number": receipt.blockNumber,
-                    "method": "ethwrapper_deposit_with_real_eth"
+                    "method": "ethwrapper_owner_mediated_minting"
                 }
             else:
                 return {"success": False, "error": "ETHWrapper deposit transaction failed"}

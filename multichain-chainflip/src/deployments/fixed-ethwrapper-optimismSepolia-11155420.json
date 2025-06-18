@@ -1,0 +1,16 @@
+{
+  "network": "optimismSepolia",
+  "chainId": "11155420",
+  "deployment_type": "Fixed ETHWrapper with Owner-Mediated Minting",
+  "contract_name": "ETHWrapper (Fixed)",
+  "deployment_purpose": "Fix permission issue - owner-mediated minting pattern",
+  "fix_applied": "Owner-mediated minting to bypass 'Ownable: caller is not the owner' error",
+  "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "oft_contract": "0x76D43CEC28775032A7EC8895ad178c660246c8Ec",
+  "wrapper_contract": "0x68E842Ab408620e74D4d5ccaBA2837f2502c8710",
+  "token_name": "ChainFLIP WETH",
+  "token_symbol": "cfWETH",
+  "deployment_timestamp": "2025-06-18T11:45:03.494Z",
+  "transaction_hash": "0x3be7011aadd1f517da6b0fc688f5c67df58a5b0590c74365fafc05a5a8f84dc1",
+  "interface": "Separated: LayerZero OFT + ETH Wrapper"
+}
