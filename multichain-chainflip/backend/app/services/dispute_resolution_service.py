@@ -145,12 +145,9 @@ class DisputeResolutionService:
     async def initialize(self):
         """Initialize the dispute resolution service"""
         try:
-            # Get database from blockchain service
-            from .blockchain_service import blockchain_service
-            if hasattr(blockchain_service, 'database') and blockchain_service.database is not None:
-                self.database = blockchain_service.database
-            else:
-                raise Exception("Blockchain service database not initialized")
+            # Get database instance directly
+            from app.core.database import get_database
+            self.database = await get_database()
             
             # Ensure collections exist
             await self._ensure_collections()

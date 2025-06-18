@@ -1495,7 +1495,7 @@ class BlockchainService:
             
             # Use OFT contract address on Polygon Amoy instead of EOA
             # LayerZero messages must be sent to contracts that implement ILayerZeroReceiver
-            polygon_oft_contract = "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73"
+            polygon_oft_contract = "0x225FD1670d94304b737A05412fbCE7a39224D1B1"
             admin_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"  # Keep for registry tracking
             
             # Create hub registry entry
@@ -1513,14 +1513,14 @@ class BlockchainService:
                 "oft_recipient": polygon_oft_contract  # Actual LayerZero recipient
             }
             
-            # Use Direct LayerZero messaging for 4-chain CID sync
+            # Use ChainFLIP messaging for 4-chain CID sync
             try:
-                print(f"🚀 Importing Direct LayerZero messaging service...")
-                from app.services.direct_layerzero_messaging_service import direct_layerzero_messaging_service
+                print(f"🚀 Importing ChainFLIP messaging service...")
+                from app.services.chainflip_messaging_service import chainflip_messaging_service
                 
-                # Initialize direct messaging service if not already done
-                if not hasattr(direct_layerzero_messaging_service, 'database') or direct_layerzero_messaging_service.database is None:
-                    await direct_layerzero_messaging_service.initialize()
+                # Initialize ChainFLIP messaging service if not already done
+                if not hasattr(chainflip_messaging_service, 'database') or chainflip_messaging_service.database is None:
+                    await chainflip_messaging_service.initialize()
                 
                 print(f"📋 Preparing CID sync to all chains:")
                 print(f"   Type: CID_SYNC")
@@ -1530,9 +1530,9 @@ class BlockchainService:
                 print(f"   Targets: OP Sepolia, Arbitrum Sepolia, Polygon Amoy")
                 print(f"   Manufacturer: {manufacturer}")
                 
-                # Send CID sync to all other chains using Direct LayerZero messaging
-                print(f"🌐 Sending CID sync to all chains via Direct LayerZero...")
-                layerzero_result = await direct_layerzero_messaging_service.send_cid_sync_to_all_chains(
+                # Send CID sync to all other chains using ChainFLIP messaging
+                print(f"🌐 Sending CID sync to all chains via ChainFLIP Messenger...")
+                layerzero_result = await chainflip_messaging_service.send_cid_sync_to_all_chains(
                     source_chain="base_sepolia",
                     token_id=token_id,
                     metadata_cid=metadata_cid,
@@ -1542,16 +1542,16 @@ class BlockchainService:
                 )
                 
                 if layerzero_result.get("success"):
-                    print(f"✅ LayerZero cross-chain message sent successfully!")
+                    print(f"✅ ChainFLIP cross-chain message sent successfully!")
                     print(f"🔗 Transaction Hash: {layerzero_result.get('transaction_hash')}")
                     print(f"⛽ Gas Used: {layerzero_result.get('gas_used')}")
-                    print(f"💰 LayerZero Fee: {layerzero_result.get('layerzero_fee_paid')} ETH")
+                    print(f"💰 ChainFLIP Fee: {layerzero_result.get('layerzero_fee_paid')} ETH")
                     print(f"📊 Block: {layerzero_result.get('block_number')}")
                     
                     # Update registry with real transaction data
                     hub_registry_data.update({
                         "hub_tx_hash": layerzero_result.get('transaction_hash'),
-                        "sync_status": "sent_via_layerzero",
+                        "sync_status": "sent_via_chainflip",
                         "synced_at": time.time(),
                         "layerzero_fee": layerzero_result.get('layerzero_fee_paid'),
                         "gas_used": layerzero_result.get('gas_used'),
@@ -1562,35 +1562,35 @@ class BlockchainService:
                     # Store in hub registry collection
                     result = await self.database.hub_cid_registry.insert_one(hub_registry_data)
                     
-                    print(f"✅ CID sync completed using real LayerZero messaging")
+                    print(f"✅ CID sync completed using ChainFLIP messaging")
                     print(f"📝 Registry ID: {str(result.inserted_id)}")
                     
                     return {
                         "success": True,
                         "hub_tx_hash": layerzero_result.get('transaction_hash'),
                         "hub_registry_id": str(result.inserted_id),
-                        "sync_method": "layerzero_real",
+                        "sync_method": "chainflip_messenger",
                         "layerzero_fee": layerzero_result.get('layerzero_fee_paid'),
                         "admin_recipient": admin_address,
                         "oft_recipient": polygon_oft_contract,  # Actual LayerZero recipient
                         "destination_chain": "polygon_amoy",
                         "message_type": "CID_SYNC",
-                        "recipient_type": "OFT_contract"  # Indicate this is now a contract
+                        "recipient_type": "ChainFLIP_contract"  # Indicate this is now a contract
                     }
                     
                 else:
-                    print(f"❌ LayerZero message failed: {layerzero_result.get('error')}")
-                    raise Exception(f"LayerZero messaging failed: {layerzero_result.get('error')}")
+                    print(f"❌ ChainFLIP message failed: {layerzero_result.get('error')}")
+                    raise Exception(f"ChainFLIP messaging failed: {layerzero_result.get('error')}")
                     
-            except Exception as layerzero_error:
-                print(f"❌ LayerZero cross-chain messaging error: {layerzero_error}")
+            except Exception as chainflip_error:
+                print(f"❌ ChainFLIP cross-chain messaging error: {chainflip_error}")
                 print(f"🔄 Falling back to database registry only...")
                 
                 # Fallback to database registry
                 hub_registry_data.update({
-                    "sync_status": "layerzero_failed", 
-                    "error": str(layerzero_error),
-                    "fallback_reason": "LayerZero messaging unavailable"
+                    "sync_status": "chainflip_failed", 
+                    "error": str(chainflip_error),
+                    "fallback_reason": "ChainFLIP messaging unavailable"
                 })
                 
                 return await self._store_hub_registry_fallback(token_id, metadata_cid, manufacturer, product_data)
