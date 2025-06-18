@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
 
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, nft_transfers
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, layerzero_oft, supply_chain, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, nft_transfers, direct_layerzero
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 from app.services.blockchain_service import BlockchainService
@@ -50,6 +50,7 @@ app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payme
 app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authenticity", tags=["enhanced-authenticity"])
 app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
 app.include_router(nft_transfers.router, prefix="/api/nft", tags=["nft-transfers"])
+app.include_router(direct_layerzero.router, prefix="/api/blockchain", tags=["direct-layerzero"])
 
 @app.on_event("startup")
 async def startup_event():
