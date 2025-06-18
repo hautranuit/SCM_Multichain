@@ -276,6 +276,191 @@ class ChainFLIPMessagingService:
             else:
                 print(f"⚠️ Contract address not set for {chain_name}")
 
+    async def send_cid_to_chain(
+        self,
+        source_chain: str,
+        target_chain: str,
+        token_id: str,
+        metadata_cid: str,
+        manufacturer: str,
+        manufacturer_private_key: str = None
+    ) -> Dict[str, Any]:
+        """
+        Send CID sync message to a specific chain (central hub)
+        Uses sendCIDToChain function for single chain targeting
+        """
+        try:
+            print(f"\n🌐 === CHAINFLIP MESSENGER CID SYNC TO SINGLE CHAIN ===")
+            print(f"🏭 Source: {source_chain}")
+            print(f"🎯 Target: {target_chain} (Central Hub)")
+            print(f"🔖 Token ID: {token_id}")
+            print(f"📦 CID: {metadata_cid}")
+            print(f"👤 Manufacturer: {manufacturer}")
+            print(f"📍 Admin will retrieve from contract: {self.contract_addresses.get(target_chain)}")
+            
+            # Determine which account to use for sending
+            if manufacturer_private_key:
+                sending_account = Account.from_key(manufacturer_private_key)
+                print(f"🔐 Using manufacturer account: {sending_account.address}")
+                
+                # Verify the manufacturer address matches
+                if sending_account.address.lower() != manufacturer.lower():
+                    return {
+                        "success": False,
+                        "error": f"Manufacturer private key address {sending_account.address} doesn't match manufacturer {manufacturer}"
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": "Manufacturer private key is required for cross-chain messaging"
+                }
+            
+            # Get source chain Web3 and contract
+            source_web3 = self.web3_connections.get(source_chain)
+            source_contract = self.messenger_contracts.get(source_chain)
+            
+            if not source_web3:
+                return {"success": False, "error": f"Source chain {source_chain} not connected"}
+            
+            if not source_contract:
+                return {"success": False, "error": f"ChainFLIPMessenger contract not available for {source_chain}"}
+            
+            # Get target chain configuration
+            target_config = CHAIN_CONFIGS.get(target_chain)
+            if not target_config:
+                return {"success": False, "error": f"Target chain {target_chain} not configured"}
+            
+            target_eid = target_config["layerzero_eid"]
+            
+            # Check contract owner (for debugging)
+            try:
+                contract_owner = source_contract.functions.owner().call()
+                print(f"📋 Contract owner: {contract_owner}")
+            except Exception as owner_error:
+                print(f"⚠️ Could not check contract owner: {owner_error}")
+            
+            # Use LayerZero fee similar to the working example (12345678 gwei)
+            native_fee = Web3.to_wei(12345678, 'gwei')  # ≈ 0.012 ETH
+            
+            # Check account balance
+            account_balance = source_web3.eth.get_balance(sending_account.address)
+            account_balance_eth = Web3.from_wei(account_balance, 'ether')
+            fee_eth = Web3.from_wei(native_fee, 'ether')
+            
+            print(f"💳 Account balance: {account_balance_eth} ETH")
+            print(f"💰 LayerZero fee: {fee_eth} ETH")
+            print(f"🆔 Target EID: {target_eid}")
+            
+            if account_balance < native_fee:
+                return {
+                    "success": False,
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_eth} ETH, Have: {account_balance_eth} ETH"
+                }
+            
+            # Build transaction using sendCIDToChain for specific target
+            nonce = source_web3.eth.get_transaction_count(sending_account.address)
+            gas_price = source_web3.eth.gas_price
+            
+            transaction = source_contract.functions.sendCIDToChain(
+                target_eid,       # _destEid
+                token_id,         # _tokenId
+                metadata_cid,     # _metadataCID
+                manufacturer      # _manufacturer
+            ).build_transaction({
+                'from': sending_account.address,
+                'value': native_fee,  # LayerZero fees
+                'gas': 500000,       # Higher gas for cross-chain messaging
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'chainId': source_web3.eth.chain_id
+            })
+            
+            print(f"📋 Transaction details:")
+            print(f"   From: {sending_account.address}")
+            print(f"   To: {source_contract.address}")
+            print(f"   Function: sendCIDToChain")
+            print(f"   Target EID: {target_eid}")
+            print(f"   Value (LayerZero fee): {fee_eth} ETH")
+            print(f"   Gas limit: {transaction['gas']}")
+            print(f"   Gas price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+            
+            # Sign and send transaction
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, sending_account.key)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            tx_hash_hex = tx_hash.hex()
+            
+            print(f"📤 Transaction sent: {tx_hash_hex}")
+            print(f"⏳ Waiting for confirmation...")
+            
+            # Wait for transaction confirmation
+            receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ ChainFLIP CID sync to {target_chain} transaction confirmed!")
+                print(f"📊 Block: {receipt.blockNumber}")
+                print(f"⛽ Gas Used: {receipt.gasUsed}")
+                print(f"📍 Admin can check contract {self.contract_addresses.get(target_chain)} on {target_chain}")
+                
+                # Parse events
+                sync_events = await self._parse_sync_events(source_contract, receipt)
+                
+                # Store sync record in database
+                sync_record = {
+                    "sync_id": str(uuid.uuid4()),
+                    "token_id": token_id,
+                    "metadata_cid": metadata_cid,
+                    "manufacturer": manufacturer,
+                    "source_chain": source_chain,
+                    "target_chain": target_chain,
+                    "source_eid": CHAIN_CONFIGS[source_chain]["layerzero_eid"],
+                    "target_eid": target_eid,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_eth),
+                    "sync_method": "chainflip_messenger_single_chain",
+                    "events": sync_events,
+                    "timestamp": time.time(),
+                    "status": "sent",
+                    "admin_address": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "messenger_contract": self.contract_addresses.get(target_chain)
+                }
+                
+                # Save to database
+                await self.database.chainflip_syncs.insert_one(sync_record)
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_eth),
+                    "sync_method": "chainflip_messenger_single_chain",
+                    "events": sync_events,
+                    "sync_id": sync_record["sync_id"],
+                    "target_chain": target_chain,
+                    "target_eid": target_eid,
+                    "admin_address": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "messenger_contract": self.contract_addresses.get(target_chain),
+                    "message": f"CID synced to {target_chain} central hub via ChainFLIP Messenger"
+                }
+            else:
+                print(f"❌ Transaction failed with status: {receipt.status}")
+                
+                return {
+                    "success": False,
+                    "error": f"ChainFLIP transaction failed with status {receipt.status}",
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed
+                }
+                
+        except Exception as e:
+            print(f"❌ ChainFLIP CID sync to single chain error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
     async def send_cid_sync_to_all_chains(
         self,
         source_chain: str,

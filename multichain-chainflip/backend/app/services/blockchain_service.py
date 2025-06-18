@@ -639,14 +639,8 @@ class BlockchainService:
                             # Cache in MongoDB
                             result = await self.database.products.insert_one(product_data)
                             
-                            # ENHANCEMENT: Sync CID to Hub chain (Polygon Amoy) for dual storage
-                            hub_sync_result = await self._sync_cid_to_hub(
-                                token_id=str(token_id),
-                                metadata_cid=metadata_cid,
-                                manufacturer=manufacturer,
-                                product_data=product_data,
-                                manufacturer_private_key=actual_private_key
-                            )
+                            # NOTE: Cross-chain CID sync is handled by the API endpoint using ChainFLIP Messaging Service
+                            hub_sync_result = {"status": "skipped", "message": "CID sync handled by API endpoint"}
                             
                             return {
                                 "success": True,

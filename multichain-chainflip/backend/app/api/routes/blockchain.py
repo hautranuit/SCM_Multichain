@@ -768,44 +768,39 @@ async def mint_product(
             print(f"📦 Token ID: {result['token_id']}")
             print(f"📄 Metadata CID: {result['metadata_cid']}")
             print(f"🏭 Manufacturer: {manufacturer_address}")
-            print(f"🎯 Target: Polygon Amoy Admin (0x032041b4b356fEE1496805DD4749f181bC736FFA)")
+            print(f"🎯 Target: Polygon Amoy Central Hub - Admin can check contract for CID")
             
-            # Import the layerzero service for cross-chain messaging
-            from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+            # Import the ChainFLIP messaging service for cross-chain CID sync
+            from app.services.chainflip_messaging_service import chainflip_messaging_service
             
-            # Prepare CID sync message
-            cid_message_data = {
-                "type": "CID_SYNC",
-                "token_id": result['token_id'],
-                "metadata_cid": result['metadata_cid'],
-                "manufacturer": manufacturer_address,
-                "timestamp": current_timestamp,
-                "source_chain": "base_sepolia",
-                "product_name": metadata.get("name", "ChainFLIP Product"),
-                "unique_product_id": unique_product_id,
-                "batch_number": batch_number
-            }
-            
-            # Send cross-chain message from Base Sepolia to Polygon Amoy
-            messaging_result = await layerzero_oft_bridge_service.send_cross_chain_message(
+            # Send cross-chain CID sync only to Polygon Amoy (central hub)
+            messaging_result = await chainflip_messaging_service.send_cid_to_chain(
                 source_chain="base_sepolia",
                 target_chain="polygon_amoy",
-                message_data=cid_message_data,
-                recipient_address="0x032041b4b356fEE1496805DD4749f181bC736FFA"  # Admin address
+                token_id=result['token_id'],
+                metadata_cid=result['metadata_cid'],
+                manufacturer=manufacturer_address,
+                manufacturer_private_key=product_data.manufacturer_private_key
             )
             
             if messaging_result["success"]:
-                print(f"✅ Cross-chain CID message sent successfully!")
-                print(f"🔗 LayerZero TX: {messaging_result['transaction_hash']}")
+                print(f"✅ Cross-chain CID sync sent to Polygon Amoy central hub!")
+                print(f"🔗 ChainFLIP TX: {messaging_result['transaction_hash']}")
                 print(f"💰 LayerZero Fee: {messaging_result['layerzero_fee_paid']} ETH")
+                print(f"🆔 Sync ID: {messaging_result['sync_id']}")
+                print(f"📍 Admin can check: {messaging_result['messenger_contract']}")
                 
                 # Add messaging info to the response
                 cross_chain_info = {
                     "cross_chain_message_sent": True,
-                    "layerzero_tx_hash": messaging_result["transaction_hash"],
+                    "chainflip_tx_hash": messaging_result["transaction_hash"],
                     "layerzero_fee_paid": messaging_result["layerzero_fee_paid"],
-                    "message_recipient": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-                    "destination_chain": "polygon_amoy"
+                    "sync_id": messaging_result["sync_id"],
+                    "message_method": "chainflip_messenger_single_chain",
+                    "target_chain": "polygon_amoy",
+                    "admin_address": messaging_result["admin_address"],
+                    "messenger_contract": messaging_result["messenger_contract"],
+                    "admin_instructions": "Check ChainFLIP Messenger contract on Polygon Amoy for CID data"
                 }
             else:
                 print(f"⚠️ Cross-chain message failed: {messaging_result.get('error')}")
