@@ -289,6 +289,11 @@ class ChainFLIPMessagingService:
         Send CID sync message to a specific chain (central hub)
         Uses sendCIDToChain function for single chain targeting
         """
+        # Ensure service has connections (it should be initialized at startup)
+        if not self.web3_connections:
+            print("🔄 Initializing ChainFLIP service...")
+            await self.initialize()
+            
         try:
             print(f"\n🌐 === CHAINFLIP MESSENGER CID SYNC TO SINGLE CHAIN ===")
             print(f"🏭 Source: {source_chain}")
@@ -297,6 +302,19 @@ class ChainFLIPMessagingService:
             print(f"📦 CID: {metadata_cid}")
             print(f"👤 Manufacturer: {manufacturer}")
             print(f"📍 Admin will retrieve from contract: {self.contract_addresses.get(target_chain)}")
+            
+            # If no private key provided, look it up from settings
+            if not manufacturer_private_key:
+                from app.core.config import get_settings
+                settings = get_settings()
+                manufacturer_key_var = f"ACCOUNT_{manufacturer}"
+                manufacturer_private_key = getattr(settings, manufacturer_key_var.lower(), None)
+                
+                if not manufacturer_private_key:
+                    return {
+                        "success": False,
+                        "error": f"Private key not found for manufacturer {manufacturer}. Add {manufacturer_key_var} to .env file"
+                    }
             
             # Determine which account to use for sending
             if manufacturer_private_key:
@@ -339,16 +357,64 @@ class ChainFLIPMessagingService:
             except Exception as owner_error:
                 print(f"⚠️ Could not check contract owner: {owner_error}")
             
-            # Use LayerZero fee similar to the working example (12345678 gwei)
-            native_fee = Web3.to_wei(12345678, 'gwei')  # ≈ 0.012 ETH
+            # Use proper LayerZero fee calculation and gas price
+            # Get current gas price from network
+            current_gas_price = source_web3.eth.gas_price
+            # Use 2x gas price for faster confirmation
+            gas_price = current_gas_price * 2
+            
+            # Get proper LayerZero fee using contract quote function with EXACT contract format
+            try:
+                print(f"🔍 Getting LayerZero fee quote for EID {target_eid}...")
+                
+                # Use the EXACT options format from the contract (line 110):
+                # abi.encodePacked(uint16(1), uint128(200000)) = version 1, gas limit 200k
+                # Proper conversion: uint16(1) = 0x0001, uint128(200000) = 0x00000000000000000000000000030d40
+                options_bytes = bytes.fromhex('000100000000000000000000000000030d40')
+                
+                print(f"🔧 Using contract-exact options: 0x{options_bytes.hex()}")
+                
+                # Call the contract's quote function with correct parameters
+                fee_quote = source_contract.functions.quote(
+                    target_eid,        # _destEid
+                    token_id,          # _tokenId  
+                    metadata_cid,      # _metadataCID
+                    manufacturer,      # _manufacturer
+                    options_bytes,     # _options (EXACT contract format)
+                    False              # _payInLzToken
+                ).call()
+                
+                # fee_quote is a MessagingFee struct with nativeFee and lzTokenFee
+                native_fee = fee_quote[0]  # nativeFee
+                print(f"✅ LayerZero quoted fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+                # Add 20% buffer for timestamp variations and gas price changes
+                native_fee = int(native_fee * 1.2)
+                print(f"✅ Fee with 20% buffer: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+            except Exception as quote_error:
+                print(f"⚠️ Quote function failed: {quote_error}")
+                
+                # Check for specific LayerZero errors
+                error_str = str(quote_error)
+                if "0x6592671c" in error_str:
+                    print("❌ LayerZero peer connection error - check if contracts are properly connected")
+                elif "0x0dc652a8" in error_str:
+                    print("❌ LayerZero fee calculation error - using higher fallback")
+                
+                # Use a higher fallback fee for LayerZero V2 based on working system
+                native_fee = Web3.to_wei(5000000, 'gwei')  # 0.005 ETH fallback
+                print(f"📋 Using fallback fee: {Web3.from_wei(native_fee, 'ether')} ETH")
             
             # Check account balance
             account_balance = source_web3.eth.get_balance(sending_account.address)
             account_balance_eth = Web3.from_wei(account_balance, 'ether')
             fee_eth = Web3.from_wei(native_fee, 'ether')
+            gas_price_gwei = Web3.from_wei(gas_price, 'gwei')
             
             print(f"💳 Account balance: {account_balance_eth} ETH")
             print(f"💰 LayerZero fee: {fee_eth} ETH")
+            print(f"⛽ Gas price: {gas_price_gwei} Gwei")
             print(f"🆔 Target EID: {target_eid}")
             
             if account_balance < native_fee:
@@ -359,7 +425,6 @@ class ChainFLIPMessagingService:
             
             # Build transaction using sendCIDToChain for specific target
             nonce = source_web3.eth.get_transaction_count(sending_account.address)
-            gas_price = source_web3.eth.gas_price
             
             transaction = source_contract.functions.sendCIDToChain(
                 target_eid,       # _destEid
@@ -446,13 +511,35 @@ class ChainFLIPMessagingService:
                 }
             else:
                 print(f"❌ Transaction failed with status: {receipt.status}")
+                print(f"📊 Failed transaction details:")
+                print(f"   Transaction Hash: {tx_hash_hex}")
+                print(f"   Block Number: {receipt.blockNumber}")
+                print(f"   Gas Used: {receipt.gasUsed}")
+                print(f"   Gas Limit: {transaction['gas']}")
+                print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+                print(f"   LayerZero Fee: {fee_eth} ETH")
+                
+                # Try to get revert reason
+                try:
+                    # Try to call the function to see the revert reason
+                    source_contract.functions.sendCIDToChain(
+                        target_eid, token_id, metadata_cid, manufacturer
+                    ).call({
+                        'from': sending_account.address,
+                        'value': native_fee
+                    })
+                except Exception as call_error:
+                    print(f"🔍 Revert reason: {call_error}")
                 
                 return {
                     "success": False,
                     "error": f"ChainFLIP transaction failed with status {receipt.status}",
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
-                    "gas_used": receipt.gasUsed
+                    "gas_used": receipt.gasUsed,
+                    "gas_limit": transaction['gas'],
+                    "gas_price_gwei": float(Web3.from_wei(gas_price, 'gwei')),
+                    "layerzero_fee": float(fee_eth)
                 }
                 
         except Exception as e:
@@ -693,3 +780,32 @@ class ChainFLIPMessagingService:
 
 # Global instance
 chainflip_messaging_service = ChainFLIPMessagingService()
+
+# Initialize the service
+import asyncio
+async def _initialize_service():
+    """Initialize the global ChainFLIP messaging service"""
+    await chainflip_messaging_service.initialize()
+
+# Run initialization if this module is imported
+def init_chainflip_service():
+    """Initialize ChainFLIP service synchronously"""
+    loop = None
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, schedule the initialization
+            asyncio.create_task(_initialize_service())
+        else:
+            # If no loop is running, run it
+            loop.run_until_complete(_initialize_service())
+    except RuntimeError:
+        # No event loop exists, create one
+        asyncio.run(_initialize_service())
+
+# Auto-initialize when module is imported
+try:
+    init_chainflip_service()
+except Exception as e:
+    print(f"⚠️ ChainFLIP service initialization deferred: {e}")
+    print("📝 Service will be initialized on first use")
