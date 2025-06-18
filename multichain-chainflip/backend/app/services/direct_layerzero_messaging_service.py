@@ -239,11 +239,16 @@ class DirectLayerZeroMessagingService:
         token_id: str,
         metadata_cid: str,
         manufacturer: str,
-        product_data: Dict[str, Any]
+        product_data: Dict[str, Any],
+        manufacturer_private_key: str = None
     ) -> Dict[str, Any]:
         """
         Send CID sync message to all other chains using DirectLayerZeroMessenger
         This is the main function called from blockchain_service._sync_cid_to_hub
+        
+        Args:
+            manufacturer_private_key: Optional private key of manufacturer to use for sending.
+                                    If not provided, uses the default deployer account.
         """
         try:
             print(f"\n🌐 === DIRECT LAYERZERO CID SYNC TO ALL CHAINS ===")
@@ -251,6 +256,23 @@ class DirectLayerZeroMessagingService:
             print(f"🔖 Token ID: {token_id}")
             print(f"📦 CID: {metadata_cid}")
             print(f"👤 Manufacturer: {manufacturer}")
+            
+            # Determine which account to use for sending
+            if manufacturer_private_key:
+                # Use manufacturer's account for signing transactions
+                sending_account = Account.from_key(manufacturer_private_key)
+                print(f"🔐 Using manufacturer account for cross-chain messaging: {sending_account.address}")
+                
+                # Verify the manufacturer address matches
+                if sending_account.address.lower() != manufacturer.lower():
+                    return {
+                        "success": False,
+                        "error": f"Manufacturer private key address {sending_account.address} doesn't match manufacturer {manufacturer}"
+                    }
+            else:
+                # Fallback to deployer account (backward compatibility)
+                sending_account = self.account
+                print(f"🔐 Using deployer account for cross-chain messaging: {sending_account.address}")
             
             # Get source chain Web3 and contract
             source_web3 = self.web3_connections.get(source_chain)
@@ -280,11 +302,11 @@ class DirectLayerZeroMessagingService:
             
             print(f"💰 Total estimated fee: {total_fee_eth} ETH")
             
-            # Check if account has sufficient balance
-            account_balance = source_web3.eth.get_balance(self.account.address)
+            # Check if sending account has sufficient balance
+            account_balance = source_web3.eth.get_balance(sending_account.address)
             account_balance_eth = Web3.from_wei(account_balance, 'ether')
             
-            print(f"💳 Account balance: {account_balance_eth} ETH")
+            print(f"💳 Sending account balance: {account_balance_eth} ETH")
             
             if account_balance < total_fee_wei:
                 return {
@@ -295,7 +317,7 @@ class DirectLayerZeroMessagingService:
             # Execute direct cross-chain message to Polygon Amoy only
             print(f"🚀 Executing direct cross-chain message to Polygon Amoy...")
             
-            nonce = source_web3.eth.get_transaction_count(self.account.address)
+            nonce = source_web3.eth.get_transaction_count(sending_account.address)
             gas_price = source_web3.eth.gas_price
             
             # Get the correct target EID from fee estimation (might have been updated)
@@ -320,7 +342,7 @@ class DirectLayerZeroMessagingService:
                 "CID_SYNC",
                 payload_bytes
             ).build_transaction({
-                'from': self.account.address,
+                'from': sending_account.address,
                 'value': total_fee_wei,  # LayerZero fees
                 'gas': 800000,  # Increased gas limit for LayerZero cross-chain messaging
                 'gasPrice': gas_price,
@@ -329,12 +351,13 @@ class DirectLayerZeroMessagingService:
             })
             
             print(f"📋 Transaction details:")
+            print(f"   From: {sending_account.address}")
             print(f"   Value (LayerZero fees): {total_fee_eth} ETH")
             print(f"   Gas: {transaction['gas']}")
             print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
             
             # Sign and send transaction
-            signed_txn = source_web3.eth.account.sign_transaction(transaction, self.account.key)
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, sending_account.key)
             tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             tx_hash_hex = tx_hash.hex()
             
@@ -515,20 +538,14 @@ class DirectLayerZeroMessagingService:
                     print(f"   might not have peer connection set to Polygon Amoy contract")
                     print(f"📞 Expected peer: 0x34705a7e91b465AE55844583EC16715C88bD457a")
                     
-                    # ATTEMPT TO SET UP PEER CONNECTIONS AUTOMATICALLY
-                    print(f"\n🚀 ATTEMPTING TO SET UP PEER CONNECTIONS AUTOMATICALLY...")
-                    try:
-                        # Get a reference to self (we're inside the _estimate_total_sync_fees method)
-                        # We need to call the peer setup from the main class instance
-                        print(f"🔗 Calling setup_layerzero_peer_connections()...")
-                        
-                        # This is a bit tricky since we're in an async method calling another async method
-                        # Let's try a different approach - set a flag to trigger peer setup
-                        peer_setup_needed = True
-                        print(f"🏷️ Setting peer_setup_needed flag = True")
-                        
-                    except Exception as peer_setup_error:
-                        print(f"❌ Could not set up peer connections: {peer_setup_error}")
+                    # MANUAL PEER SETUP INSTRUCTIONS
+                    print(f"\n🚀 MANUAL TRUSTED REMOTE SETUP REQUIRED:")
+                    print(f"   To fix this issue, the contract owner needs to set up trusted remotes.")
+                    print(f"   Run the trusted remote setup script:")
+                    print(f"   📜 Script: /multichain-chainflip/src/scripts/set-trusted-remotes-direct-messenger.js")
+                    print(f"   🔧 Command: npx hardhat run scripts/set-trusted-remotes-direct-messenger.js --network baseSepolia")
+                    print(f"   📞 This will configure trusted remotes between DirectLayerZeroMessenger contracts")
+                    print(f"   ⚡ After setup, LayerZero messages will be delivered successfully")
                 
                 print(f"🔄 Using higher hardcoded estimate...")
                 
@@ -536,9 +553,6 @@ class DirectLayerZeroMessagingService:
                 estimated_fee_per_message = Web3.to_wei(0.01, 'ether')  # 0.01 ETH per message
                 total_estimated_fee = estimated_fee_per_message * len(target_chains)
                 target_eid = 40267  # Use correct EID
-                
-                # Add a flag to indicate peer setup is needed
-                peer_setup_needed = True
             
             print(f"💰 Final fee estimation:")
             print(f"   Target chains: {len(target_chains)}")

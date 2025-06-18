@@ -180,6 +180,7 @@ class ProductMintRequest(BaseModel):
     manufacturer: str
     metadata: Dict[str, Any]  # Raw metadata that will be uploaded to IPFS
     target_chains: List[int] = None  # Optional list of target chain IDs
+    manufacturer_private_key: Optional[str] = None  # Optional private key for cross-chain messaging
 
 # Enhanced Product Purchase Models (for new /marketplace/buy endpoint)
 class ProductBuyRequest(BaseModel):
