@@ -270,47 +270,10 @@ class DirectLayerZeroMessagingService:
             )
             
             if not total_fee_estimate["success"]:
-                # Try to set up peer connections automatically if fee estimation fails
-                print(f"💡 Fee estimation failed - attempting to set up LayerZero peer connections...")
-                peer_setup_result = await self.setup_layerzero_peer_connections()
-                print(f"🔗 Peer setup result: {peer_setup_result}")
-                
                 return {
                     "success": False, 
-                    "error": f"Fee estimation failed: {total_fee_estimate['error']}",
-                    "peer_setup_attempted": True,
-                    "peer_setup_result": peer_setup_result
+                    "error": f"Fee estimation failed: {total_fee_estimate['error']}"
                 }
-            
-            # Check if contract fee estimation failed (indicating peer connection issues)
-            if total_fee_estimate.get("peer_setup_needed", False):
-                print(f"\n💡 Contract fee estimation failed - peer connections likely missing!")
-                print(f"🚀 ATTEMPTING TO SET UP ALL LAYERZERO PEER CONNECTIONS...")
-                
-                try:
-                    peer_setup_result = await self.setup_layerzero_peer_connections()
-                    print(f"🔗 Peer setup completed!")
-                    print(f"📊 Setup Summary:")
-                    print(f"   Total connections: {peer_setup_result.get('total_connections', 0)}")
-                    print(f"   Successful: {peer_setup_result.get('summary', {}).get('successful', 0)}")
-                    print(f"   Already set: {peer_setup_result.get('summary', {}).get('already_set', 0)}")
-                    print(f"   Failed: {peer_setup_result.get('summary', {}).get('failed', 0)}")
-                    
-                    # If we successfully set up some connections, suggest retrying
-                    successful_connections = peer_setup_result.get('summary', {}).get('successful', 0)
-                    if successful_connections > 0:
-                        return {
-                            "success": False,
-                            "error": "Peer connections were set up - please try minting again",
-                            "peer_setup_completed": True,
-                            "connections_established": successful_connections,
-                            "retry_suggested": True,
-                            "peer_setup_result": peer_setup_result
-                        }
-                    
-                except Exception as peer_setup_error:
-                    print(f"❌ Peer setup failed: {peer_setup_error}")
-                    # Continue with normal flow
             
             total_fee_wei = total_fee_estimate["total_fee_wei"]
             total_fee_eth = Web3.from_wei(total_fee_wei, 'ether')
@@ -581,19 +544,12 @@ class DirectLayerZeroMessagingService:
             print(f"   Target chains: {len(target_chains)}")
             print(f"   Total estimated: {Web3.from_wei(total_estimated_fee, 'ether')} ETH")
             
-            # Check if we had a contract fee estimation failure (peer connection issue)
-            contract_fee_failed = False
-            if 'peer_setup_needed' in locals() and peer_setup_needed:
-                contract_fee_failed = True
-            
             return {
                 "success": True,
                 "total_fee_wei": total_estimated_fee,
                 "total_fee_eth": float(Web3.from_wei(total_estimated_fee, 'ether')),
                 "target_chains": len(target_chains),
-                "fee_per_message": float(Web3.from_wei(total_estimated_fee, 'ether')),
-                "contract_fee_failed": contract_fee_failed,  # Flag to indicate peer connection issues
-                "peer_setup_needed": contract_fee_failed
+                "fee_per_message": float(Web3.from_wei(total_estimated_fee, 'ether'))
             }
             
         except Exception as e:
@@ -636,220 +592,6 @@ class DirectLayerZeroMessagingService:
             print(f"⚠️ Event parsing error: {e}")
             
         return events
-
-    async def setup_layerzero_peer_connections(self) -> Dict[str, Any]:
-        """
-        Set up peer connections between DirectLayerZero contracts
-        Based on LayerZero best practices from jamesbachini.com/layerzero-example/
-        """
-        try:
-            print(f"\n🔗 === SETTING UP LAYERZERO PEER CONNECTIONS ===")
-            
-            # Define peer mappings (each contract needs to know about ALL other chains)
-            # 4 chains total: Base Sepolia, Optimism Sepolia, Arbitrum Sepolia, Polygon Amoy
-            peer_connections = [
-                # Base Sepolia peers (needs to connect to 3 other chains)
-                {
-                    "source_chain": "base_sepolia",
-                    "target_chain": "optimism_sepolia", 
-                    "target_eid": 40232,
-                    "target_contract": "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c"
-                },
-                {
-                    "source_chain": "base_sepolia",
-                    "target_chain": "arbitrum_sepolia",
-                    "target_eid": 40231, 
-                    "target_contract": "0x25409B7ee450493248fD003A759304FF7f748c53"
-                },
-                {
-                    "source_chain": "base_sepolia",
-                    "target_chain": "polygon_amoy",
-                    "target_eid": 40267,
-                    "target_contract": "0x34705a7e91b465AE55844583EC16715C88bD457a"
-                },
-                
-                # Optimism Sepolia peers (needs to connect to 3 other chains)
-                {
-                    "source_chain": "optimism_sepolia",
-                    "target_chain": "base_sepolia",
-                    "target_eid": 40245,
-                    "target_contract": "0x1208F8F0E40381F14E41621906D13C9c3CaAa061"
-                },
-                {
-                    "source_chain": "optimism_sepolia", 
-                    "target_chain": "arbitrum_sepolia",
-                    "target_eid": 40231,
-                    "target_contract": "0x25409B7ee450493248fD003A759304FF7f748c53"
-                },
-                {
-                    "source_chain": "optimism_sepolia",
-                    "target_chain": "polygon_amoy",
-                    "target_eid": 40267,
-                    "target_contract": "0x34705a7e91b465AE55844583EC16715C88bD457a"
-                },
-                
-                # Arbitrum Sepolia peers (needs to connect to 3 other chains)
-                {
-                    "source_chain": "arbitrum_sepolia",
-                    "target_chain": "base_sepolia", 
-                    "target_eid": 40245,
-                    "target_contract": "0x1208F8F0E40381F14E41621906D13C9c3CaAa061"
-                },
-                {
-                    "source_chain": "arbitrum_sepolia",
-                    "target_chain": "optimism_sepolia",
-                    "target_eid": 40232,
-                    "target_contract": "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c"
-                },
-                {
-                    "source_chain": "arbitrum_sepolia",
-                    "target_chain": "polygon_amoy",
-                    "target_eid": 40267,
-                    "target_contract": "0x34705a7e91b465AE55844583EC16715C88bD457a"
-                },
-                
-                # Polygon Amoy peers (needs to connect to 3 other chains)
-                {
-                    "source_chain": "polygon_amoy",
-                    "target_chain": "base_sepolia",
-                    "target_eid": 40245,
-                    "target_contract": "0x1208F8F0E40381F14E41621906D13C9c3CaAa061"
-                },
-                {
-                    "source_chain": "polygon_amoy",
-                    "target_chain": "optimism_sepolia", 
-                    "target_eid": 40232,
-                    "target_contract": "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c"
-                },
-                {
-                    "source_chain": "polygon_amoy",
-                    "target_chain": "arbitrum_sepolia",
-                    "target_eid": 40231,
-                    "target_contract": "0x25409B7ee450493248fD003A759304FF7f748c53"
-                }
-            ]
-            
-            results = []
-            
-            for connection in peer_connections:
-                try:
-                    source_chain = connection["source_chain"]
-                    target_eid = connection["target_eid"]
-                    target_contract = connection["target_contract"]
-                    
-                    print(f"\n🔗 Setting up peer: {source_chain} -> {connection['target_chain']}")
-                    print(f"   Target EID: {target_eid}")
-                    print(f"   Target Contract: {target_contract}")
-                    
-                    source_web3 = self.web3_connections.get(source_chain)
-                    source_contract_instance = self.messenger_contracts.get(source_chain)
-                    
-                    if not source_web3 or not source_contract_instance:
-                        print(f"❌ Source chain {source_chain} not available")
-                        continue
-                    
-                    # Check if peer connection already exists
-                    try:
-                        # Check if setPeer function exists (this is the standard LayerZero function)
-                        print(f"🔍 Checking if peer connection already exists...")
-                        
-                        # Try to call setPeer (this might fail if already set or if we don't have permission)
-                        nonce = source_web3.eth.get_transaction_count(self.account.address)
-                        gas_price = source_web3.eth.gas_price
-                        
-                        # Convert target contract address to bytes32 format for LayerZero
-                        target_address_bytes32 = target_contract.lower().replace('0x', '').ljust(64, '0')
-                        target_address_bytes = bytes.fromhex(target_address_bytes32)
-                        
-                        transaction = source_contract_instance.functions.setPeer(
-                            target_eid,
-                            target_address_bytes
-                        ).build_transaction({
-                            'from': self.account.address,
-                            'gas': 200000,
-                            'gasPrice': gas_price,
-                            'nonce': nonce,
-                            'chainId': source_web3.eth.chain_id
-                        })
-                        
-                        # Sign and send transaction
-                        signed_txn = source_web3.eth.account.sign_transaction(transaction, self.account.key)
-                        tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                        tx_hash_hex = tx_hash.hex()
-                        
-                        print(f"📤 setPeer transaction sent: {tx_hash_hex}")
-                        
-                        # Wait for confirmation
-                        receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
-                        
-                        if receipt.status == 1:
-                            print(f"✅ Peer connection established successfully!")
-                            print(f"📊 Block: {receipt.blockNumber}")
-                            print(f"⛽ Gas Used: {receipt.gasUsed}")
-                            
-                            results.append({
-                                "source_chain": source_chain,
-                                "target_chain": connection["target_chain"],
-                                "target_eid": target_eid,
-                                "status": "success",
-                                "transaction_hash": tx_hash_hex
-                            })
-                        else:
-                            print(f"❌ setPeer transaction failed")
-                            results.append({
-                                "source_chain": source_chain,
-                                "target_chain": connection["target_chain"], 
-                                "target_eid": target_eid,
-                                "status": "failed",
-                                "error": "Transaction failed"
-                            })
-                            
-                    except Exception as peer_error:
-                        print(f"⚠️ setPeer failed: {peer_error}")
-                        
-                        # This might be expected if peer is already set or we don't have permission
-                        if "already set" in str(peer_error).lower():
-                            print(f"✅ Peer connection already exists")
-                            results.append({
-                                "source_chain": source_chain,
-                                "target_chain": connection["target_chain"],
-                                "target_eid": target_eid, 
-                                "status": "already_set"
-                            })
-                        else:
-                            print(f"❌ Permission denied or other error: {peer_error}")
-                            results.append({
-                                "source_chain": source_chain,
-                                "target_chain": connection["target_chain"],
-                                "target_eid": target_eid,
-                                "status": "permission_denied",
-                                "error": str(peer_error)
-                            })
-                    
-                except Exception as connection_error:
-                    print(f"❌ Failed to set up peer connection: {connection_error}")
-                    results.append({
-                        "source_chain": connection.get("source_chain"),
-                        "status": "error",
-                        "error": str(connection_error)
-                    })
-            
-            return {
-                "success": True,
-                "message": "Peer connection setup attempted for all 4 chains",
-                "total_connections": len(results),
-                "chains_configured": ["base_sepolia", "optimism_sepolia", "arbitrum_sepolia", "polygon_amoy"],
-                "summary": {
-                    "successful": len([r for r in results if r.get("status") == "success"]),
-                    "already_set": len([r for r in results if r.get("status") == "already_set"]),
-                    "failed": len([r for r in results if r.get("status") in ["failed", "permission_denied", "error"]])
-                },
-                "results": results
-            }
-            
-        except Exception as e:
-            print(f"❌ LayerZero peer setup error: {e}")
-            return {"success": False, "error": str(e)}
 
     async def get_sync_status(self, sync_id: str) -> Dict[str, Any]:
         """Get status of a cross-chain sync operation"""
