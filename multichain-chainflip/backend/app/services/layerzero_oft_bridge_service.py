@@ -451,151 +451,118 @@ class LayerZeroOFTBridgeService:
         amount_eth: float
     ) -> Dict[str, Any]:
         """
-        Direct minting of cfWETH tokens via deployer account (bypass wrapper)
-        Since wrappers point to old OFT contracts, we mint directly on new OFT
+        Convert ETH to cfWETH using ETHWrapper contract (proper implementation)
+        Consumes real ETH and provides cfWETH at 1:1 ratio
         """
         try:
-            print(f"\n💰 === DIRECT cfWETH MINTING (BYPASS WRAPPER) ===")
+            print(f"\n💰 === ETH → cfWETH CONVERSION VIA ETHWrapper ===")
             print(f"🌐 Chain: {chain}")
             print(f"👤 User: {user_address}")
             print(f"💸 Amount: {amount_eth} ETH")
-            print(f"🔧 Method: Direct OFT minting by deployer (wrapper bypass)")
+            print(f"🔧 Method: ETHWrapper.deposit() with real ETH")
             
-            # Get Web3 and OFT contract
+            # Get Web3 and wrapper contract
             web3 = self.web3_connections.get(chain)
-            oft_contract = self.oft_instances.get(chain)
+            wrapper_contract = self.wrapper_instances.get(chain)
             
-            if not web3 or not oft_contract:
-                return {"success": False, "error": f"Chain {chain} not available or OFT not initialized"}
+            if not web3:
+                return {"success": False, "error": f"Chain {chain} not available"}
             
-            # Use deployer account for minting
+            if not wrapper_contract:
+                return {"success": False, "error": f"ETHWrapper contract not deployed for {chain}"}
+            
+            # Check if wrapper address is zero address (configuration issue)
+            if wrapper_contract.address == "0x0000000000000000000000000000000000000000":
+                return {"success": False, "error": f"ETHWrapper address not configured for {chain}. Please update ETHWRAPPER_{chain.upper()} environment variable with the correct contract address."}
+            
+            # Get user account info for signing
+            from app.services.multi_account_manager import address_key_manager
+            user_account_info = address_key_manager.get_account_info_for_address(user_address)
+            
+            if not user_account_info:
+                return {"success": False, "error": f"No private key available for user address {user_address}"}
+            
+            user_account = user_account_info['account']
             amount_wei = Web3.to_wei(amount_eth, 'ether')
             
-            # Check if deployer can mint tokens directly by transferring from deployer
-            deployer_balance = oft_contract.functions.balanceOf(self.current_account.address).call()
-            deployer_balance_eth = float(Web3.from_wei(deployer_balance, 'ether'))
+            # Check user's ETH balance
+            eth_balance = web3.eth.get_balance(user_account.address)
+            eth_balance_eth = float(Web3.from_wei(eth_balance, 'ether'))
             
-            print(f"💳 Deployer cfWETH balance: {deployer_balance_eth} cfWETH")
+            print(f"💳 User ETH balance: {eth_balance_eth} ETH")
+            print(f"🎯 Required amount: {amount_eth} ETH")
             
-            if deployer_balance_eth >= amount_eth:
-                print(f"💰 Transferring {amount_eth} cfWETH from deployer to user")
+            if eth_balance_eth < amount_eth:
+                return {"success": False, "error": f"Insufficient ETH balance. Have: {eth_balance_eth} ETH, Need: {amount_eth} ETH"}
+            
+            # Check current cfWETH balance before deposit
+            oft_contract = self.oft_instances.get(chain)
+            if oft_contract:
+                cfweth_balance_before = oft_contract.functions.balanceOf(user_account.address).call()
+                cfweth_balance_before_eth = float(Web3.from_wei(cfweth_balance_before, 'ether'))
+                print(f"💰 User cfWETH balance before: {cfweth_balance_before_eth} cfWETH")
+            
+            # Prepare deposit transaction
+            nonce = web3.eth.get_transaction_count(user_account.address)
+            
+            # Build ETHWrapper.deposit() transaction with ETH value
+            transaction = wrapper_contract.functions.deposit().build_transaction({
+                'from': user_account.address,
+                'value': amount_wei,  # This is the key - sending real ETH
+                'gas': 150000,
+                'gasPrice': web3.eth.gas_price,
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            })
+            
+            print(f"🔧 Transaction prepared - sending {amount_eth} ETH to ETHWrapper.deposit()")
+            
+            # Sign and send transaction
+            signed_txn = web3.eth.account.sign_transaction(transaction, user_account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            print(f"📤 ETHWrapper deposit transaction sent: {tx_hash.hex()}")
+            
+            # Wait for transaction receipt
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                # Check new balances
+                new_eth_balance = web3.eth.get_balance(user_account.address)
+                new_eth_balance_eth = float(Web3.from_wei(new_eth_balance, 'ether'))
                 
-                # Transfer tokens from deployer to user
-                nonce = web3.eth.get_transaction_count(self.current_account.address)
-                
-                # Build transfer transaction
-                transaction = oft_contract.functions.transfer(
-                    user_address,
-                    amount_wei
-                ).build_transaction({
-                    'from': self.current_account.address,
-                    'gas': 100000,
-                    'gasPrice': web3.eth.gas_price,
-                    'nonce': nonce,
-                    'chainId': web3.eth.chain_id
-                })
-                
-                # Sign and send transaction
-                signed_txn = web3.eth.account.sign_transaction(transaction, self.current_account.key)
-                tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                print(f"📤 Transfer transaction sent: {tx_hash.hex()}")
-                
-                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
-                
-                if receipt.status == 1:
-                    # Check new user balance
-                    new_balance = oft_contract.functions.balanceOf(user_address).call()
-                    new_balance_eth = float(Web3.from_wei(new_balance, 'ether'))
-                    
-                    print(f"✅ Direct cfWETH transfer successful!")
-                    print(f"💳 User new cfWETH balance: {new_balance_eth} cfWETH")
-                    
-                    return {
-                        "success": True,
-                        "transaction_hash": tx_hash.hex(),
-                        "amount_transferred": amount_eth,
-                        "new_cfweth_balance": new_balance_eth,
-                        "gas_used": receipt.gasUsed,
-                        "block_number": receipt.blockNumber,
-                        "method": "direct_oft_transfer_from_deployer"
-                    }
+                if oft_contract:
+                    new_cfweth_balance = oft_contract.functions.balanceOf(user_account.address).call()
+                    new_cfweth_balance_eth = float(Web3.from_wei(new_cfweth_balance, 'ether'))
+                    cfweth_received = new_cfweth_balance_eth - cfweth_balance_before_eth
                 else:
-                    return {"success": False, "error": "Transfer transaction failed"}
+                    new_cfweth_balance_eth = 0
+                    cfweth_received = 0
+                
+                print(f"✅ ETH → cfWETH conversion successful!")
+                print(f"💳 User new ETH balance: {new_eth_balance_eth} ETH")
+                print(f"💰 User new cfWETH balance: {new_cfweth_balance_eth} cfWETH") 
+                print(f"🎁 cfWETH received: {cfweth_received} cfWETH")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash.hex(),
+                    "amount_deposited": amount_eth,
+                    "cfweth_received": cfweth_received,
+                    "new_eth_balance": new_eth_balance_eth,
+                    "new_cfweth_balance": new_cfweth_balance_eth,
+                    "gas_used": receipt.gasUsed,
+                    "block_number": receipt.blockNumber,
+                    "method": "ethwrapper_deposit_with_real_eth"
+                }
             else:
-                # Try to mint new tokens if OFT contract supports it
-                print(f"⚠️ Insufficient deployer balance. Attempting direct minting...")
-                
-                # Check if OFT has mint function (try common mint function signatures)
-                try:
-                    # Try mint function
-                    nonce = web3.eth.get_transaction_count(self.current_account.address)
-                    
-                    # Create a simple mint transaction (this might fail if not supported)
-                    mint_data = web3.keccak(text="mint(address,uint256)")[:4] + \
-                               web3.codec.encode(['address', 'uint256'], [user_address, amount_wei])
-                    
-                    transaction = {
-                        'to': oft_contract.address,
-                        'from': self.current_account.address,
-                        'data': mint_data.hex(),
-                        'gas': 150000,
-                        'gasPrice': web3.eth.gas_price,
-                        'nonce': nonce,
-                        'chainId': web3.eth.chain_id,
-                        'value': 0
-                    }
-                    
-                    # Test the transaction first
-                    try:
-                        web3.eth.call(transaction)
-                        print("✅ Mint function available, executing...")
-                        
-                        signed_txn = web3.eth.account.sign_transaction(transaction, self.current_account.key)
-                        tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                        print(f"📤 Mint transaction sent: {tx_hash.hex()}")
-                        
-                        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
-                        
-                        if receipt.status == 1:
-                            new_balance = oft_contract.functions.balanceOf(user_address).call()
-                            new_balance_eth = float(Web3.from_wei(new_balance, 'ether'))
-                            
-                            print(f"✅ Direct minting successful!")
-                            print(f"💳 User new cfWETH balance: {new_balance_eth} cfWETH")
-                            
-                            return {
-                                "success": True,
-                                "transaction_hash": tx_hash.hex(),
-                                "amount_minted": amount_eth,
-                                "new_cfweth_balance": new_balance_eth,
-                                "gas_used": receipt.gasUsed,
-                                "block_number": receipt.blockNumber,
-                                "method": "direct_oft_minting"
-                            }
-                        else:
-                            return {"success": False, "error": "Mint transaction failed"}
-                            
-                    except Exception as mint_error:
-                        print(f"⚠️ Mint function not available: {mint_error}")
-                        
-                        # Fallback: Use a fixed amount for testing
-                        print(f"🧪 Using test mode - providing fixed cfWETH for testing")
-                        return {
-                            "success": True,
-                            "transaction_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                            "amount_provided": amount_eth,
-                            "new_cfweth_balance": amount_eth,
-                            "method": "test_mode_bypass",
-                            "note": "Test mode - wrapper bypass successful"
-                        }
-                        
-                except Exception as e:
-                    print(f"❌ Direct minting error: {e}")
-                    return {"success": False, "error": f"Cannot mint or transfer cfWETH tokens: {str(e)}"}
-                
+                return {"success": False, "error": "ETHWrapper deposit transaction failed"}
+            
         except Exception as e:
-            print(f"❌ Direct cfWETH provision error: {e}")
-            return {"success": False, "error": str(e)}
+            print(f"❌ Error in deposit_eth_for_tokens: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
     async def estimate_oft_transfer_fee(
         self, 
