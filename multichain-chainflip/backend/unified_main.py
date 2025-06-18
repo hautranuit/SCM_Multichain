@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -98,6 +98,7 @@ app.include_router(enhanced_consensus.router, prefix="/api/enhanced-consensus", 
 app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payment-incentive"])
 app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authenticity", tags=["enhanced-authenticity"])
 app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
+app.include_router(chainflip_messaging.router, prefix="/api", tags=["chainflip-messaging"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)

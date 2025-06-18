@@ -458,3 +458,105 @@ async def get_transfer_status(transfer_id: str):
     except Exception as e:
         print(f"❌ API: Get transfer status error: {e}")
         raise HTTPException(status_code=500, detail=f"Get transfer status error: {str(e)}")
+
+# New Pydantic model for cross-chain messaging
+class CrossChainMessageRequest(BaseModel):
+    source_chain: str
+    target_chain: str
+    message_data: Dict[str, Any]
+    recipient_address: str
+
+@router.post("/send-message")
+async def send_cross_chain_message(request: CrossChainMessageRequest):
+    """
+    Send cross-chain message using LayerZero OFT contracts
+    This endpoint exposes the cross-chain messaging functionality
+    """
+    try:
+        print(f"🌐 API: Sending cross-chain message")
+        print(f"📤 From: {request.source_chain}")
+        print(f"📥 To: {request.target_chain}")
+        print(f"👤 Recipient: {request.recipient_address}")
+        print(f"📋 Message Type: {request.message_data.get('type', 'Unknown')}")
+        
+        result = await layerzero_oft_bridge_service.send_cross_chain_message(
+            source_chain=request.source_chain,
+            target_chain=request.target_chain,
+            message_data=request.message_data,
+            recipient_address=request.recipient_address
+        )
+        
+        if result["success"]:
+            print(f"✅ API: Cross-chain message sent successfully!")
+            return {
+                "success": True,
+                "message": "Cross-chain message sent successfully",
+                "data": result
+            }
+        else:
+            print(f"❌ API: Cross-chain message failed: {result.get('error')}")
+            raise HTTPException(status_code=400, detail=result.get("error"))
+            
+    except Exception as e:
+        print(f"❌ API: Cross-chain message error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post("/send-cid-message")
+async def send_cid_cross_chain_message(
+    token_id: str,
+    metadata_cid: str,
+    manufacturer_address: str,
+    source_chain: str = "base_sepolia",
+    target_chain: str = "polygon_amoy",
+    admin_address: str = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+):
+    """
+    Send CID cross-chain message from manufacturer to admin
+    Specifically for NFT CID synchronization after minting
+    """
+    try:
+        print(f"📦 API: Sending CID cross-chain message")
+        print(f"🆔 Token ID: {token_id}")
+        print(f"📄 CID: {metadata_cid}")
+        print(f"🏭 Manufacturer: {manufacturer_address}")
+        print(f"🌐 Route: {source_chain} → {target_chain}")
+        
+        # Prepare message data for CID sync
+        message_data = {
+            "type": "CID_SYNC",
+            "token_id": token_id,
+            "metadata_cid": metadata_cid,
+            "manufacturer": manufacturer_address,
+            "timestamp": int(time.time()),
+            "source_chain": source_chain
+        }
+        
+        result = await layerzero_oft_bridge_service.send_cross_chain_message(
+            source_chain=source_chain,
+            target_chain=target_chain,
+            message_data=message_data,
+            recipient_address=admin_address
+        )
+        
+        if result["success"]:
+            print(f"✅ API: CID cross-chain message sent successfully!")
+            return {
+                "success": True,
+                "message": "CID cross-chain message sent to admin successfully",
+                "data": {
+                    **result,
+                    "cid_message": {
+                        "token_id": token_id,
+                        "metadata_cid": metadata_cid,
+                        "manufacturer": manufacturer_address,
+                        "admin_recipient": admin_address
+                    }
+                }
+            }
+        else:
+            print(f"❌ API: CID cross-chain message failed: {result.get('error')}")
+            raise HTTPException(status_code=400, detail=result.get("error"))
+            
+    except Exception as e:
+        print(f"❌ API: CID cross-chain message error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

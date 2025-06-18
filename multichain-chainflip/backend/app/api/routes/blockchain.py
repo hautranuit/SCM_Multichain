@@ -762,6 +762,65 @@ async def mint_product(
             manufacturer_private_key=product_data.manufacturer_private_key
         )
         
+        # NEW: Send cross-chain CID message to Polygon Amoy admin after successful minting
+        try:
+            print(f"\n🌐 === SENDING CROSS-CHAIN CID MESSAGE ===")
+            print(f"📦 Token ID: {result['token_id']}")
+            print(f"📄 Metadata CID: {result['metadata_cid']}")
+            print(f"🏭 Manufacturer: {manufacturer_address}")
+            print(f"🎯 Target: Polygon Amoy Admin (0x032041b4b356fEE1496805DD4749f181bC736FFA)")
+            
+            # Import the layerzero service for cross-chain messaging
+            from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+            
+            # Prepare CID sync message
+            cid_message_data = {
+                "type": "CID_SYNC",
+                "token_id": result['token_id'],
+                "metadata_cid": result['metadata_cid'],
+                "manufacturer": manufacturer_address,
+                "timestamp": current_timestamp,
+                "source_chain": "base_sepolia",
+                "product_name": metadata.get("name", "ChainFLIP Product"),
+                "unique_product_id": unique_product_id,
+                "batch_number": batch_number
+            }
+            
+            # Send cross-chain message from Base Sepolia to Polygon Amoy
+            messaging_result = await layerzero_oft_bridge_service.send_cross_chain_message(
+                source_chain="base_sepolia",
+                target_chain="polygon_amoy",
+                message_data=cid_message_data,
+                recipient_address="0x032041b4b356fEE1496805DD4749f181bC736FFA"  # Admin address
+            )
+            
+            if messaging_result["success"]:
+                print(f"✅ Cross-chain CID message sent successfully!")
+                print(f"🔗 LayerZero TX: {messaging_result['transaction_hash']}")
+                print(f"💰 LayerZero Fee: {messaging_result['layerzero_fee_paid']} ETH")
+                
+                # Add messaging info to the response
+                cross_chain_info = {
+                    "cross_chain_message_sent": True,
+                    "layerzero_tx_hash": messaging_result["transaction_hash"],
+                    "layerzero_fee_paid": messaging_result["layerzero_fee_paid"],
+                    "message_recipient": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "destination_chain": "polygon_amoy"
+                }
+            else:
+                print(f"⚠️ Cross-chain message failed: {messaging_result.get('error')}")
+                cross_chain_info = {
+                    "cross_chain_message_sent": False,
+                    "error": messaging_result.get('error')
+                }
+                
+        except Exception as cid_error:
+            print(f"⚠️ Cross-chain CID message error: {cid_error}")
+            cross_chain_info = {
+                "cross_chain_message_sent": False,
+                "error": f"Cross-chain messaging failed: {str(cid_error)}"
+            }
+        
         return {
             "success": True,
             "message": "Enhanced product minted successfully with image/video support",
@@ -780,7 +839,9 @@ async def mint_product(
             "contract_address": result.get("contract_address"),
             "token_uri": result.get("token_uri"),
             "mint_timestamp": current_timestamp,
-            "mint_date_formatted": metadata["mint_date_formatted"]
+            "mint_date_formatted": metadata["mint_date_formatted"],
+            # NEW: Add cross-chain messaging info to response
+            **cross_chain_info
         }
     except Exception as e:
         print(f"❌ Enhanced product minting error: {e}")
