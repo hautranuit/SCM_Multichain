@@ -1,0 +1,10 @@
+{
+  "network": "polygonAmoy",
+  "chainId": "80002",
+  "contractAddress": "0x225FD1670d94304b737A05412fbCE7a39224D1B1",
+  "layerZeroEndpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+  "deployerAddress": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+  "transactionHash": "0xc9faa7c91c04784a7f5981fb1d9f6273b785513b6e7f36209d4894f37924b7ff",
+  "blockNumber": null,
+  "timestamp": "2025-06-18T07:52:28.144Z"
+}
