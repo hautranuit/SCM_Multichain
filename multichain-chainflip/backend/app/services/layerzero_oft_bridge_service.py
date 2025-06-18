@@ -148,6 +148,17 @@ LAYERZERO_OFT_ABI = [
         "outputs": [{"name": "", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function"
+    },
+    # Mint function for owner-mediated minting
+    {
+        "inputs": [
+            {"internalType": "address", "name": "_to", "type": "address"},
+            {"internalType": "uint256", "name": "_amount", "type": "uint256"}
+        ],
+        "name": "mint",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     }
 ]
 
