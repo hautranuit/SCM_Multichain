@@ -17,10 +17,10 @@ from app.core.database import get_database
 
 settings = get_settings()
 
-# LayerZero V2 endpoint IDs for the 4 chains
+# LayerZero V2 endpoint IDs for the 4 chains (Updated to match working OFT implementation)
 LAYERZERO_ENDPOINTS = {
     "base_sepolia": 40245,      # Manufacturer chain
-    "op_sepolia": 40232,        # Buyer chain
+    "op_sepolia": 40232,        # Buyer chain  
     "arbitrum_sepolia": 40231,  # Additional chain
     "polygon_amoy": 40267       # Hub chain
 }
@@ -60,7 +60,7 @@ CHAIN_CONFIGS = {
 # Target admin address for cross-chain CID sync on Polygon Amoy
 TARGET_ADMIN_ADDRESS = "0x36DDc43D2FfA30588CcAC8C2979b69225c292a73"  # Polygon Amoy admin
 
-# DirectLayerZeroMessenger ABI (essential functions only)
+# DirectLayerZeroMessenger ABI - Based on actual contract interface
 DIRECT_MESSENGER_ABI = [
     {
         "inputs": [
@@ -75,16 +75,6 @@ DIRECT_MESSENGER_ABI = [
     },
     {
         "inputs": [
-            {"name": "eid", "type": "uint16"},
-            {"name": "peer", "type": "bytes32"}
-        ],
-        "name": "setPeer",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
             {"name": "tokenId", "type": "string"},
             {"name": "metadataCID", "type": "string"},
             {"name": "manufacturer", "type": "address"}
@@ -92,6 +82,16 @@ DIRECT_MESSENGER_ABI = [
         "name": "syncCIDToAllChains",
         "outputs": [],
         "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "eid", "type": "uint16"},
+            {"name": "trustedRemote", "type": "bytes"}
+        ],
+        "name": "setTrustedRemote",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -117,6 +117,33 @@ DIRECT_MESSENGER_ABI = [
         "type": "function"
     },
     {
+        "inputs": [{"name": "eid", "type": "uint16"}],
+        "name": "getChainConfig",
+        "outputs": [{
+            "components": [
+                {"name": "layerZeroEid", "type": "uint16"},
+                {"name": "chainId", "type": "uint256"},
+                {"name": "name", "type": "string"},
+                {"name": "isActive", "type": "bool"},
+                {"name": "trustedRemote", "type": "bytes"}
+            ],
+            "name": "",
+            "type": "tuple"
+        }],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "role", "type": "bytes32"},
+            {"name": "account", "type": "address"}
+        ],
+        "name": "hasRole",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "anonymous": False,
         "inputs": [
             {"indexed": True, "name": "messageId", "type": "uint256"},
@@ -138,6 +165,15 @@ DIRECT_MESSENGER_ABI = [
             {"indexed": False, "name": "timestamp", "type": "uint256"}
         ],
         "name": "CIDSynced",
+        "type": "event"
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "eid", "type": "uint16"},
+            {"indexed": False, "name": "trustedRemote", "type": "bytes"}
+        ],
+        "name": "TrustedRemoteSet",
         "type": "event"
     }
 ]
@@ -243,15 +279,11 @@ class DirectLayerZeroMessagingService:
         manufacturer_private_key: str = None
     ) -> Dict[str, Any]:
         """
-        Send CID sync message to all other chains using DirectLayerZeroMessenger
-        This is the main function called from blockchain_service._sync_cid_to_hub
-        
-        Args:
-            manufacturer_private_key: Optional private key of manufacturer to use for sending.
-                                    If not provided, uses the default deployer account.
+        Send CID sync message using the actual DirectLayerZeroMessenger contract
+        This uses LayerZero V1 pattern with proper message passing (not OFT token transfer)
         """
         try:
-            print(f"\n🌐 === DIRECT LAYERZERO CID SYNC TO ALL CHAINS ===")
+            print(f"\n🌐 === DIRECT LAYERZERO CID SYNC (CORRECTED IMPLEMENTATION) ===")
             print(f"🏭 Source: {source_chain}")
             print(f"🔖 Token ID: {token_id}")
             print(f"📦 CID: {metadata_cid}")
@@ -259,7 +291,6 @@ class DirectLayerZeroMessagingService:
             
             # Determine which account to use for sending
             if manufacturer_private_key:
-                # Use manufacturer's account for signing transactions
                 sending_account = Account.from_key(manufacturer_private_key)
                 print(f"🔐 Using manufacturer account for cross-chain messaging: {sending_account.address}")
                 
@@ -270,7 +301,6 @@ class DirectLayerZeroMessagingService:
                         "error": f"Manufacturer private key address {sending_account.address} doesn't match manufacturer {manufacturer}"
                     }
             else:
-                # Fallback to deployer account (backward compatibility)
                 sending_account = self.account
                 print(f"🔐 Using deployer account for cross-chain messaging: {sending_account.address}")
             
@@ -284,67 +314,107 @@ class DirectLayerZeroMessagingService:
             if not source_contract:
                 return {"success": False, "error": f"DirectLayerZeroMessenger contract not available for {source_chain}"}
             
-            # Estimate total fees for sending to all other chains
-            print(f"💰 Estimating LayerZero fees for all chains...")
+            # Check if sender has SENDER_ROLE
+            try:
+                sender_role = Web3.keccak(text="SENDER_ROLE")
+                has_sender_role = source_contract.functions.hasRole(sender_role, sending_account.address).call()
+                print(f"🔑 SENDER_ROLE check: {has_sender_role}")
+                
+                if not has_sender_role:
+                    print(f"⚠️ WARNING: Account {sending_account.address} doesn't have SENDER_ROLE")
+                    print(f"💡 The contract owner needs to grant SENDER_ROLE to this account")
+                    return {
+                        "success": False,
+                        "error": f"Account {sending_account.address} doesn't have SENDER_ROLE",
+                        "solution": f"Contract owner should call: grantRole(SENDER_ROLE, '{sending_account.address}')"
+                    }
+                
+            except Exception as role_check_error:
+                print(f"⚠️ Could not check SENDER_ROLE: {role_check_error}")
+                # Continue anyway - might be a view function issue
             
-            total_fee_estimate = await self._estimate_total_sync_fees(
-                source_chain, token_id, metadata_cid, manufacturer
-            )
+            # Target only Polygon Amoy for now (can expand once all trusted remotes are configured)
+            target_chain = "polygon_amoy"
+            target_config = CHAIN_CONFIGS[target_chain]
+            target_eid = target_config["layerzero_eid"]
             
-            if not total_fee_estimate["success"]:
-                return {
-                    "success": False, 
-                    "error": f"Fee estimation failed: {total_fee_estimate['error']}"
-                }
+            print(f"🎯 Target: {target_chain} (EID: {target_eid})")
             
-            total_fee_wei = total_fee_estimate["total_fee_wei"]
-            total_fee_eth = Web3.from_wei(total_fee_wei, 'ether')
+            # Check if trusted remote is set for target chain
+            try:
+                chain_config = source_contract.functions.getChainConfig(target_eid).call()
+                trusted_remote = chain_config[4]  # trustedRemote is at index 4 in the struct
+                
+                if not trusted_remote or len(trusted_remote) == 0:
+                    print(f"❌ Trusted remote not set for EID {target_eid}")
+                    return {
+                        "success": False,
+                        "error": f"Trusted remote not set for {target_chain} (EID: {target_eid})",
+                        "solution": f"Contract owner should call: setTrustedRemote({target_eid}, trustedRemoteBytes)"
+                    }
+                else:
+                    print(f"✅ Trusted remote is set for {target_chain}")
+                    
+            except Exception as config_error:
+                print(f"⚠️ Could not check chain config: {config_error}")
+                # Continue anyway
             
-            print(f"💰 Total estimated fee: {total_fee_eth} ETH")
+            # Prepare CID sync payload for direct contract call
+            print(f"📋 Preparing CID sync transaction...")
             
-            # Check if sending account has sufficient balance
+            # Estimate fees first
+            try:
+                # Create a sample payload for fee estimation
+                sample_payload = json.dumps({
+                    "type": "CID_SYNC",
+                    "token_id": token_id,
+                    "metadata_cid": metadata_cid,
+                    "manufacturer": manufacturer,
+                    "source_chain_id": source_web3.eth.chain_id,
+                    "timestamp": int(time.time())
+                }).encode('utf-8')
+                
+                (native_fee, zro_fee) = source_contract.functions.estimateFees(
+                    target_eid,
+                    sample_payload,
+                    False,  # useZro
+                    b''     # adapterParams
+                ).call()
+                
+                print(f"💰 Estimated LayerZero fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+            except Exception as fee_error:
+                print(f"⚠️ Fee estimation failed: {fee_error}")
+                print(f"🔧 Using fallback fee of 0.01 ETH")
+                native_fee = Web3.to_wei(0.01, 'ether')
+            
+            # Check account balance
             account_balance = source_web3.eth.get_balance(sending_account.address)
             account_balance_eth = Web3.from_wei(account_balance, 'ether')
+            fee_eth = Web3.from_wei(native_fee, 'ether')
             
-            print(f"💳 Sending account balance: {account_balance_eth} ETH")
+            print(f"💳 Account balance: {account_balance_eth} ETH")
+            print(f"💰 Required fee: {fee_eth} ETH")
             
-            if account_balance < total_fee_wei:
+            if account_balance < native_fee:
                 return {
                     "success": False,
-                    "error": f"Insufficient balance for LayerZero fees. Need: {total_fee_eth} ETH, Have: {account_balance_eth} ETH"
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_eth} ETH, Have: {account_balance_eth} ETH"
                 }
             
-            # Execute direct cross-chain message to Polygon Amoy only
-            print(f"🚀 Executing direct cross-chain message to Polygon Amoy...")
-            
+            # Use the contract's built-in syncCIDToAllChains function
+            # This function handles the LayerZero messaging internally
             nonce = source_web3.eth.get_transaction_count(sending_account.address)
             gas_price = source_web3.eth.gas_price
             
-            # Get the correct target EID from fee estimation (might have been updated)
-            target_eid = CHAIN_CONFIGS["polygon_amoy"]["layerzero_eid"]
-            
-            # Prepare payload for Polygon Amoy
-            payload_data = {
-                "type": "CID_SYNC",
-                "token_id": token_id,
-                "metadata_cid": metadata_cid,
-                "manufacturer": manufacturer,
-                "source_chain_id": source_web3.eth.chain_id,
-                "timestamp": int(time.time())
-            }
-            payload_bytes = json.dumps(payload_data).encode('utf-8')
-            
-            print(f"📋 Using LayerZero EID: {target_eid} for Polygon Amoy")
-            
-            # Build transaction for direct cross-chain message
-            transaction = source_contract.functions.sendCrossChainMessage(
-                target_eid,
-                "CID_SYNC",
-                payload_bytes
+            transaction = source_contract.functions.syncCIDToAllChains(
+                token_id,
+                metadata_cid,
+                manufacturer
             ).build_transaction({
                 'from': sending_account.address,
-                'value': total_fee_wei,  # LayerZero fees
-                'gas': 800000,  # Increased gas limit for LayerZero cross-chain messaging
+                'value': native_fee,  # LayerZero fees
+                'gas': 800000,       # Sufficient gas for cross-chain messaging
                 'gasPrice': gas_price,
                 'nonce': nonce,
                 'chainId': source_web3.eth.chain_id
@@ -352,9 +422,10 @@ class DirectLayerZeroMessagingService:
             
             print(f"📋 Transaction details:")
             print(f"   From: {sending_account.address}")
-            print(f"   Value (LayerZero fees): {total_fee_eth} ETH")
-            print(f"   Gas: {transaction['gas']}")
-            print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+            print(f"   Value (LayerZero fee): {fee_eth} ETH")
+            print(f"   Gas limit: {transaction['gas']}")
+            print(f"   Gas price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+            print(f"   Function: syncCIDToAllChains('{token_id}', '{metadata_cid}', '{manufacturer}')")
             
             # Sign and send transaction
             signed_txn = source_web3.eth.account.sign_transaction(transaction, sending_account.key)
@@ -386,10 +457,8 @@ class DirectLayerZeroMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(total_fee_eth),
-                    "sync_method": "direct_layerzero_polygon_only",
-                    "target_chains": ["polygon_amoy"],
-                    "target_admin": TARGET_ADMIN_ADDRESS,
+                    "layerzero_fee_paid": float(fee_eth),
+                    "sync_method": "direct_layerzero_v1_messaging",
                     "events": sync_events,
                     "timestamp": time.time(),
                     "status": "sent"
@@ -403,54 +472,29 @@ class DirectLayerZeroMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(total_fee_eth),
-                    "target_chains": 1,  # Only sending to Polygon Amoy
-                    "sync_method": "direct_layerzero_polygon_only",
+                    "layerzero_fee_paid": float(fee_eth),
+                    "sync_method": "direct_layerzero_v1_messaging",
                     "events": sync_events,
                     "sync_id": sync_record["sync_id"]
                 }
             else:
                 print(f"❌ Transaction failed with status: {receipt.status}")
-                print(f"🔍 Transaction Hash: {tx_hash_hex}")
-                print(f"📊 Block: {receipt.blockNumber}")
-                print(f"⛽ Gas Used: {receipt.gasUsed}")
-                print(f"📋 Transaction Details:")
-                print(f"   From: {self.account.address}")
-                print(f"   To: {receipt.to}")
-                print(f"   Value: {Web3.from_wei(total_fee_wei, 'ether')} ETH")
-                print(f"   Target EID: {target_eid}")
-                print(f"   Payload Size: {len(payload_bytes)} bytes")
-                
-                print(f"\n🔧 TROUBLESHOOTING GUIDE:")
-                print(f"1. ❌ Contract Execution Reverted - This usually means:")
-                print(f"   • Peer connection not set between Base Sepolia and Polygon Amoy contracts")
-                print(f"   • Base contract: 0x1208F8F0E40381F14E41621906D13C9c3CaAa061")
-                print(f"   • Expected Polygon peer: 0x34705a7e91b465AE55844583EC16715C88bD457a")
-                print(f"   • LayerZero EID: {target_eid} (confirmed correct)")
-                print(f"\n2. 💡 SOLUTION: Configure peer connection using:")
-                print(f"   setPeer({target_eid}, '0x34705a7e91b465AE55844583EC16715C88bD457a')")
-                print(f"\n3. 🔄 For now, falling back to database-only registry...")
-                
-                # Try to get more details about the failure
-                try:
-                    # Attempt to get transaction details
-                    tx_details = source_web3.eth.get_transaction(tx_hash)
-                    print(f"📄 Transaction Input Data Length: {len(tx_details.input)} bytes")
-                except Exception as e:
-                    print(f"⚠️ Could not get transaction details: {e}")
+                print(f"🔍 This could be due to:")
+                print(f"   • Trusted remote not set for target chain")
+                print(f"   • Insufficient LayerZero fees")
+                print(f"   • SENDER_ROLE not granted to account")
+                print(f"   • Contract permissions issue")
                 
                 return {
                     "success": False,
-                    "error": f"DirectLayerZero transaction failed - likely peer connection not configured",
+                    "error": f"DirectLayerZero transaction failed with status {receipt.status}",
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
                     "troubleshooting": {
-                        "issue": "Peer connection not set",
-                        "solution": f"setPeer({target_eid}, '0x34705a7e91b465AE55844583EC16715C88bD457a')",
-                        "target_eid": target_eid,
-                        "payload_size": len(payload_bytes),
-                        "fee_paid": float(total_fee_eth)
+                        "check_trusted_remotes": f"Verify trusted remotes are set for target chains",
+                        "check_sender_role": f"Verify {sending_account.address} has SENDER_ROLE",
+                        "check_fees": f"Verify sufficient LayerZero fees provided: {fee_eth} ETH"
                     }
                 }
                 
@@ -460,14 +504,13 @@ class DirectLayerZeroMessagingService:
             print(f"🔍 Full traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
-    async def _estimate_total_sync_fees(
+    async def _estimate_sync_fees(
         self,
         source_chain: str,
-        token_id: str,
-        metadata_cid: str,
-        manufacturer: str
+        target_chain: str,
+        payload_size: int
     ) -> Dict[str, Any]:
-        """Estimate total LayerZero fees for syncing to Polygon Amoy using contract fee estimation"""
+        """Estimate LayerZero fees for CID sync using contract's estimateFees function"""
         try:
             source_web3 = self.web3_connections.get(source_chain)
             source_contract = self.messenger_contracts.get(source_chain)
@@ -475,98 +518,66 @@ class DirectLayerZeroMessagingService:
             if not source_web3 or not source_contract:
                 return {"success": False, "error": "Source chain or contract not available"}
             
-            # Prepare payload (same as contract would create)
-            payload_data = {
+            target_config = CHAIN_CONFIGS[target_chain]
+            target_eid = target_config["layerzero_eid"]
+            
+            # Create sample payload for fee estimation
+            sample_payload = json.dumps({
                 "type": "CID_SYNC",
-                "token_id": token_id,
-                "metadata_cid": metadata_cid,
-                "manufacturer": manufacturer,
+                "token_id": "sample_token",
+                "metadata_cid": "sample_cid",
+                "manufacturer": "0x0000000000000000000000000000000000000000",
                 "source_chain_id": source_web3.eth.chain_id,
                 "timestamp": int(time.time())
-            }
+            }).encode('utf-8')
             
-            payload_bytes = json.dumps(payload_data).encode('utf-8')
-            
-            # Calculate number of target chains - CURRENTLY: Only Polygon Amoy (will expand to all chains once peers are set)
-            target_chains = ["polygon_amoy"]  # TODO: Expand to ["optimism_sepolia", "arbitrum_sepolia", "polygon_amoy"] once all peers are configured
-            
-            # Try to estimate fee from contract if estimateFees function exists
             try:
-                target_eid = 40267  # Confirmed correct EID for Polygon Amoy
-                
-                # First, let's check if the contract supports this EID
-                try:
-                    supported_eids = source_contract.functions.getSupportedEids().call()
-                    print(f"📋 Contract supports these LayerZero EIDs: {supported_eids}")
-                    
-                    if target_eid not in supported_eids:
-                        print(f"⚠️ Warning: EID {target_eid} not in supported EIDs list")
-                        print(f"🔧 This might indicate peer connection not set up")
-                    else:
-                        print(f"✅ EID {target_eid} is supported by contract")
-                        
-                except Exception as supported_eids_error:
-                    print(f"⚠️ Could not get supported EIDs: {supported_eids_error}")
-                
-                # Try to estimate fees with the correct EID
-                print(f"🔍 Estimating fees for LayerZero EID: {target_eid}")
-                
-                estimated_fee = source_contract.functions.estimateFees(
+                # Use the contract's estimateFees function
+                (native_fee, zro_fee) = source_contract.functions.estimateFees(
                     target_eid,
-                    payload_bytes,
+                    sample_payload,
                     False,  # useZro
-                    b''     # adapterParams (empty)
+                    b''     # adapterParams
                 ).call()
                 
-                # estimated_fee returns (nativeFee, zroFee)
-                native_fee = estimated_fee[0]
+                print(f"💰 LayerZero fee estimate for {target_chain}: {Web3.from_wei(native_fee, 'ether')} ETH")
                 
-                print(f"💰 Contract-based fee estimation:")
-                print(f"   Target EID: {target_eid}")
-                print(f"   Native fee from contract: {Web3.from_wei(native_fee, 'ether')} ETH")
+                return {
+                    "success": True,
+                    "native_fee_wei": native_fee,
+                    "native_fee_eth": float(Web3.from_wei(native_fee, 'ether')),
+                    "zro_fee_wei": zro_fee,
+                    "target_chain": target_chain,
+                    "target_eid": target_eid
+                }
                 
-                # Add 50% buffer for safety
-                total_estimated_fee = int(native_fee * 1.5)
+            except Exception as estimate_error:
+                print(f"⚠️ Fee estimation failed for {target_chain}: {estimate_error}")
                 
-            except Exception as contract_fee_error:
-                print(f"⚠️ Contract fee estimation failed: {contract_fee_error}")
+                # Check if this is a trusted remote issue
+                if "trusted" in str(estimate_error).lower() or "remote" in str(estimate_error).lower():
+                    print(f"🔧 Trusted remote issue detected for {target_chain}")
+                    return {
+                        "success": False,
+                        "error": f"Trusted remote not configured for {target_chain}",
+                        "target_eid": target_eid,
+                        "solution": f"setTrustedRemote({target_eid}, trustedRemoteBytes)"
+                    }
                 
-                # Check if this is a peer connection issue
-                if "execution reverted" in str(contract_fee_error):
-                    print(f"🔧 This looks like a peer connection issue!")
-                    print(f"💡 The DirectLayerZeroMessenger contract on Base Sepolia")
-                    print(f"   might not have peer connection set to Polygon Amoy contract")
-                    print(f"📞 Expected peer: 0x34705a7e91b465AE55844583EC16715C88bD457a")
-                    
-                    # MANUAL PEER SETUP INSTRUCTIONS
-                    print(f"\n🚀 MANUAL TRUSTED REMOTE SETUP REQUIRED:")
-                    print(f"   To fix this issue, the contract owner needs to set up trusted remotes.")
-                    print(f"   Run the trusted remote setup script:")
-                    print(f"   📜 Script: /multichain-chainflip/src/scripts/set-trusted-remotes-direct-messenger.js")
-                    print(f"   🔧 Command: npx hardhat run scripts/set-trusted-remotes-direct-messenger.js --network baseSepolia")
-                    print(f"   📞 This will configure trusted remotes between DirectLayerZeroMessenger contracts")
-                    print(f"   ⚡ After setup, LayerZero messages will be delivered successfully")
+                # Use fallback estimate
+                fallback_fee = Web3.to_wei(0.01, 'ether')  # 0.01 ETH fallback
+                return {
+                    "success": True,
+                    "native_fee_wei": fallback_fee,
+                    "native_fee_eth": 0.01,
+                    "zro_fee_wei": 0,
+                    "target_chain": target_chain,
+                    "target_eid": target_eid,
+                    "fallback": True
+                }
                 
-                print(f"🔄 Using higher hardcoded estimate...")
-                
-                # Use a higher estimate as fallback
-                estimated_fee_per_message = Web3.to_wei(0.01, 'ether')  # 0.01 ETH per message
-                total_estimated_fee = estimated_fee_per_message * len(target_chains)
-                target_eid = 40267  # Use correct EID
-            
-            print(f"💰 Final fee estimation:")
-            print(f"   Target chains: {len(target_chains)}")
-            print(f"   Total estimated: {Web3.from_wei(total_estimated_fee, 'ether')} ETH")
-            
-            return {
-                "success": True,
-                "total_fee_wei": total_estimated_fee,
-                "total_fee_eth": float(Web3.from_wei(total_estimated_fee, 'ether')),
-                "target_chains": len(target_chains),
-                "fee_per_message": float(Web3.from_wei(total_estimated_fee, 'ether'))
-            }
-            
         except Exception as e:
+            print(f"❌ Fee estimation error: {e}")
             return {"success": False, "error": str(e)}
 
     async def _parse_sync_events(self, contract, receipt) -> List[Dict[str, Any]]:
@@ -606,6 +617,99 @@ class DirectLayerZeroMessagingService:
             print(f"⚠️ Event parsing error: {e}")
             
         return events
+
+    async def check_trusted_remotes(self) -> Dict[str, Any]:
+        """Check trusted remote configurations between DirectLayerZeroMessenger contracts"""
+        try:
+            print(f"\n🔍 === CHECKING LAYERZERO TRUSTED REMOTES ===")
+            
+            trusted_remote_status = {}
+            
+            for source_chain, source_contract in self.messenger_contracts.items():
+                if not source_contract:
+                    continue
+                    
+                print(f"\n📍 Checking {CHAIN_CONFIGS[source_chain]['name']} trusted remotes:")
+                source_eid = CHAIN_CONFIGS[source_chain]["layerzero_eid"]
+                
+                chain_remotes = {}
+                
+                for target_chain, target_address in self.contract_addresses.items():
+                    if source_chain == target_chain:
+                        continue
+                        
+                    target_eid = CHAIN_CONFIGS[target_chain]["layerzero_eid"]
+                    
+                    try:
+                        # Check chain config for trusted remote
+                        chain_config = source_contract.functions.getChainConfig(target_eid).call()
+                        trusted_remote = chain_config[4]  # trustedRemote is at index 4
+                        
+                        # Expected trusted remote: target_contract_address + source_contract_address (LayerZero V1 format)
+                        source_address = self.contract_addresses[source_chain]
+                        expected_remote = target_address.lower().replace('0x', '') + source_address.lower().replace('0x', '')
+                        
+                        if trusted_remote and len(trusted_remote) > 0:
+                            actual_remote = trusted_remote.hex() if isinstance(trusted_remote, bytes) else trusted_remote
+                            is_correct = actual_remote.lower() == expected_remote.lower()
+                            
+                            chain_remotes[target_chain] = {
+                                "target_eid": target_eid,
+                                "expected_remote": expected_remote,
+                                "actual_remote": actual_remote,
+                                "is_set": True,
+                                "is_correct": is_correct,
+                                "status": "✅ CORRECT" if is_correct else "❌ INCORRECT",
+                            }
+                            
+                            print(f"   {target_chain} (EID {target_eid}): {chain_remotes[target_chain]['status']}")
+                            if not is_correct:
+                                print(f"     Expected: {expected_remote}")
+                                print(f"     Actual:   {actual_remote}")
+                        else:
+                            chain_remotes[target_chain] = {
+                                "target_eid": target_eid,
+                                "expected_remote": expected_remote,
+                                "actual_remote": None,
+                                "is_set": False,
+                                "is_correct": False,
+                                "status": "❌ NOT SET",
+                                "solution": f"setTrustedRemote({target_eid}, 0x{expected_remote})"
+                            }
+                            
+                            print(f"   {target_chain} (EID {target_eid}): ❌ NOT SET")
+                            print(f"     Solution: setTrustedRemote({target_eid}, 0x{expected_remote})")
+                            
+                    except Exception as remote_error:
+                        chain_remotes[target_chain] = {
+                            "target_eid": target_eid,
+                            "expected_remote": None,
+                            "actual_remote": None,
+                            "is_set": False,
+                            "is_correct": False,
+                            "status": f"❌ ERROR: {remote_error}",
+                            "error": str(remote_error)
+                        }
+                        
+                        print(f"   {target_chain} (EID {target_eid}): ❌ ERROR - {remote_error}")
+                
+                trusted_remote_status[source_chain] = {
+                    "source_eid": source_eid,
+                    "trusted_remotes": chain_remotes,
+                    "total_remotes": len(chain_remotes),
+                    "correct_remotes": sum(1 for r in chain_remotes.values() if r.get("is_correct", False)),
+                    "missing_remotes": sum(1 for r in chain_remotes.values() if not r.get("is_set", True))
+                }
+            
+            return {
+                "success": True,
+                "trusted_remote_status": trusted_remote_status,
+                "timestamp": time.time()
+            }
+            
+        except Exception as e:
+            print(f"❌ Trusted remote check error: {e}")
+            return {"success": False, "error": str(e)}
 
     async def get_sync_status(self, sync_id: str) -> Dict[str, Any]:
         """Get status of a cross-chain sync operation"""
