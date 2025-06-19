@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-06-19T08:15:14.128Z",
+  "timestamp": "2025-06-19T09:32:08.801Z",
   "network": "arbitrumSepolia",
   "chainId": 421614,
   "deployment_type": "ChainFLIP Messenger V2 - LayerZero V2 Fix",
   "contract_name": "ChainFLIPMessengerV2",
   "deployment_purpose": "Fix LayerZero V2 extraOptions format and peer connections",
   "addresses": {
-    "messenger": "0xD9EB50e5F977210AA3C5A46B9918003e640A3032",
+    "messenger": "0xd45D77D10DF591EB4d8c2fC50a6147890031F98c",
     "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
     "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA"
   },
@@ -16,7 +16,7 @@
     "version": "V2"
   },
   "gas_used": {
-    "messenger": "1846790"
+    "messenger": "1846802"
   },
   "interface": "LayerZero V2 OApp with Fixed extraOptions Format",
   "next_steps": [

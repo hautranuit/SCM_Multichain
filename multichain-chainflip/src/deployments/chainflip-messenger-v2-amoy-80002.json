@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-06-19T08:14:39.801Z",
+  "timestamp": "2025-06-19T09:31:40.708Z",
   "network": "amoy",
   "chainId": 80002,
   "deployment_type": "ChainFLIP Messenger V2 - LayerZero V2 Fix",
   "contract_name": "ChainFLIPMessengerV2",
   "deployment_purpose": "Fix LayerZero V2 extraOptions format and peer connections",
   "addresses": {
-    "messenger": "0x96922C50cB3dB61BA7663dc32d9d1796eE9E8fF4",
+    "messenger": "0xA2F2dE78B45272338626177B3C03450673d25a62",
     "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
     "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA"
   },
@@ -16,7 +16,7 @@
     "version": "V2"
   },
   "gas_used": {
-    "messenger": "1846728"
+    "messenger": "1846740"
   },
   "interface": "LayerZero V2 OApp with Fixed extraOptions Format",
   "next_steps": [

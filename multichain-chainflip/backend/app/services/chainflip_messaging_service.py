@@ -247,15 +247,15 @@ class ChainFLIPMessagingService:
                 print(f"❌ Error connecting to {config['name']}: {e}")
 
     async def _load_contract_addresses(self):
-        """Load ChainFLIPMessenger contract addresses - UPDATED WITH NEW V2 ADDRESSES"""
+        """Load ChainFLIPMessenger contract addresses - UPDATED WITH NEW V3 ADDRESSES (500K GAS)"""
         self.contract_addresses = {
-            "base_sepolia": "0xf333Ee4fD3D249AB7C38441a10C5848aE83a7Fbb",    # ✅ NEW V2
-            "polygon_amoy": "0x96922C50cB3dB61BA7663dc32d9d1796eE9E8fF4",    # ✅ NEW V2
-            "optimism_sepolia": "0x31B2caa2F6E713B66d854fEd5770971a87C5f11C",  # ✅ NEW V2
-            "arbitrum_sepolia": "0xD9EB50e5F977210AA3C5A46B9918003e640A3032"   # ✅ NEW V2
+            "base_sepolia": "0x832173479f29eca49723b98d70631406C5CE2A6a",    # ✅ NEW V3 (500K GAS)
+            "polygon_amoy": "0xA2F2dE78B45272338626177B3C03450673d25a62",    # ✅ NEW V3 (500K GAS)
+            "optimism_sepolia": "0xc36312BCd02AFC9C5505c5419186d87EA99Df644",  # ✅ NEW V3 (500K GAS)
+            "arbitrum_sepolia": "0xd45D77D10DF591EB4d8c2fC50a6147890031F98c"   # ✅ NEW V3 (500K GAS)
         }
         
-        print("📄 ChainFLIPMessengerV2 contract addresses (✅ NEW V2 DEPLOYED):")
+        print("📄 ChainFLIPMessengerV3 contract addresses (✅ NEW V3 WITH 500K GAS):")
         for chain, address in self.contract_addresses.items():
             print(f"   {CHAIN_CONFIGS[chain]['name']}: {address}")
 

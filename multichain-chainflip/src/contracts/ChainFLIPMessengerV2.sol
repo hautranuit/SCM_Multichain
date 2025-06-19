@@ -111,9 +111,9 @@ contract ChainFLIPMessengerV2 is OApp {
         
         bytes memory _message = abi.encode(_tokenId, _metadataCID, _manufacturer, block.timestamp);
         
-        // ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
-        // This is the WORKING format: 0x0003010011010000000000000000000000000000ea60
-        bytes memory _options = hex"0003010011010000000000000000000000000000ea60";
+        // ✅ FIXED: Use proper LayerZero V2 extraOptions format with HIGH gas limit
+        // Updated to 500000 (7A120) gas for absolutely reliable execution
+        bytes memory _options = hex"0003010011010000000000000000000000000007A120";
         
         // Get fee quote using the correct OApp V2 method signature
         MessagingFee memory fee = _quote(_destEid, _message, _options, false);
@@ -147,8 +147,8 @@ contract ChainFLIPMessengerV2 is OApp {
         uint256 valuePerChain = totalValue / chainCount;
         bytes memory _message = abi.encode(_tokenId, _metadataCID, _manufacturer, block.timestamp);
         
-        // ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
-        bytes memory _options = hex"0003010011010000000000000000000000000000ea60";
+        // ✅ FIXED: Use proper LayerZero V2 extraOptions format with HIGH gas limit
+        bytes memory _options = hex"0003010011010000000000000000000000000007A120";
         
         // Send to all supported chains
         for (uint32 eid = 40230; eid <= 40270; eid++) {

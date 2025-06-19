@@ -4,12 +4,12 @@
 
 const { ethers } = require("hardhat");
 
-// ChainFLIP Messenger V2 Contract addresses (✅ DEPLOYED)
+// ChainFLIP Messenger V2 Contract addresses (✅ NEW V3 DEPLOYED WITH 500K GAS)
 const MESSENGER_CONTRACTS = {
-    "baseSepolia": "0xf333Ee4fD3D249AB7C38441a10C5848aE83a7Fbb",      // ✅ DEPLOYED
-    "optimismSepolia": "0x31B2caa2F6E713B66d854fEd5770971a87C5f11C",  // ✅ DEPLOYED
-    "arbitrumSepolia": "0xD9EB50e5F977210AA3C5A46B9918003e640A3032",  // ✅ DEPLOYED
-    "amoy": "0x96922C50cB3dB61BA7663dc32d9d1796eE9E8fF4"             // ✅ DEPLOYED
+    "baseSepolia": "0x832173479f29eca49723b98d70631406C5CE2A6a",      // ✅ V3 DEPLOYED
+    "optimismSepolia": "0xc36312BCd02AFC9C5505c5419186d87EA99Df644",  // ✅ V3 DEPLOYED
+    "arbitrumSepolia": "0xd45D77D10DF591EB4d8c2fC50a6147890031F98c",  // ✅ V3 DEPLOYED
+    "amoy": "0xA2F2dE78B45272338626177B3C03450673d25a62"             // ✅ V3 DEPLOYED
 };
 
 // LayerZero V2 EIDs
