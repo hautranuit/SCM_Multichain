@@ -247,15 +247,15 @@ class ChainFLIPMessagingService:
                 print(f"❌ Error connecting to {config['name']}: {e}")
 
     async def _load_contract_addresses(self):
-        """Load ChainFLIPMessenger contract addresses - UPDATED WITH DEPLOYED ADDRESSES"""
+        """Load ChainFLIPMessenger contract addresses - UPDATED WITH NEW V2 ADDRESSES"""
         self.contract_addresses = {
-            "base_sepolia": "0xDbc80005e688df0b2E1486D6619A7Cdf3b10C714",    # ✅ DEPLOYED
-            "polygon_amoy": "0x225FD1670d94304b737A05412fbCE7a39224D1B1",    # ✅ DEPLOYED
-            "optimism_sepolia": "0x69b862c5091fE37e6f1dD47CDC40c69916586e61",  # ✅ DEPLOYED
-            "arbitrum_sepolia": "0xf42BB61B03697608104F12D8C009ad387b4750cB"   # ✅ DEPLOYED
+            "base_sepolia": "0xf333Ee4fD3D249AB7C38441a10C5848aE83a7Fbb",    # ✅ NEW V2
+            "polygon_amoy": "0x96922C50cB3dB61BA7663dc32d9d1796eE9E8fF4",    # ✅ NEW V2
+            "optimism_sepolia": "0x31B2caa2F6E713B66d854fEd5770971a87C5f11C",  # ✅ NEW V2
+            "arbitrum_sepolia": "0xD9EB50e5F977210AA3C5A46B9918003e640A3032"   # ✅ NEW V2
         }
         
-        print("📄 ChainFLIPMessenger contract addresses (✅ DEPLOYED):")
+        print("📄 ChainFLIPMessengerV2 contract addresses (✅ NEW V2 DEPLOYED):")
         for chain, address in self.contract_addresses.items():
             print(f"   {CHAIN_CONFIGS[chain]['name']}: {address}")
 
@@ -367,12 +367,11 @@ class ChainFLIPMessagingService:
             try:
                 print(f"🔍 Getting LayerZero fee quote for EID {target_eid}...")
                 
-                # Use the EXACT options format from the contract (line 110):
-                # abi.encodePacked(uint16(1), uint128(200000)) = version 1, gas limit 200k
-                # Proper conversion: uint16(1) = 0x0001, uint128(200000) = 0x00000000000000000000000000030d40
-                options_bytes = bytes.fromhex('000100000000000000000000000000030d40')
+                # ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
+                # This is the WORKING format: 0x0003010011010000000000000000000000000000ea60
+                options_bytes = bytes.fromhex('0003010011010000000000000000000000000000ea60')
                 
-                print(f"🔧 Using contract-exact options: 0x{options_bytes.hex()}")
+                print(f"🔧 Using WORKING LayerZero V2 extraOptions: 0x{options_bytes.hex()}")
                 
                 # Call the contract's quote function with correct parameters
                 fee_quote = source_contract.functions.quote(

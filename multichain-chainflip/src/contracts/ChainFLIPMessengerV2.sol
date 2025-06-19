@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.17;
+pragma solidity ^0.8.22;
 
 import "@layerzerolabs/oapp-evm/contracts/oapp/OApp.sol";
 import "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 
-contract ChainFLIPMessenger is OApp {
+/**
+ * @title ChainFLIPMessengerV2 - Updated LayerZero V2 Compatible Messenger
+ * @dev Fixed LayerZero V2 implementation with proper extraOptions format
+ * Based on the working OFT system patterns for reliable cross-chain messaging
+ */
+contract ChainFLIPMessengerV2 is OApp {
     
     // Received CID data
     struct CIDData {
@@ -95,7 +100,7 @@ contract ChainFLIPMessenger is OApp {
         emit CIDReceived(tokenId, metadataCID, manufacturer, _origin.srcEid, timestamp);
     }
     
-    // Send CID to specific chain
+    // Send CID to specific chain - FIXED WITH PROPER LAYERZERO V2 PATTERNS
     function sendCIDToChain(
         uint32 _destEid,
         string memory _tokenId,
@@ -106,19 +111,16 @@ contract ChainFLIPMessenger is OApp {
         
         bytes memory _message = abi.encode(_tokenId, _metadataCID, _manufacturer, block.timestamp);
         
-        // Build LayerZero V2 message options
-        bytes memory _options = abi.encodePacked(uint16(1), uint128(200000)); // version 1, gas limit 200k
+        // ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
+        // This is the WORKING format: 0x0003010011010000000000000000000000000000ea60
+        bytes memory _options = hex"0003010011010000000000000000000000000000ea60";
         
+        // Get fee quote using the correct OApp V2 method signature
         MessagingFee memory fee = _quote(_destEid, _message, _options, false);
         require(msg.value >= fee.nativeFee, "Insufficient fee provided");
         
-        _lzSend(
-            _destEid,
-            _message,
-            _options,
-            MessagingFee(msg.value, 0), // fee in native, no LZ token
-            payable(msg.sender)
-        );
+        // Send using the correct OApp V2 method signature
+        _lzSend(_destEid, _message, _options, MessagingFee(msg.value, 0), payable(msg.sender));
         
         emit CIDSynced(_tokenId, _metadataCID, _manufacturer, _destEid, block.timestamp);
     }
@@ -144,24 +146,20 @@ contract ChainFLIPMessenger is OApp {
         
         uint256 valuePerChain = totalValue / chainCount;
         bytes memory _message = abi.encode(_tokenId, _metadataCID, _manufacturer, block.timestamp);
-        bytes memory _options = abi.encodePacked(uint16(1), uint128(200000)); // version 1, gas limit 200k
+        
+        // ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
+        bytes memory _options = hex"0003010011010000000000000000000000000000ea60";
         
         // Send to all supported chains
         for (uint32 eid = 40230; eid <= 40270; eid++) {
             if (supportedChains[eid]) {
-                _lzSend(
-                    eid,
-                    _message,
-                    _options,
-                    MessagingFee(valuePerChain, 0), // fee in native, no LZ token
-                    payable(msg.sender)
-                );
+                _lzSend(eid, _message, _options, MessagingFee(valuePerChain, 0), payable(msg.sender));
                 emit CIDSynced(_tokenId, _metadataCID, _manufacturer, eid, block.timestamp);
             }
         }
     }
     
-    // Get quote for sending message
+    // Get quote for sending message - UPDATED FOR V2
     function quote(
         uint32 _destEid,
         string memory _tokenId,

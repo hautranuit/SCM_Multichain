@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-06-19T08:14:57.739Z",
+  "network": "optimismSepolia",
+  "chainId": 11155420,
+  "deployment_type": "ChainFLIP Messenger V2 - LayerZero V2 Fix",
+  "contract_name": "ChainFLIPMessengerV2",
+  "deployment_purpose": "Fix LayerZero V2 extraOptions format and peer connections",
+  "addresses": {
+    "messenger": "0x31B2caa2F6E713B66d854fEd5770971a87C5f11C",
+    "layerzero_endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "deployer": "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+  },
+  "layerzero": {
+    "eid": 40232,
+    "endpoint": "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    "version": "V2"
+  },
+  "gas_used": {
+    "messenger": "1846750"
+  },
+  "interface": "LayerZero V2 OApp with Fixed extraOptions Format",
+  "next_steps": [
+    "Deploy on all 4 networks",
+    "Set peer connections between all messenger contracts",
+    "Update Python service to use new contract addresses",
+    "Test cross-chain CID messaging"
+  ]
+}
