@@ -337,8 +337,13 @@ class BlockchainService:
             # Contract addresses from environment
             self.contract_addresses = {
                 "supply_chain_nft": settings.supply_chain_nft_contract,
-                "nft_core": settings.nft_core_contract,
-                "manufacturer": settings.manufacturer_contract_address
+                "nft_core": settings.nft_core_contract or settings.nft_contract_base_sepolia,  # Fallback to Base Sepolia NFT contract
+                "manufacturer": settings.manufacturer_contract_address,
+                # Cross-chain NFT contracts
+                "nft_base_sepolia": settings.nft_contract_base_sepolia,
+                "nft_op_sepolia": settings.nft_contract_op_sepolia,
+                "nft_arbitrum_sepolia": settings.nft_contract_arbitrum_sepolia,
+                "nft_polygon_amoy": settings.nft_contract_polygon_amoy
             }
             
             print("✅ Loaded real contract configurations")
@@ -346,6 +351,11 @@ class BlockchainService:
             print(f"   NFT Core: {self.contract_addresses.get('nft_core', 'Not configured')}")
             print(f"   Supply Chain NFT: {self.contract_addresses.get('supply_chain_nft', 'Not configured')}")
             print(f"   Manufacturer: {self.contract_addresses.get('manufacturer', 'Not configured')}")
+            print(f"   Cross-Chain NFT Contracts:")
+            print(f"     Base Sepolia: {self.contract_addresses.get('nft_base_sepolia', 'Not configured')}")
+            print(f"     OP Sepolia: {self.contract_addresses.get('nft_op_sepolia', 'Not configured')}")
+            print(f"     Arbitrum Sepolia: {self.contract_addresses.get('nft_arbitrum_sepolia', 'Not configured')}")
+            print(f"     Polygon Amoy: {self.contract_addresses.get('nft_polygon_amoy', 'Not configured')}")
             
         except Exception as e:
             print(f"⚠️ Contract configuration loading error: {e}")
@@ -407,8 +417,8 @@ class BlockchainService:
             # Prepare transaction for Base Sepolia
             if self.manufacturer_web3 and self.account:
                 try:
-                    # Get contract (using NFT core contract address for NFT minting)
-                    contract_address = self.contract_addresses.get("nft_core")
+                    # Get contract (using Base Sepolia NFT contract for minting)  
+                    contract_address = self.contract_addresses.get("nft_core") or self.contract_addresses.get("nft_base_sepolia")
                     if contract_address:
                         print(f"🏭 Using NFT Core contract for minting: {contract_address}")
                         # Create metadata URI
@@ -661,7 +671,146 @@ class BlockchainService:
                             raise Exception(f"Transaction failed with status: {receipt.status}")
                     
                     else:
-                        raise Exception("NFT Core contract address not configured. Please check NFT_CORE_CONTRACT in .env file")
+                        # Use Base Sepolia NFT contract for minting (primary manufacturing chain)
+                        contract_address = self.contract_addresses.get("nft_base_sepolia")
+                        if contract_address:
+                            print(f"🏭 Using Base Sepolia NFT contract for minting: {contract_address}")
+                            # Create metadata URI
+                            token_uri = f"{settings.ipfs_gateway or 'https://ipfs.io/ipfs/'}{metadata_cid}"
+                            
+                            # Try different contract ABIs and minting approaches
+                            success = False
+                            last_error = None
+                            mint_txn = None
+                            tx_hash_hex = None
+                            receipt = None
+                            
+                            # Store metadata CID on blockchain as well
+                            metadata_hash = self.manufacturer_web3.keccak(text=metadata_cid)
+                            print(f"📦 Storing metadata CID on blockchain: {metadata_cid}")
+                            print(f"🔗 Metadata hash: {metadata_hash.hex()}")
+                            
+                            # First, let's check what kind of contract this is
+                            print(f"🔍 Investigating contract at: {contract_address}")
+                            
+                            # Try to get basic contract info
+                            try:
+                                # Check if it's a valid contract address
+                                code = self.manufacturer_web3.eth.get_code(contract_address)
+                                if code == b'':
+                                    print(f"❌ No contract deployed at {contract_address}")
+                                    raise Exception(f"No contract found at address {contract_address}")
+                                else:
+                                    print(f"✅ Contract found at {contract_address}, code length: {len(code)} bytes")
+                            except Exception as contract_check_error:
+                                print(f"❌ Contract address check failed: {contract_check_error}")
+                                raise Exception(f"Contract address validation failed: {contract_check_error}")
+                            
+                            # FIXED: Use auto-generated token ID approach to prevent token ID conflicts
+                            print(f"🔄 Using auto-generated token ID approach (safeMint with 2 parameters)")
+                            
+                            try:
+                                # Create contract instance using the auto-generated token ID ABI
+                                nft_contract = self.manufacturer_web3.eth.contract(
+                                    address=contract_address,
+                                    abi=self.auto_mint_abi
+                                )
+                                
+                                # Prepare transaction parameters
+                                nonce = self.manufacturer_web3.eth.get_transaction_count(manufacturer_account.address)
+                                gas_price = self.manufacturer_web3.eth.gas_price
+                                
+                                # Use safeMint(to, uri) - auto-generates tokenId
+                                print(f"🔄 Calling: safeMint(to='{manufacturer}', uri='{token_uri}')")
+                                mint_txn = nft_contract.functions.safeMint(
+                                    manufacturer,  # to address
+                                    token_uri      # metadata URI
+                                ).build_transaction({
+                                    'from': manufacturer_account.address,
+                                    'gas': 300000,
+                                    'gasPrice': gas_price,
+                                    'nonce': nonce,
+                                    'value': 0
+                                })
+                                
+                                # Sign and send transaction
+                                print(f"🔐 Signing transaction with manufacturer account: {manufacturer_account.address}")
+                                signed_txn = manufacturer_account.sign_transaction(mint_txn)
+                                tx_hash = self.manufacturer_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                                tx_hash_hex = tx_hash.hex()
+                                
+                                print(f"✅ NFT Minting Transaction sent: {tx_hash_hex}")
+                                print(f"🏭 Minting NFT to {manufacturer} with auto-generated token ID")
+                                print(f"📄 Metadata URI: {token_uri}")
+                                
+                                # Wait for transaction confirmation
+                                print("⏳ Waiting for NFT minting confirmation...")
+                                receipt = self.manufacturer_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                                
+                                if receipt.status == 1:
+                                    print(f"✅ NFT Minting confirmed! Block: {receipt.blockNumber}")
+                                    print(f"⛽ Gas Used: {receipt.gasUsed}")
+                                    
+                                    # CRITICAL: Extract the actual token ID from the transaction logs
+                                    # Parse Transfer event to get the auto-generated token ID
+                                    actual_token_id = None
+                                    for log in receipt.logs:
+                                        try:
+                                            # Check if this is a Transfer event (topic[0] matches Transfer event signature)
+                                            transfer_topic = self.manufacturer_web3.keccak(text="Transfer(address,address,uint256)").hex()
+                                            if len(log.topics) >= 4 and log.topics[0].hex() == transfer_topic:
+                                                # Extract token ID from the third topic (tokenId)
+                                                actual_token_id = int(log.topics[3].hex(), 16)
+                                                print(f"🎯 FOUND: Auto-generated token ID = {actual_token_id}")
+                                                break
+                                        except Exception as log_error:
+                                            print(f"⚠️ Log parsing error: {log_error}")
+                                            continue
+                                    
+                                    if actual_token_id is None:
+                                        print(f"⚠️ Could not extract token ID from logs, using fallback method")
+                                        # Fallback: try to get total supply (which should be the last minted token ID)
+                                        try:
+                                            total_supply_abi = [{
+                                                "inputs": [],
+                                                "name": "totalSupply",
+                                                "outputs": [{"name": "", "type": "uint256"}],
+                                                "stateMutability": "view",
+                                                "type": "function"
+                                            }]
+                                            supply_contract = self.manufacturer_web3.eth.contract(
+                                                address=contract_address,
+                                                abi=total_supply_abi
+                                            )
+                                            actual_token_id = supply_contract.functions.totalSupply().call()
+                                            print(f"🎯 FALLBACK: Using total supply as token ID = {actual_token_id}")
+                                        except Exception as supply_error:
+                                            print(f"❌ Fallback method failed: {supply_error}")
+                                            actual_token_id = 1  # Last resort: assume it's token 1
+                                            print(f"🎯 LAST RESORT: Using token ID = 1")
+                                    
+                                    # Update token_id to the actual auto-generated one
+                                    token_id = actual_token_id
+                                    print(f"✅ Updated token_id to auto-generated value: {token_id}")
+                                    success = True
+                                    
+                                else:
+                                    last_error = f"Transaction failed with status: {receipt.status}"
+                                    print(f"❌ Transaction failed with status: {receipt.status}")
+                                    
+                            except Exception as mint_error:
+                                last_error = str(mint_error)
+                                print(f"❌ Auto-generated minting failed: {mint_error}")
+                                success = False
+                            
+                            if not success:
+                                print(f"❌ All minting approaches failed. Last error: {last_error}")
+                                print(f"💡 Contract at {contract_address} may not be a standard NFT contract")
+                                print(f"🔄 Falling back to cached product creation...")
+                                # Fallback to cached creation
+                                return await self._create_cached_product_fallback(manufacturer, metadata, metadata_cid)
+                        else:
+                            raise Exception("NFT contract address not configured. Please check NFT contract addresses in .env file")
                         
                 except Exception as blockchain_error:
                     print(f"⚠️ Blockchain transaction error: {blockchain_error}")

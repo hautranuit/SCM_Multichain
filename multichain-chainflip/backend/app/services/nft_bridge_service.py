@@ -578,6 +578,150 @@ class NFTBridgeService:
         except Exception as e:
             print(f"❌ Error getting transfers: {e}")
             return []
+            
+    async def mint_nft_on_destination_chain(
+        self,
+        to_chain: str,
+        token_id: int,
+        to_address: str,
+        token_uri: str,
+        use_admin_account: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Mint NFT on destination chain (typically called by admin for cross-chain transfers)
+        
+        Args:
+            to_chain: Destination chain identifier
+            token_id: Token ID to mint
+            to_address: Address to mint NFT to
+            token_uri: Metadata URI for the NFT
+            use_admin_account: Whether to use admin account for minting (default: True)
+        """
+        try:
+            print(f"🏭 Minting NFT on destination chain: {to_chain}")
+            print(f"   Token ID: {token_id}")
+            print(f"   To Address: {to_address}")
+            print(f"   Token URI: {token_uri}")
+            print(f"   Using Admin Account: {use_admin_account}")
+            
+            if to_chain not in self.web3_connections:
+                raise Exception(f"No connection to destination chain: {to_chain}")
+                
+            if to_chain not in self.nft_contracts:
+                raise Exception(f"No NFT contract configured for chain: {to_chain}")
+                
+            web3 = self.web3_connections[to_chain]
+            nft_contract = self.nft_contracts[to_chain]
+            config = NETWORK_CONFIG[to_chain]
+            
+            # Determine which account to use for minting
+            if use_admin_account:
+                # Use admin account (has MINTER_ROLE)
+                from app.core.config import get_settings
+                settings = get_settings()
+                admin_private_key = settings.deployer_private_key
+                if not admin_private_key:
+                    raise Exception("Admin private key not configured")
+                account = Account.from_key(admin_private_key)
+                print(f"🔐 Using admin account for minting: {account.address}")
+            else:
+                # Use recipient's account (must have MINTER_ROLE)
+                private_key = get_private_key_for_address(to_address)
+                if not private_key:
+                    raise Exception(f"No private key found for address: {to_address}")
+                account = Account.from_key(private_key)
+                print(f"🔐 Using recipient account for minting: {account.address}")
+            
+            # Check if token already exists
+            try:
+                existing_owner = nft_contract.functions.ownerOf(token_id).call()
+                print(f"⚠️ Token {token_id} already exists on {to_chain}, owned by: {existing_owner}")
+                if existing_owner.lower() == to_address.lower():
+                    return {
+                        "success": True,
+                        "already_exists": True,
+                        "message": f"Token {token_id} already minted to correct address on {to_chain}",
+                        "owner": existing_owner
+                    }
+                else:
+                    raise Exception(f"Token {token_id} already exists but owned by different address: {existing_owner}")
+            except Exception as e:
+                if "nonexistent token" in str(e).lower() or "invalid token" in str(e).lower():
+                    # Token doesn't exist, proceed with minting
+                    print(f"✅ Token {token_id} doesn't exist on {to_chain}, proceeding with mint")
+                else:
+                    # Some other error occurred
+                    raise e
+            
+            # Build mint transaction using safeMint(to, tokenId, uri)
+            mint_function = nft_contract.functions.safeMint(to_address, token_id, token_uri)
+            
+            # Estimate gas
+            gas_estimate = mint_function.estimate_gas({'from': account.address})
+            gas_price = web3.eth.gas_price
+            
+            # Build transaction
+            transaction = mint_function.build_transaction({
+                'from': account.address,
+                'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+                'gasPrice': gas_price,
+                'nonce': web3.eth.get_transaction_count(account.address),
+                'chainId': config['chain_id']
+            })
+            
+            print(f"📤 Sending mint transaction on {to_chain}...")
+            print(f"   Gas estimate: {gas_estimate}")
+            print(f"   Gas price: {gas_price}")
+            print(f"   Nonce: {transaction['nonce']}")
+            
+            # Sign and send transaction
+            signed_txn = web3.eth.account.sign_transaction(transaction, private_key=account.key)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            
+            print(f"✅ Mint transaction sent: {tx_hash.hex()}")
+            
+            # Wait for confirmation
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            
+            if receipt.status == 1:
+                print(f"✅ NFT minted successfully on {to_chain}")
+                print(f"   Block: {receipt.blockNumber}")
+                print(f"   Gas used: {receipt.gasUsed}")
+                
+                # Verify minting
+                try:
+                    owner = nft_contract.functions.ownerOf(token_id).call()
+                    token_uri_stored = nft_contract.functions.tokenURI(token_id).call()
+                    print(f"✅ Verification:")
+                    print(f"   Owner: {owner}")
+                    print(f"   Expected: {to_address}")
+                    print(f"   Owner match: {owner.lower() == to_address.lower()}")
+                    print(f"   Token URI: {token_uri_stored}")
+                except Exception as verify_error:
+                    print(f"⚠️ Verification failed: {verify_error}")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": receipt.transactionHash.hex(),
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "chain": to_chain,
+                    "token_id": token_id,
+                    "to_address": to_address,
+                    "token_uri": token_uri,
+                    "minter_account": account.address
+                }
+            else:
+                raise Exception(f"Mint transaction failed with status: {receipt.status}")
+                
+        except Exception as e:
+            print(f"❌ Failed to mint NFT on destination chain: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "chain": to_chain,
+                "token_id": token_id
+            }
 
 # Global instance
 nft_bridge_service = NFTBridgeService()

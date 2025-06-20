@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     # Legacy contracts (for backward compatibility)
     nft_core_contract: str = os.getenv("NFT_CORE_CONTRACT", "")
     supply_chain_nft_contract: str = os.getenv("SUPPLY_CHAIN_NFT_CONTRACT", "")
+    
+    # Cross-Chain NFT Contract Addresses
+    nft_contract_base_sepolia: str = os.getenv("NFT_CONTRACT_BASE_SEPOLIA", "")
+    nft_contract_op_sepolia: str = os.getenv("NFT_CONTRACT_OP_SEPOLIA", "") 
+    nft_contract_arbitrum_sepolia: str = os.getenv("NFT_CONTRACT_ARBITRUM_SEPOLIA", "")
+    nft_contract_polygon_amoy: str = os.getenv("NFT_CONTRACT_POLYGON_AMOY", "")
     node_management_contract: str = os.getenv("NODE_MANAGEMENT_CONTRACT", "")
     batch_processing_contract: str = os.getenv("BATCH_PROCESSING_CONTRACT", "")
     dispute_resolution_contract: str = os.getenv("DISPUTE_RESOLUTION_CONTRACT", "")

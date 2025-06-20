@@ -241,3 +241,44 @@ async def example_base_to_optimism_transfer():
         "example_request": example_request.dict(),
         "note": "Make sure NFT contracts are deployed on both networks before attempting transfer"
     }
+
+class AdminMintRequest(BaseModel):
+    token_id: int
+    to_chain: str
+    to_address: str
+    token_uri: str
+    use_admin_account: bool = True
+
+@router.post("/admin/mint-on-destination")
+async def admin_mint_nft_on_destination(request: AdminMintRequest):
+    """
+    Admin endpoint: Mint NFT on destination chain
+    
+    This endpoint allows the admin to mint NFTs on destination chains,
+    typically used for completing cross-chain transfers.
+    """
+    try:
+        logger.info(f"Admin mint request: Token {request.token_id} on {request.to_chain} to {request.to_address}")
+        
+        result = await nft_bridge_service.mint_nft_on_destination_chain(
+            to_chain=request.to_chain,
+            token_id=request.token_id,
+            to_address=request.to_address,
+            token_uri=request.token_uri,
+            use_admin_account=request.use_admin_account
+        )
+        
+        if result["success"]:
+            logger.info(f"Successfully minted NFT {request.token_id} on {request.to_chain}")
+            return {
+                "success": True,
+                "message": f"NFT {request.token_id} minted successfully on {request.to_chain}",
+                "result": result
+            }
+        else:
+            logger.error(f"Failed to mint NFT: {result['error']}")
+            raise HTTPException(status_code=400, detail=f"Minting failed: {result['error']}")
+            
+    except Exception as e:
+        logger.error(f"Admin mint error: {e}")
+        raise HTTPException(status_code=500, detail=f"Minting failed: {str(e)}")
