@@ -396,7 +396,7 @@ class NFTBridgeService:
             
             # Sign and send transaction
             signed_txn = web3.eth.account.sign_transaction(transaction, private_key=account.key)
-            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             
             # Wait for confirmation
             receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -503,7 +503,7 @@ class NFTBridgeService:
             
             # Sign and send transaction
             signed_txn = from_web3.eth.account.sign_transaction(transaction, private_key=account.key)
-            tx_hash = from_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = from_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             
             # Wait for confirmation
             receipt = from_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -573,6 +573,10 @@ class NFTBridgeService:
             transfers = []
             async for transfer in cursor:
                 transfer["_id"] = str(transfer["_id"])
+                # Convert timestamp to string if it exists
+                if "timestamp" in transfer and isinstance(transfer["timestamp"], (int, float)):
+                    from datetime import datetime
+                    transfer["timestamp"] = datetime.fromtimestamp(transfer["timestamp"]).isoformat()
                 transfers.append(transfer)
             return transfers
         except Exception as e:
@@ -676,7 +680,7 @@ class NFTBridgeService:
             
             # Sign and send transaction
             signed_txn = web3.eth.account.sign_transaction(transaction, private_key=account.key)
-            tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
             
             print(f"✅ Mint transaction sent: {tx_hash.hex()}")
             

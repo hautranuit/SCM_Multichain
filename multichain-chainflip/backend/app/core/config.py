@@ -95,10 +95,10 @@ class Settings(BaseSettings):
     ethwrapper_base_sepolia: str = os.getenv("ETHWRAPPER_BASE_SEPOLIA", "0x0000000000000000000000000000000000000000")
     
     # DirectLayerZeroMessenger Contract Addresses (NEW - 2025-06-17)
-    direct_messenger_base_sepolia: str = os.getenv("DIRECT_MESSENGER_BASE_SEPOLIA", "0x1208F8F0E40381F14E41621906D13C9c3CaAa061")
-    direct_messenger_op_sepolia: str = os.getenv("DIRECT_MESSENGER_OP_SEPOLIA", "0x97420B3dEd4B3eA72Ff607fd96927Bfa605b197c")
-    direct_messenger_arbitrum_sepolia: str = os.getenv("DIRECT_MESSENGER_ARBITRUM_SEPOLIA", "0x25409B7ee450493248fD003A759304FF7f748c53")
-    direct_messenger_polygon_amoy: str = os.getenv("DIRECT_MESSENGER_POLYGON_AMOY", "0x34705a7e91b465AE55844583EC16715C88bD457a")
+    direct_messenger_base_sepolia: str = os.getenv("DIRECT_MESSENGER_BASE_SEPOLIA", "0x832173479f29eca49723b98d70631406C5CE2A6a")
+    direct_messenger_op_sepolia: str = os.getenv("DIRECT_MESSENGER_OP_SEPOLIA", "0xc36312BCd02AFC9C5505c5419186d87EA99Df644")
+    direct_messenger_arbitrum_sepolia: str = os.getenv("DIRECT_MESSENGER_ARBITRUM_SEPOLIA", "0xd45D77D10DF591EB4d8c2fC50a6147890031F98c")
+    direct_messenger_polygon_amoy: str = os.getenv("DIRECT_MESSENGER_POLYGON_AMOY", "0xA2F2dE78B45272338626177B3C03450673d25a62")
     
     # Legacy bridge settings
     bridge_contract: str = os.getenv("BRIDGE_CONTRACT", "")

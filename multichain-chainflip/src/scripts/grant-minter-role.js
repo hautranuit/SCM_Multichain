@@ -3,19 +3,30 @@ const { ethers } = require("hardhat");
 async function main() {
     console.log("🔑 Granting MINTER_ROLE to Manufacturer Account...");
     
-    // Get manufacturer address from command line arguments
-    const args = process.argv.slice(2);
-    if (args.length === 0) {
+    // Get manufacturer address from environment variable first
+    let manufacturerAddress = process.env.MANUFACTURER_ADDRESS;
+    
+    if (!manufacturerAddress) {
         console.error("❌ Error: Manufacturer address is required");
-        console.log("📋 Usage: npx hardhat run scripts/grant-minter-role.js --network <network> -- <manufacturer_address>");
-        console.log("📋 Example: npx hardhat run scripts/grant-minter-role.js --network baseSepolia -- 0x5503a5B847e98B621d97695edf1bD84242C5862E");
+        console.log("📋 Usage (Environment Variable - REQUIRED):");
+        console.log("");
+        console.log("📋 Windows PowerShell:");
+        console.log("   $env:MANUFACTURER_ADDRESS='0x5503a5B847e98B621d97695edf1bD84242C5862E'");
+        console.log("   npx hardhat run scripts/grant-minter-role.js --network baseSepolia");
+        console.log("");
+        console.log("📋 Windows Command Prompt:");
+        console.log("   set MANUFACTURER_ADDRESS=0x5503a5B847e98B621d97695edf1bD84242C5862E");
+        console.log("   npx hardhat run scripts/grant-minter-role.js --network baseSepolia");
+        console.log("");
+        console.log("📋 Linux/Mac:");
+        console.log("   MANUFACTURER_ADDRESS=0x5503a5B847e98B621d97695edf1bD84242C5862E npx hardhat run scripts/grant-minter-role.js --network baseSepolia");
+        console.log("");
+        console.log("📋 Note: Hardhat doesn't support positional arguments with 'npx hardhat run'");
         process.exit(1);
     }
     
-    const manufacturerAddress = args[0];
-    
     // Validate manufacturer address format
-    if (!ethers.isAddress(manufacturerAddress)) {
+    if (!ethers.utils.isAddress(manufacturerAddress)) {
         console.error("❌ Error: Invalid Ethereum address format");
         console.log("📋 Provided address:", manufacturerAddress);
         console.log("📋 Example valid address: 0x5503a5B847e98B621d97695edf1bD84242C5862E");
@@ -23,7 +34,7 @@ async function main() {
     }
     
     // Convert to checksum address
-    const MANUFACTURER_ADDRESS = ethers.getAddress(manufacturerAddress);
+    const MANUFACTURER_ADDRESS = ethers.utils.getAddress(manufacturerAddress);
     
     console.log("📋 Parameters:");
     console.log("   Manufacturer Address:", MANUFACTURER_ADDRESS);
