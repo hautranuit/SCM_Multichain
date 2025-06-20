@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging, nft_bridge
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -99,6 +99,7 @@ app.include_router(payment_incentive.router, prefix="/api/payment", tags=["payme
 app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authenticity", tags=["enhanced-authenticity"])
 app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
 app.include_router(chainflip_messaging.router, prefix="/api", tags=["chainflip-messaging"])
+app.include_router(nft_bridge.router, tags=["nft-bridge"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)
@@ -339,6 +340,7 @@ async def root():
             "layerzero_oft": "/api/layerzero-oft/*",
             "supply_chain": "/api/supply-chain/*",
             "enhanced_consensus": "/api/enhanced-consensus/*",
+            "nft_bridge": "/api/nft-bridge/*",
             "network_status": "/api/network-status",
             "health": "/api/health"
         }
@@ -451,6 +453,14 @@ async def unified_startup_event():
             logger.info("✅ Post Supply Chain Service initialized")
         except Exception as e:
             logger.warning(f"Post Supply Chain Service initialization warning: {e}")
+        
+        # Initialize NFT Bridge Service
+        try:
+            from app.services.nft_bridge_service import nft_bridge_service
+            await nft_bridge_service.initialize()
+            logger.info("✅ ChainFLIP NFT Bridge Service initialized")
+        except Exception as e:
+            logger.warning(f"NFT Bridge Service initialization warning: {e}")
         
         logger.info("✅ ChainFLIP Unified Backend Initialized Successfully")
         logger.info("🌐 All endpoints available:")

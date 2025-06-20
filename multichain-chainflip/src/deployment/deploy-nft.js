@@ -2,8 +2,32 @@ const { ethers, network } = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 
-async function main() {
-    console.log("🚀 Deploying ChainFLIP Product NFT Contract...");
+// Multi-network deployment configuration
+const NETWORKS = {
+    baseSepolia: {
+        name: "Base Sepolia",
+        chainId: 84532,
+        envKey: "NFT_CONTRACT_BASE_SEPOLIA"
+    },
+    optimismSepolia: {
+        name: "OP Sepolia", 
+        chainId: 11155420,
+        envKey: "NFT_CONTRACT_OP_SEPOLIA"
+    },
+    arbitrumSepolia: {
+        name: "Arbitrum Sepolia",
+        chainId: 421614, 
+        envKey: "NFT_CONTRACT_ARBITRUM_SEPOLIA"
+    },
+    amoy: {
+        name: "Polygon Amoy",
+        chainId: 80002,
+        envKey: "NFT_CONTRACT_POLYGON_AMOY"
+    }
+};
+
+async function deployToNetwork(networkName) {
+    console.log(`\n🚀 Deploying ChainFLIP Product NFT Contract to ${NETWORKS[networkName].name}...`);
     
     const [deployer] = await ethers.getSigners();
     console.log("📝 Deploying with account:", deployer.address);
@@ -26,6 +50,12 @@ async function main() {
     console.log("Initial Owner:", initialOwner);
     console.log("Network:", network.name);
     console.log("Chain ID:", network.config.chainId);
+    console.log("Expected Chain ID:", NETWORKS[networkName].chainId);
+
+    // Verify we're on the correct network
+    if (network.config.chainId !== NETWORKS[networkName].chainId) {
+        throw new Error(`❌ Chain ID mismatch. Expected ${NETWORKS[networkName].chainId}, got ${network.config.chainId}`);
+    }
 
     // Deploy ChainFLIPProductNFT
     console.log("\n🔨 Compiling and deploying contract...");
@@ -130,14 +160,43 @@ async function main() {
     };
 }
 
-// Export the main function for use in other scripts
-module.exports = { main };
+async function main() {
+    console.log("🚀 Deploying ChainFLIP Product NFT Contract...");
+    
+    // Detect current network (similar to chainflip-messenger-v2.js)
+    const network = await ethers.provider.getNetwork();
+    const chainId = network.chainId;
+    
+    let networkName;
+    if (chainId === 84532) {
+        networkName = "baseSepolia";
+    } else if (chainId === 11155420) {
+        networkName = "optimismSepolia";
+    } else if (chainId === 421614) {
+        networkName = "arbitrumSepolia";
+    } else if (chainId === 80002) {
+        networkName = "amoy";
+    } else {
+        throw new Error(`❌ Unsupported network. Chain ID: ${chainId}`);
+    }
+    
+    console.log(`🌐 Target Network: ${NETWORKS[networkName].name} (Chain ID: ${chainId})`);
+    
+    // Deploy to current network only
+    const result = await deployToNetwork(networkName);
+    
+    console.log("\n🏁 Deployment completed successfully!");
+    return result;
+}
+
+// Export functions for use in other scripts
+module.exports = { main, deployToNetwork };
 
 // Run the deployment if this script is executed directly
 if (require.main === module) {
     main()
-        .then((result) => {
-            console.log("\n🏁 Deployment completed successfully!");
+        .then(() => {
+            console.log("\n🏁 Deployment completed!");
             process.exit(0);
         })
         .catch((error) => {
