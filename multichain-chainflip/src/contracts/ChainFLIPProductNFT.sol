@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -23,6 +23,7 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
     // Events for better tracking
     event ProductMinted(uint256 indexed tokenId, address indexed to, string uri, uint256 timestamp);
     event TokenURIUpdated(uint256 indexed tokenId, string newURI, uint256 timestamp);
+    event TokenBurned(uint256 indexed tokenId, string tokenURI, uint256 timestamp);
     
     constructor(
         string memory name,
@@ -67,6 +68,26 @@ contract ChainFLIPProductNFT is ERC721URIStorage, AccessControl, Ownable {
         
         emit ProductMinted(tokenId, to, uri, block.timestamp);
         return tokenId;
+    }
+    
+    /**
+     * @dev Burn NFT for cross-chain transfer
+     * Returns the tokenURI before burning for cross-chain transfer
+     */
+    function burnForBridge(uint256 tokenId) 
+        public 
+        onlyRole(MINTER_ROLE) 
+        returns (string memory tokenURIData) 
+    {
+        require(_exists(tokenId), "ChainFLIPProductNFT: Token does not exist");
+        
+        // Get tokenURI before burning
+        tokenURIData = tokenURI(tokenId);
+        
+        // Burn the token
+        _burn(tokenId);
+        
+        emit TokenBurned(tokenId, tokenURIData, block.timestamp);
     }
     
     /**
