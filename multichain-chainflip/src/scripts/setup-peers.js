@@ -1,3 +1,35 @@
+/**
+ * ChainFLIP Cross-Chain NFT Bridge - LayerZero Peer Setup
+ * 
+ * This script sets up LayerZero peer connections between DirectLayerZeroMessenger contracts
+ * on all supported networks for cross-chain NFT transfers.
+ * 
+ * Note: This script operates on DirectLayerZeroMessenger contracts (NOT the NFT contracts).
+ * The NFT contracts are regular ERC721 without LayerZero functionality.
+ * 
+ * Usage:
+ *   npx hardhat run scripts/setup-peers.js --network baseSepolia
+ *   npx hardhat run scripts/setup-peers.js --network optimismSepolia
+ *   npx hardhat run scripts/setup-peers.js --network arbitrumSepolia
+ *   npx hardhat run scripts/setup-peers.js --network amoy
+ */
+
+/**
+ * ChainFLIP Cross-Chain NFT Bridge - LayerZero Peer Setup
+ * 
+ * This script sets up LayerZero peer connections between DirectLayerZeroMessenger contracts
+ * on all supported networks for cross-chain NFT transfers.
+ * 
+ * Note: This script operates on DirectLayerZeroMessenger contracts (NOT the NFT contracts).
+ * The NFT contracts are regular ERC721 without LayerZero functionality.
+ * 
+ * Usage:
+ *   npx hardhat run scripts/setup-peers.js --network baseSepolia
+ *   npx hardhat run scripts/setup-peers.js --network optimismSepolia
+ *   npx hardhat run scripts/setup-peers.js --network arbitrumSepolia
+ *   npx hardhat run scripts/setup-peers.js --network amoy
+ */
+
 const { ethers } = require("hardhat");
 const fs = require('fs');
 const path = require('path');
@@ -10,30 +42,30 @@ const LAYER_ZERO_EIDS = {
     amoy: 40267
 };
 
-// Network configurations
+// Network configurations - Updated to use DirectLayerZeroMessenger contracts
 const NETWORKS = {
     baseSepolia: {
         name: "Base Sepolia",
         chainId: 84532,
-        envKey: "NFT_CONTRACT_BASE_SEPOLIA",
+        envKey: "DIRECT_MESSENGER_BASE_SEPOLIA",
         lzEid: LAYER_ZERO_EIDS.baseSepolia
     },
     optimismSepolia: {
-        name: "OP Sepolia",
+        name: "OP Sepolia", 
         chainId: 11155420,
-        envKey: "NFT_CONTRACT_OP_SEPOLIA",
+        envKey: "DIRECT_MESSENGER_OP_SEPOLIA",
         lzEid: LAYER_ZERO_EIDS.optimismSepolia
     },
     arbitrumSepolia: {
         name: "Arbitrum Sepolia",
         chainId: 421614,
-        envKey: "NFT_CONTRACT_ARBITRUM_SEPOLIA",
+        envKey: "DIRECT_MESSENGER_ARBITRUM_SEPOLIA",
         lzEid: LAYER_ZERO_EIDS.arbitrumSepolia
     },
     amoy: {
         name: "Polygon Amoy",
         chainId: 80002,
-        envKey: "NFT_CONTRACT_POLYGON_AMOY",
+        envKey: "DIRECT_MESSENGER_POLYGON_AMOY",
         lzEid: LAYER_ZERO_EIDS.amoy
     }
 };
@@ -97,7 +129,8 @@ async function setPeerForNetwork(networkName, contractAddress) {
 }
 
 async function main() {
-    console.log("Setting up LayerZero peer connections for ChainFLIP NFT contracts...");
+    console.log("Setting up LayerZero peer connections for ChainFLIP DirectLayerZeroMessenger contracts...");
+    console.log("Note: Using Messenger contracts (NOT NFT contracts) for LayerZero functionality");
     
     // Display network information
     for (const [networkName, config] of Object.entries(NETWORKS)) {
