@@ -318,6 +318,23 @@ class CrossChainPurchaseService:
                     }
                 )
                 
+                # Integrate with comprehensive shipping workflow
+                from app.services.shipping_service import shipping_service
+                
+                # Collect shipping information
+                shipping_info_result = await shipping_service.collect_shipping_information({
+                    "purchase_id": payment_result["purchase_id"],
+                    "buyer": buyer_address,
+                    "product_id": product_id,
+                    "seller": current_owner
+                })
+                
+                # Send cross-chain notifications to Hub admin and Manufacturer
+                notification_result = await shipping_service.notify_purchase_stakeholders(
+                    payment_result,
+                    shipping_info_result
+                )
+                
                 # Step 11: Return "Sale Successful and NFT Transferred"
                 purchase_record = {
                     "purchase_id": payment_result["purchase_id"],

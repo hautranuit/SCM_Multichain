@@ -16,13 +16,13 @@ import time
 
 class EncryptionService:
     def __init__(self):
-        print("🔑 Generating fresh encryption keys for this backend session...")
+        print("🔑 Initializing Enhanced Encryption Service with Product-Specific Keys...")
         
-        # Generate fresh keys for this backend session
+        # Generate default session keys (used as fallback)
         self.session_aes_key = secrets.token_bytes(32)
         self.session_hmac_key = secrets.token_bytes(32)
         
-        # Current active keys (used for new products)
+        # Current active keys (used for fallback)
         self.aes_key = self.session_aes_key
         self.hmac_key = self.session_hmac_key
         
@@ -44,7 +44,111 @@ class EncryptionService:
         self._update_env_file('QR_HMAC_KEY', self.session_keys['hmac_key'])
         self._update_env_file('SESSION_ID', self.session_keys['session_id'])
         
-    def get_current_session_keys(self) -> Dict[str, str]:
+    def generate_product_specific_keys(self, product_id: str, manufacturer: str) -> Dict[str, str]:
+        """
+        Generate unique encryption keys for each product during NFT minting
+        This ensures each product has its own encryption keys for QR code security
+        """
+        try:
+            print(f"🔑 Generating product-specific encryption keys for Product ID: {product_id}")
+            
+            # Create a unique seed based on product data and timestamp
+            seed_data = f"{product_id}-{manufacturer}-{int(time.time())}-{secrets.token_hex(16)}"
+            seed_hash = hashlib.sha256(seed_data.encode()).digest()
+            
+            # Generate unique AES and HMAC keys for this product
+            product_aes_key = secrets.token_bytes(32)
+            product_hmac_key = secrets.token_bytes(32)
+            
+            # Create unique session ID for this product
+            product_session_id = hashlib.sha256(f"PRODUCT-{product_id}-{manufacturer}".encode()).hexdigest()[:16]
+            
+            # Store the product-specific keys
+            product_keys = {
+                "aes_key": product_aes_key.hex(),
+                "hmac_key": product_hmac_key.hex(),
+                "generated_at": int(time.time()),
+                "session_id": product_session_id,
+                "product_id": product_id,
+                "manufacturer": manufacturer,
+                "key_type": "product_specific"
+            }
+            
+            print(f"✅ Product-specific keys generated:")
+            print(f"   Product ID: {product_id}")
+            print(f"   Session ID: {product_session_id}")
+            print(f"   AES Key: {product_keys['aes_key'][:32]}...")
+            print(f"   HMAC Key: {product_keys['hmac_key'][:32]}...")
+            
+            return product_keys
+            
+        except Exception as e:
+            print(f"❌ Failed to generate product-specific keys: {e}")
+            raise Exception(f"Product key generation failed: {e}")
+    
+    def encrypt_qr_data_with_product_keys(self, data: Dict[str, Any], product_keys: Dict[str, str]) -> str:
+        """
+        Encrypt QR data using specific product keys
+        """
+        try:
+            # Temporarily set the product keys
+            original_aes = self.aes_key
+            original_hmac = self.hmac_key
+            
+            # Set the product-specific keys
+            self.aes_key = bytes.fromhex(product_keys["aes_key"])
+            self.hmac_key = bytes.fromhex(product_keys["hmac_key"])
+            
+            print(f"🔐 Encrypting QR data with product-specific keys (Session: {product_keys.get('session_id', 'unknown')})")
+            
+            # Encrypt the data
+            encrypted_payload = self.encrypt_qr_data(data)
+            
+            # Restore original keys
+            self.aes_key = original_aes
+            self.hmac_key = original_hmac
+            
+            print(f"✅ QR data encrypted successfully with product-specific keys")
+            return encrypted_payload
+            
+        except Exception as e:
+            # Restore original keys in case of error
+            self.aes_key = original_aes
+            self.hmac_key = original_hmac
+            raise Exception(f"QR encryption with product keys failed: {e}")
+    
+    def create_product_qr_payload(self, token_id: str, metadata_cid: str, product_data: Dict[str, Any], product_keys: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Create QR payload with product-specific session information
+        """
+        qr_data = {
+            # Core identification
+            "token_id": token_id,
+            "cid": metadata_cid,  # Main IPFS CID link for metadata
+            
+            # Product essentials  
+            "product_id": product_data.get("uniqueProductID", ""),
+            "name": product_data.get("name", ""),
+            "manufacturer": product_data.get("manufacturerID", ""),
+            
+            # Blockchain info
+            "blockchain": "Base Sepolia",
+            "chain_id": 84532,
+            
+            # Verification
+            "ipfs_url": f"https://w3s.link/ipfs/{metadata_cid}",
+            "verify_url": f"https://chainflip.app/verify/{token_id}",
+            
+            # Product-specific session info
+            "session_id": product_keys["session_id"],
+            "key_type": "product_specific",
+            
+            # Metadata
+            "generated_at": int(time.time()),
+            "version": "3.0"  # Updated version for product-specific keys
+        }
+        
+        return qr_data
         """Get the current session keys for storing with new products"""
         return self.session_keys.copy()
     

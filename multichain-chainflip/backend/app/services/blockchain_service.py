@@ -831,14 +831,22 @@ class BlockchainService:
             token_id = str(int(time.time() * 1000))
             mock_tx_hash = f"0x{token_id}{'a' * (64 - len(token_id))}"  # More realistic looking hash
             
-            qr_payload = encryption_service.create_qr_payload(
-                token_id=token_id,
-                metadata_cid=metadata_cid,
-                product_data=metadata
+            # Generate product-specific encryption keys
+            product_keys = encryption_service.generate_product_specific_keys(
+                product_id=token_id,
+                manufacturer=manufacturer
             )
             
-            # Encrypt QR with current session keys and get keys used
-            encrypted_qr_code, keys_used = encryption_service.encrypt_qr_data_for_product(qr_payload)
+            # Generate QR payload with product-specific session info
+            qr_payload = encryption_service.create_product_qr_payload(
+                token_id=token_id,
+                metadata_cid=metadata_cid,
+                product_data=metadata,
+                product_keys=product_keys
+            )
+            
+            # Encrypt QR with product-specific keys
+            encrypted_qr_code = encryption_service.encrypt_qr_data_with_product_keys(qr_payload, product_keys)
             qr_hash = encryption_service.generate_qr_hash(qr_payload)
             
             product_data = {
@@ -858,7 +866,7 @@ class BlockchainService:
                 "created_at": time.time(),
                 "mint_params": metadata,
                 # Store product-specific encryption keys
-                "encryption_keys": keys_used
+                "encryption_keys": product_keys
             }
             
             result = await self.database.products.insert_one(product_data)
@@ -870,7 +878,7 @@ class BlockchainService:
                 "metadata_cid": metadata_cid,
                 "qr_hash": qr_hash,
                 "chain_id": settings.base_sepolia_chain_id,
-                "encryption_keys": keys_used,
+                "encryption_keys": product_keys,
                 "_id": str(result.inserted_id)
             }
             
