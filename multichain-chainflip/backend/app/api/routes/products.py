@@ -52,11 +52,12 @@ async def get_products(
         # Apply role-based filtering for buyers following Algorithm 5
         if user_role == "buyer" and wallet_address:
             if view_type == "marketplace":
-                # Algorithm 5: Show available products for purchase (exclude owned and sold)
+                # Algorithm 5: Show available products for purchase (exclude owned, sold, and purchased)
                 filters["$and"] = [
-                    {"status": {"$ne": "sold"}},  # Not sold
+                    {"status": {"$nin": ["sold", "purchased_waiting_shipping"]}},  # UPDATED
                     {"current_owner": {"$ne": wallet_address}},  # Not owned by buyer
-                    {"manufacturer": {"$ne": wallet_address}}  # Not created by buyer
+                    {"manufacturer": {"$ne": wallet_address}},  # Not created by buyer
+                    {"buyer": {"$ne": wallet_address}}  # NEW: Not purchased by buyer
                 ]
             elif view_type == "owned":
                 # Show products owned by the buyer
@@ -64,9 +65,10 @@ async def get_products(
             else:
                 # Default for buyers: marketplace view
                 filters["$and"] = [
-                    {"status": {"$ne": "sold"}},
+                    {"status": {"$nin": ["sold", "purchased_waiting_shipping"]}},  # UPDATED
                     {"current_owner": {"$ne": wallet_address}},
-                    {"manufacturer": {"$ne": wallet_address}}
+                    {"manufacturer": {"$ne": wallet_address}},
+                    {"buyer": {"$ne": wallet_address}}  # NEW: Not purchased by buyer
                 ]
         elif user_role == "manufacturer" and wallet_address:
             # Show products created by this manufacturer
@@ -160,6 +162,43 @@ async def get_buyer_purchases(
             "purchases": purchases,
             "algorithm_1_status": "Payment processing tracked",
             "algorithm_5_status": "Post supply chain management active"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/buyer/{buyer_address}/purchases/waiting-shipping")
+async def get_buyer_purchases_waiting_shipping(
+    buyer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get buyer's purchases that are waiting for shipping to start"""
+    try:
+        # Get purchases in waiting shipping status
+        cursor = blockchain_service.database.purchases.find({
+            "buyer": buyer_address,
+            "status": "paid_waiting_shipping"
+        }).sort("created_at", -1)
+        
+        purchases = []
+        async for purchase in cursor:
+            purchase["_id"] = str(purchase["_id"])
+            
+            # Get product details
+            if purchase.get("product_id"):
+                product = await blockchain_service.database.products.find_one({
+                    "token_id": purchase["product_id"]
+                })
+                if product:
+                    product["_id"] = str(product["_id"])
+                    purchase["product_details"] = product
+            
+            purchases.append(purchase)
+        
+        return {
+            "buyer": buyer_address,
+            "total_waiting_shipping": len(purchases),
+            "purchases": purchases,
+            "status": "waiting_for_manufacture_shipping"
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

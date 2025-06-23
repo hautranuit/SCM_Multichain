@@ -294,22 +294,25 @@ class CrossChainPurchaseService:
             if transfer_result["success"]:
                 print(f"✅ Step 9-10: NFT ownership transferred successfully")
                 
-                # Update product ownership in database
+                # Update product status - REMOVE from marketplace, ADD to buyer purchases
                 await self.database.products.update_one(
                     {"token_id": product_id},
                     {
                         "$set": {
-                            "current_owner": buyer_address,
-                            "status": "sold",
+                            "status": "purchased_waiting_shipping",  # NEW STATUS
+                            "buyer": buyer_address,  # Track who bought it
+                            "purchase_date": time.time(),
                             "last_updated": time.time(),
+                            "marketplace_status": "sold",  # Remove from marketplace
+                            "shipping_status": "waiting_for_manufacturer",  # NEW FIELD
                             "purchase_history": product.get("purchase_history", []) + [{
                                 "purchase_id": payment_result["purchase_id"],
                                 "buyer": buyer_address,
                                 "seller": current_owner,
                                 "price_eth": purchase_price,
                                 "timestamp": time.time(),
-                                "cross_chain": True,
-                                "chains_involved": ["optimism_sepolia", "polygon_pos", "base_sepolia"]
+                                "status": "purchased_waiting_shipping",
+                                "payment_method": "ETH_to_cfWETH"
                             }]
                         }
                     }
@@ -382,85 +385,86 @@ class CrossChainPurchaseService:
 
     async def _process_cross_chain_payment(self, buyer: str, seller: str, amount: float, product_id: str) -> Dict[str, Any]:
         """
-        Algorithm 1: Payment Release and Incentive Mechanism - REAL TOKEN TRANSFER VERSION
-        Step 6-7: Process payment with real cross-chain ETH transfer using LayerZero OFT
+        UPDATED: Buyer Purchase Process with ETH Deposit → cfWETH Minting
+        1. Buyer deposits ETH into wrapperETH contract (locks ETH)
+        2. cfWETH is minted for the buyer
+        3. Product is removed from marketplace and added to buyer's purchases
         """
         try:
             purchase_id = f"PURCHASE-{product_id}-{int(time.time())}"
             escrow_id = f"ESCROW-{purchase_id}"
             
-            print(f"💰 Algorithm 1: Payment Release and Incentive Mechanism (REAL TOKENS)")
-            print(f"   🔐 Escrow ID: {escrow_id}")
+            print(f"💰 NEW: Buyer Purchase Process with ETH Deposit → cfWETH Minting")
+            print(f"   🔐 Purchase ID: {purchase_id}")
             print(f"   💸 Amount: {amount} ETH")
-            print(f"   🔗 Real token flow: Optimism ETH → Base Sepolia ETH via LayerZero OFT")
+            print(f"   🔗 Flow: ETH → wrapperETH → cfWETH minting")
             
-            # Step 1: If NFT ownership of Product ID = buyer (will be checked after transfer)
-            # Step 2: Collect collateral amount to seller and transporter
-            collateral_amount = amount * 0.1  # 10% collateral for security
+            # Step 1: Initialize LayerZero OFT Bridge Service for cfWETH operations
+            from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
+            await layerzero_oft_bridge_service.initialize()
             
-            # Step 3: Real cross-chain ETH transfer using Token Bridge Service
-            print(f"💸 Executing REAL cross-chain ETH transfer...")
+            # Step 2: Deposit ETH into wrapperETH contract and mint cfWETH for buyer
+            print(f"💰 Step 1-2: Depositing {amount} ETH → Minting cfWETH for buyer...")
             
-            # Initialize token bridge service
-            from app.services.token_bridge_service import token_bridge_service
-            await token_bridge_service.initialize()
+            # Use the buyer's original chain (could be optimism_sepolia, base_sepolia, etc.)
+            # For this implementation, we'll use optimism_sepolia as the buyer chain
+            buyer_chain = "optimism_sepolia"
             
-            # Execute real ETH transfer from buyer chain to manufacturer chain
-            transfer_result = await token_bridge_service.transfer_eth_cross_chain(
-                from_chain="optimism_sepolia",  # Buyer chain
-                to_chain="base_sepolia",       # Manufacturer chain
-                from_address=buyer,
-                to_address=seller,
-                amount_eth=amount,
-                escrow_id=escrow_id
+            deposit_result = await layerzero_oft_bridge_service.deposit_eth_for_tokens(
+                chain=buyer_chain,
+                user_address=buyer,
+                amount_eth=amount
             )
             
-            if transfer_result["success"]:
-                print(f"✅ Real ETH transfer completed successfully")
-                print(f"   🔗 Wrap TX: {transfer_result['wrap_transaction_hash']}")
-                print(f"   🔗 LayerZero TX: {transfer_result['layerzero_transaction_hash']}")
-                
-                # Create escrow record with real transfer details
-                escrow_record = {
-                    "escrow_id": escrow_id,
-                    "purchase_id": purchase_id,
-                    "product_id": product_id,
-                    "buyer": buyer,
-                    "seller": seller,
-                    "amount_eth": amount,
-                    "collateral_amount": collateral_amount,
-                    "status": "active",
-                    "created_at": time.time(),
-                    "transfer_id": transfer_result["transfer_id"],
-                    "wrap_tx": transfer_result["wrap_transaction_hash"],
-                    "layerzero_tx": transfer_result["layerzero_transaction_hash"],
-                    "gas_costs": transfer_result["gas_used"],
-                    "source_chain": "optimism_sepolia",
-                    "target_chain": "base_sepolia",
-                    "real_token_transfer": True,
-                    "transfer_method": "LayerZero_OFT"
-                }
-                
-                await self.database.escrows.insert_one(escrow_record)
-                
-                print(f"✅ Escrow created with REAL cross-chain ETH transfer")
-                
+            if not deposit_result["success"]:
+                print(f"❌ ETH deposit failed: {deposit_result['error']}")
                 return {
-                    "success": True,
-                    "purchase_id": purchase_id,
-                    "escrow_id": escrow_id,
-                    "transfer_id": transfer_result["transfer_id"],
-                    "wrap_tx": transfer_result["wrap_transaction_hash"],
-                    "layerzero_tx": transfer_result["layerzero_transaction_hash"],
-                    "collateral_amount": collateral_amount,
-                    "real_token_transfer": True,
-                    "amount_transferred": amount,
-                    "gas_used": transfer_result["gas_used"]
+                    "success": False,
+                    "error": f"ETH deposit failed: {deposit_result['error']}",
+                    "step": "eth_deposit"
                 }
-                
-            else:
-                print(f"❌ Real ETH transfer failed: {transfer_result['error']}")
-                return {"success": False, "error": f"Token transfer failed: {transfer_result['error']}"}
+            
+            print(f"✅ ETH deposited successfully")
+            print(f"   💳 cfWETH minted: {deposit_result['cfweth_received']} cfWETH")
+            print(f"   🔗 Deposit TX: {deposit_result['deposit_transaction_hash']}")
+            print(f"   🔗 Mint TX: {deposit_result['mint_transaction_hash']}")
+            
+            # Step 3: Create purchase record (NOT escrow - buyer has paid)
+            purchase_record = {
+                "escrow_id": escrow_id,
+                "purchase_id": purchase_id,
+                "product_id": product_id,
+                "buyer": buyer,
+                "seller": seller,
+                "amount_eth": amount,
+                "cfweth_minted": deposit_result['cfweth_received'],
+                "status": "paid_waiting_shipping",  # NEW STATUS
+                "created_at": time.time(),
+                "deposit_tx": deposit_result["deposit_transaction_hash"],
+                "mint_tx": deposit_result["mint_transaction_hash"],
+                "buyer_chain": buyer_chain,
+                "payment_method": "ETH_to_cfWETH",
+                "eth_locked": True,
+                "cfweth_balance": deposit_result['new_cfweth_balance'],
+                "stage": "waiting_for_manufacture_shipping"  # NEW FIELD
+            }
+            
+            await self.database.purchases.insert_one(purchase_record)
+            
+            print(f"✅ Purchase record created - Status: paid_waiting_shipping")
+            
+            return {
+                "success": True,
+                "purchase_id": purchase_id,
+                "escrow_id": escrow_id,
+                "deposit_transaction_hash": deposit_result["deposit_transaction_hash"],
+                "mint_transaction_hash": deposit_result["mint_transaction_hash"],
+                "cfweth_minted": deposit_result['cfweth_received'],
+                "layerzero_tx": deposit_result["mint_transaction_hash"],  # For compatibility
+                "eth_locked_amount": amount,
+                "buyer_chain": buyer_chain,
+                "status": "paid_waiting_shipping"
+            }
                 
         except Exception as e:
             print(f"❌ Payment processing error: {e}")

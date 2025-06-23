@@ -118,13 +118,33 @@ const ProductManagement = () => {
     
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/api/products/buyer/${user.wallet_address}/purchases`
-      );
-      console.log('✅ Fetched buyer purchases:', response.data);
-      setPurchases(response.data.purchases || []);
+      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+      
+      // Fetch both completed purchases and waiting shipping purchases
+      const [purchasesResponse, waitingShippingResponse] = await Promise.all([
+        fetch(`${backendUrl}/api/products/buyer/${user.wallet_address}/purchases`),
+        fetch(`${backendUrl}/api/products/buyer/${user.wallet_address}/purchases/waiting-shipping`)
+      ]);
+      
+      if (purchasesResponse.ok) {
+        const purchasesData = await purchasesResponse.json();
+        const completedPurchases = purchasesData.purchases || [];
+        
+        let waitingShippingPurchases = [];
+        if (waitingShippingResponse.ok) {
+          const waitingData = await waitingShippingResponse.json();
+          waitingShippingPurchases = waitingData.purchases || [];
+        }
+        
+        // Combine and sort by date
+        const allPurchases = [...completedPurchases, ...waitingShippingPurchases]
+          .sort((a, b) => (b.created_at || b.purchase_timestamp || 0) - (a.created_at || a.purchase_timestamp || 0));
+        
+        setPurchases(allPurchases);
+        console.log(`📋 Loaded ${allPurchases.length} buyer purchases (${waitingShippingPurchases.length} waiting shipping)`);
+      }
     } catch (error) {
-      console.error('❌ Error fetching purchases:', error);
+      console.error('❌ Error fetching buyer purchases:', error);
       setPurchases([]);
     }
     setLoading(false);
@@ -1238,12 +1258,21 @@ const ProductManagement = () => {
                             Order #{purchase.purchase_id?.substring(0, 12)}...
                           </h4>
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            purchase.status === 'completed' ? 'bg-green-500/20 text-green-100 border border-green-400/30' :
-                            purchase.status === 'shipped' ? 'bg-blue-500/20 text-blue-100 border border-blue-400/30' :
-                            purchase.status === 'pending' ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' :
-                            'bg-gray-500/20 text-gray-100 border border-gray-400/30'
+                            purchase.status === 'paid_waiting_shipping' || purchase.stage === 'waiting_for_manufacture_shipping' 
+                              ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' 
+                              : purchase.status === 'completed' 
+                              ? 'bg-green-500/20 text-green-100 border border-green-400/30' 
+                              : purchase.status === 'shipped' 
+                              ? 'bg-blue-500/20 text-blue-100 border border-blue-400/30' 
+                              : purchase.status === 'pending' 
+                              ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' 
+                              : 'bg-gray-500/20 text-gray-100 border border-gray-400/30'
                           }`}>
-                            {purchase.status}
+                            {purchase.status === 'paid_waiting_shipping' || purchase.stage === 'waiting_for_manufacture_shipping' 
+                              ? 'Waiting for Manufacture Start Shipping Process'
+                              : purchase.status === 'completed' 
+                              ? 'Completed' 
+                              : purchase.status || 'Processing'}
                           </span>
                         </div>
                         
