@@ -20,9 +20,7 @@ import Marketplace from './components/Marketplace';
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import ParticipantManagement from './components/ParticipantManagement';
-import EnhancedConsensusDemo from './components/EnhancedConsensusDemo';
 import Analytics from './components/Analytics';
-import ConsensusManagement from './components/ConsensusManagement';
 import TokenBridge from './components/TokenBridge';
 import TransporterRegistration from './components/TransporterRegistration';
 import QRScanner from './components/QRScanner';
@@ -188,31 +186,11 @@ function App() {
               } 
             />
             <Route 
-              path="/enhanced-consensus" 
-              element={
-                <ProtectedRoute>
-                  <ModernAppLayout backendStatus={backendStatus}>
-                    <EnhancedConsensusDemo />
-                  </ModernAppLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
               path="/analytics" 
               element={
                 <ProtectedRoute>
                   <ModernAppLayout backendStatus={backendStatus}>
                     <Analytics />
-                  </ModernAppLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/consensus" 
-              element={
-                <ProtectedRoute>
-                  <ModernAppLayout backendStatus={backendStatus}>
-                    <ConsensusManagement />
                   </ModernAppLayout>
                 </ProtectedRoute>
               } 
@@ -327,11 +305,6 @@ const ModernAppLayout = ({ children, backendStatus }) => {
       }
     })();
 
-    // Consensus Hub - Available to all for supply chain coordination and dispute resolution
-    const consensusItems = [
-      { id: 'enhanced-consensus', name: 'Consensus Hub', icon: '🔗', path: '/enhanced-consensus' },
-    ];
-
     // Role-specific additional features
     const roleSpecificItems = [];
     if (userRole === 'manufacturer' || userRole === 'admin') {
@@ -340,17 +313,10 @@ const ModernAppLayout = ({ children, backendStatus }) => {
       );
     }
 
-    // Admin-only features
-    if (userRole === 'admin') {
-      roleSpecificItems.push(
-        { id: 'consensus', name: 'System Consensus', icon: '⚡', path: '/consensus' }
-      );
-    }
-
     // Analytics for all
     const analyticsItem = { id: 'analytics', name: 'Analytics', icon: '📈', path: '/analytics' };
 
-    return [...baseItems, productMenuItem, ...platformFeatures, ...networkItems, qrScannerItem, ...consensusItems, ...roleSpecificItems, analyticsItem];
+    return [...baseItems, productMenuItem, ...platformFeatures, ...networkItems, qrScannerItem, ...roleSpecificItems, analyticsItem];
   };
 
   const menuItems = getRoleBasedMenuItems();
