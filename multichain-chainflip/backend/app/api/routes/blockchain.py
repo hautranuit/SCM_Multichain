@@ -950,12 +950,6 @@ async def get_algorithms_status(
                 "usage_count": stats.get("algorithm_usage", {}).get("dispute_resolution", 0),
                 "description": "Multi-stakeholder voting system for arbitrator selection and dispute resolution"
             },
-            "algorithm_3_consensus": {
-                "name": "Supply Chain Consensus Algorithm",
-                "implemented": True,  # NOW IMPLEMENTED WITH UI
-                "usage_count": stats.get("algorithm_usage", {}).get("consensus_batches", 0),
-                "description": "Batch processing with FL validation for supply chain transactions"
-            },
             "algorithm_4_authenticity": {
                 "name": "Product Authenticity Verification Using QR and NFT",
                 "implemented": True,

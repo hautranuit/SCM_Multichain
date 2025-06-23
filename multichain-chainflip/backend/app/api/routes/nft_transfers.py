@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 
 from ...services.nft_transfer_orchestrator import nft_transfer_orchestrator
-from ...services.supply_chain_orchestrator import supply_chain_orchestrator
 from ...core.database import get_database
 
 
@@ -378,68 +377,6 @@ async def get_nft_ownership_history(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ownership history error: {str(e)}")
-
-
-# === INTEGRATION WITH SUPPLY CHAIN ===
-
-@router.post("/nft/integrate-with-purchase", response_model=Dict)
-async def integrate_nft_with_purchase(
-    purchase_request_id: str,
-    product_id: str,
-    orchestrator = Depends(get_nft_orchestrator)
-):
-    """
-    Automatically create NFT transfer flow from existing purchase request
-    """
-    try:
-        # Get purchase request details
-        supply_orchestrator = await supply_chain_orchestrator.initialize() or supply_chain_orchestrator
-        purchase_status = await supply_orchestrator.get_purchase_status(purchase_request_id)
-        
-        if not purchase_status["found"]:
-            raise HTTPException(status_code=404, detail="Purchase request not found")
-        
-        # Extract transporter assignments
-        hub_coordination = purchase_status.get("hub_coordination", {})
-        transporter_assignment = hub_coordination.get("transporter_assignment", {})
-        
-        if not transporter_assignment.get("assignment_ready"):
-            raise HTTPException(status_code=400, detail="Transporter assignment not ready")
-        
-        selected_transporters = transporter_assignment.get("selected_transporters", [])
-        transporter_addresses = [t["transporter_address"] for t in selected_transporters]
-        
-        # Create automatic NFT transfer request
-        nft_request = NFTTransferInitiationRequest(
-            purchase_request_id=purchase_request_id,
-            product_id=product_id,
-            manufacturer_address=purchase_status.get("manufacturer_address"),
-            transporter_addresses=transporter_addresses,
-            buyer_address=purchase_status.get("buyer_address"),
-            purchase_amount=purchase_status.get("purchase_amount", 0.1),
-            product_metadata={
-                "name": f"Product {product_id}",
-                "description": f"Supply chain product for purchase {purchase_request_id}",
-                "product_id": product_id,
-                "purchase_request_id": purchase_request_id,
-                "created_at": datetime.utcnow().isoformat()
-            }
-        )
-        
-        # Initiate NFT transfer
-        result = await initiate_nft_transfer(nft_request, orchestrator)
-        
-        return {
-            **result,
-            "integration": "automatic",
-            "transporters_assigned": len(transporter_addresses),
-            "message": f"NFT transfer integrated with purchase request {purchase_request_id}"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Purchase integration error: {str(e)}")
 
 
 # === ANALYTICS AND REPORTING ===

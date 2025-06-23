@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, supply_chain, nft_transfers, enhanced_consensus, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging, nft_bridge
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, nft_transfers, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging, nft_bridge
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -336,8 +336,6 @@ async def root():
             "qr_codes": "/api/qr/*",
             "token_bridge": "/api/token-bridge/*",
             "layerzero_oft": "/api/layerzero-oft/*",
-            "supply_chain": "/api/supply-chain/*",
-            "enhanced_consensus": "/api/enhanced-consensus/*",
             "nft_bridge": "/api/nft-bridge/*",
             "network_status": "/api/network-status",
             "health": "/api/health"
@@ -403,22 +401,6 @@ async def unified_startup_event():
             logger.info("✅ LayerZero OFT bridge service initialized")
         except Exception as e:
             logger.warning(f"LayerZero OFT bridge service initialization warning: {e}")
-        
-        # Initialize Supply Chain Orchestrator (new)
-        try:
-            from app.services.supply_chain_orchestrator import supply_chain_orchestrator
-            await supply_chain_orchestrator.initialize()
-            logger.info("✅ Supply Chain Orchestrator initialized")
-        except Exception as e:
-            logger.warning(f"Supply Chain Orchestrator initialization warning: {e}")
-        
-        # Initialize Enhanced Consensus Services (SCC Algorithm 3)
-        try:
-            from app.services.scc_consensus_service import scc_consensus_service
-            await scc_consensus_service.initialize()
-            logger.info("✅ SCC Consensus Service initialized")
-        except Exception as e:
-            logger.warning(f"SCC Consensus Service initialization warning: {e}")
         
         # Initialize Dispute Resolution Service (Algorithm 2)
         try:

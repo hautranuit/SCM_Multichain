@@ -20,7 +20,6 @@ from enum import Enum
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from web3 import Web3
 
-from .supply_chain_orchestrator import supply_chain_orchestrator
 from .layerzero_oft_bridge_service import layerzero_oft_bridge_service
 from .blockchain_service import blockchain_service
 
