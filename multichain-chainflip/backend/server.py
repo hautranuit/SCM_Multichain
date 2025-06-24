@@ -78,7 +78,7 @@ async def health_check():
     blockchain_status = {}
     try:
         # Initialize blockchain service if not already done
-        if not blockchain_service.database:
+        if blockchain_service.database is None:
             await blockchain_service.initialize()
         
         # Test Base Sepolia (Manufacturer chain)
@@ -132,7 +132,7 @@ async def get_products(
     """Get products with optional role-based filtering"""
     try:
         # Initialize blockchain service if needed
-        if not blockchain_service.database:
+        if blockchain_service.database is None:
             await blockchain_service.initialize()
         
         # Get all products
@@ -184,10 +184,10 @@ async def get_products(
                 if include_product:
                     filtered_products.append(product)
             
-            return {"products": filtered_products, "count": len(filtered_products), "filtered_by": user_role}
+            return filtered_products
         
         # Return all products if no filtering
-        return {"products": all_products, "count": len(all_products)}
+        return all_products
         
     except Exception as e:
         logger.error(f"Products fetch error: {e}")
@@ -198,7 +198,7 @@ async def get_products(
 async def get_all_products_legacy():
     """Legacy endpoint - get all products without filtering"""
     try:
-        if not blockchain_service.database:
+        if blockchain_service.database is None:
             await blockchain_service.initialize()
         
         products = await blockchain_service.get_all_products()
@@ -213,7 +213,7 @@ async def get_network_status():
     """Get comprehensive network status"""
     try:
         # Initialize services if needed
-        if not blockchain_service.database:
+        if blockchain_service.database is None:
             await blockchain_service.initialize()
         
         # Get network stats
@@ -259,8 +259,8 @@ async def get_network_status():
 # Include all route modules
 app.include_router(api_router)
 app.include_router(participant_routes.router)
-app.include_router(blockchain.router)
-app.include_router(shipping.router)  # ✅ ADD SHIPPING ROUTES
+app.include_router(blockchain.router, prefix="/api/blockchain")
+app.include_router(shipping.router, prefix="/api")  # ✅ ADD SHIPPING ROUTES
 
 app.add_middleware(
     CORSMiddleware,

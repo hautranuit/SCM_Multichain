@@ -379,8 +379,8 @@ class EncryptionService:
     
     def create_qr_payload(self, token_id: str, metadata_cid: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create simplified QR payload containing product's CID link
-        This is the main QR data structure for the SCM system
+        Create comprehensive QR payload containing all verification fields
+        This includes all important fields needed for Algorithm 4 verification
         """
         
         qr_data = {
@@ -393,6 +393,14 @@ class EncryptionService:
             "name": product_data.get("name", ""),
             "manufacturer": product_data.get("manufacturerID", ""),
             
+            # ✅ SECURITY FIX: Include all important verification fields
+            "batchNumber": product_data.get("batchNumber", ""),
+            "productType": product_data.get("productType", ""),
+            "category": product_data.get("category", ""),
+            "manufacturingDate": product_data.get("manufacturingDate", ""),
+            "expirationDate": product_data.get("expirationDate", ""),
+            "location": product_data.get("location", ""),
+            
             # Blockchain info
             "blockchain": "Base Sepolia",
             "chain_id": 84532,
@@ -403,10 +411,11 @@ class EncryptionService:
             
             # Session info
             "session_id": self.session_keys["session_id"],
+            "key_type": "product_specific",
             
             # Metadata
             "generated_at": int(time.time()),
-            "version": "2.0"
+            "version": "3.0"  # Updated version to indicate comprehensive data
         }
         
         return qr_data
