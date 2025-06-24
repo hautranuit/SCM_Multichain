@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Import comprehensive route modules from app/main.py structure
-from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, nft_transfers, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging, nft_bridge
+from app.api.routes import blockchain, products, fl_system, ipfs_service, analytics, qr_routes, auth, participants, token_bridge, layerzero_oft, nft_transfers, payment_incentive, enhanced_authenticity, post_supply_chain, chainflip_messaging, nft_bridge, shipping
 from app.core.config import get_settings
 from app.core.database import init_database, close_database
 
@@ -98,6 +98,7 @@ app.include_router(enhanced_authenticity.router, prefix="/api/enhanced-authentic
 app.include_router(post_supply_chain.router, prefix="/api/post-supply-chain", tags=["post-supply-chain"])
 app.include_router(chainflip_messaging.router, prefix="/api", tags=["chainflip-messaging"])
 app.include_router(nft_bridge.router, tags=["nft-bridge"])
+app.include_router(shipping.router, prefix="/api", tags=["shipping"])
 
 # Include additional routes from server.py
 app.include_router(participant_routes.router)
@@ -441,6 +442,14 @@ async def unified_startup_event():
             logger.info("✅ ChainFLIP NFT Bridge Service initialized")
         except Exception as e:
             logger.warning(f"NFT Bridge Service initialization warning: {e}")
+        
+        # Initialize Shipping Service
+        try:
+            from app.services.shipping_service import shipping_service
+            await shipping_service.initialize()
+            logger.info("✅ Comprehensive Shipping Service initialized")
+        except Exception as e:
+            logger.warning(f"Shipping Service initialization warning: {e}")
         
         logger.info("✅ ChainFLIP Unified Backend Initialized Successfully")
         logger.info("🌐 All endpoints available:")

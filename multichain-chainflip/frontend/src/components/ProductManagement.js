@@ -18,6 +18,8 @@ const ProductManagement = () => {
   const [transferProductId, setTransferProductId] = useState(null);
   const [showVerificationForm, setShowVerificationForm] = useState(false);
   const [verificationProductId, setVerificationProductId] = useState(null);
+  const [showShippingForm, setShowShippingForm] = useState(false);
+  const [selectedProductForPurchase, setSelectedProductForPurchase] = useState(null);
   const [multiChainStats, setMultiChainStats] = useState(null);
   const [productImage, setProductImage] = useState(null);
   const [productVideo, setProductVideo] = useState(null);
@@ -458,82 +460,111 @@ const ProductManagement = () => {
         return;
       }
 
-      // Direct purchase without mandatory verification
-      // (Verification is available separately via the "Verify" button)
-      const price = product.price || product.metadata?.price_eth || '0.001';
-      const confirmation = window.confirm(
-        `🛒 Cross-Chain Product Purchase\n\n` +
-        `📦 Product: ${product.name || 'Product'}\n` +
-        `💰 Purchase for ${price} ETH?\n\n` +
-        `🔗 Cross-Chain Flow:\n` +
-        `   1️⃣ Optimism Sepolia (Buyer Chain)\n` +
-        `   2️⃣ → LayerZero Bridge →\n` +
-        `   3️⃣ Polygon PoS (Hub Chain)\n` +
-        `   4️⃣ → fxPortal Bridge →\n` +
-        `   5️⃣ Base Sepolia (Manufacturer Chain)\n\n` +
-        `⏱️ Processing time: 3-7 minutes\n` +
-        `🔐 Escrow protection included\n` +
-        `🎁 Transporter incentives enabled\n\n` +
-        `ℹ️ Use the "Verify" button to check authenticity separately`
-      );
-      if (!confirmation) return;
+      // Show shipping form instead of direct purchase
+      setSelectedProductForPurchase(product);
+      setShowShippingForm(true);
+    } catch (error) {
+      console.error('Error preparing purchase:', error);
+    }
+  };
 
+  // Add shipping form submission handler
+  const handleShippingFormSubmit = async (shippingInfo) => {
+    try {
       setLoading(true);
-
-      // Algorithm 5 + Algorithm 1: Cross-Chain Purchase
+      
+      const product = selectedProductForPurchase;
+      const price = product.price || product.metadata?.price_eth || '0.001';
+      
+      // Proceed with purchase including shipping info
       const result = await blockchainService.buyProduct({
-        product_id: productTokenId,
+        product_id: product.token_id,
         buyer: user?.wallet_address,
         price: parseFloat(price),
-        payment_method: 'ETH'
+        payment_method: 'ETH',
+        shipping_info: shippingInfo  // Include shipping information
       });
 
-      // Payment processing complete
       if (result.success) {
-        const crossChainDetails = result.cross_chain_details || {};
-        alert(
-          `🎉 Cross-Chain Purchase Successful!\n\n` +
-          `✅ ${result.status}\n` +
-          `📦 Product: ${product.name || 'Product'}\n` +
-          `💰 Paid: ${price} ETH\n` +
-          `📅 Date: ${new Date().toLocaleString()}\n\n` +
-          `🔗 Cross-Chain Transaction Details:\n` +
-          `   🔹 Purchase ID: ${result.purchase_id}\n` +
-          `   🔹 LayerZero TX: ${crossChainDetails.layerzero_tx || 'Processing...'}\n` +
-          `   🔹 fxPortal TX: ${crossChainDetails.fxportal_tx || 'Processing...'}\n` +
-          `   🔹 Escrow ID: ${crossChainDetails.escrow_id || 'N/A'}\n\n` +
-          `🌉 Bridges Used: LayerZero + fxPortal\n` +
-          `⛓️ Chains: Optimism → Polygon → Base Sepolia\n` +
-          `🎯 Algorithms: Algorithm 1 + Algorithm 5\n\n` +
-          `🔄 NFT ownership transferred to your wallet\n` +
-          `💳 Payment processing with escrow protection`
-        );
-        
-        // Refresh data
+        alert('🎉 Purchase successful! Manufacturer has been notified to start shipping process.');
+        setShowShippingForm(false);
+        setSelectedProductForPurchase(null);
         await fetchProducts();
         if (activeTab === 'orders') {
           await fetchBuyerPurchases();
         }
       }
-
     } catch (error) {
-      console.error('❌ Cross-chain buy product error:', error);
+      console.error('Purchase error:', error);
+      alert(`❌ Purchase failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add shipping form submission handler
+  const handleShippingFormSubmit = async (shippingInfo) => {
+    try {
+      setLoading(true);
       
-      // Enhanced error handling for cross-chain issues
-      let errorMessage = error.message;
-      if (errorMessage.includes('authenticity')) {
-        errorMessage = 'Product authenticity verification failed. This may be due to QR code issues or IPFS connectivity.';
-      } else if (errorMessage.includes('cross-chain')) {
-        errorMessage = 'Cross-chain communication failed. Please check bridge connectivity and try again.';
-      } else if (errorMessage.includes('escrow')) {
-        errorMessage = 'Escrow creation failed. Your funds are safe and no payment was processed.';
-      } else if (errorMessage.includes('LayerZero')) {
-        errorMessage = 'LayerZero bridge communication failed. Please try again in a few minutes.';
-      } else if (errorMessage.includes('fxPortal')) {
-        errorMessage = 'fxPortal bridge communication failed. Cross-chain transfer may be delayed.';
+      const product = selectedProductForPurchase;
+      const price = product.price || product.metadata?.price_eth || '0.001';
+      
+      // Proceed with purchase including shipping info
+      const result = await blockchainService.buyProduct({
+        product_id: product.token_id,
+        buyer: user?.wallet_address,
+        price: parseFloat(price),
+        payment_method: 'ETH',
+        shipping_info: shippingInfo  // Include shipping information
+      });
+
+      if (result.success) {
+        alert('🎉 Purchase successful! Manufacturer has been notified to start shipping process.');
+        setShowShippingForm(false);
+        setSelectedProductForPurchase(null);
+        await fetchProducts();
+        if (activeTab === 'orders') {
+          await fetchBuyerPurchases();
+        }
       }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      alert(`❌ Purchase failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add shipping form submission handler
+  const handleShippingFormSubmit = async (shippingInfo) => {
+    try {
+      setLoading(true);
       
-      alert(`❌ Cross-Chain Purchase Failed!\n\n${errorMessage}\n\nNo payment was processed. Please try again.`);
+      const product = selectedProductForPurchase;
+      const price = product.price || product.metadata?.price_eth || '0.001';
+      
+      // Proceed with purchase including shipping info
+      const result = await blockchainService.buyProduct({
+        product_id: product.token_id,
+        buyer: user?.wallet_address,
+        price: parseFloat(price),
+        payment_method: 'ETH',
+        shipping_info: shippingInfo  // Include shipping information
+      });
+
+      if (result.success) {
+        alert('🎉 Purchase successful! Manufacturer has been notified to start shipping process.');
+        setShowShippingForm(false);
+        setSelectedProductForPurchase(null);
+        await fetchProducts();
+        if (activeTab === 'orders') {
+          await fetchBuyerPurchases();
+        }
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      alert(`❌ Purchase failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -1368,6 +1399,20 @@ const ProductManagement = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Shipping Information Form */}
+      {showShippingForm && selectedProductForPurchase && (
+        <ShippingInformationForm
+          productName={selectedProductForPurchase.name || 'Product'}
+          productPrice={selectedProductForPurchase.price || selectedProductForPurchase.metadata?.price_eth || '0.001'}
+          loading={loading}
+          onSubmit={handleShippingFormSubmit}
+          onCancel={() => {
+            setShowShippingForm(false);
+            setSelectedProductForPurchase(null);
+          }}
+        />
       )}
     </div>
   );
