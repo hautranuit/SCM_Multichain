@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
 import ShippingInformationForm from './ShippingInformationForm';
-import { Package, Truck, Shield, Store, Eye, ArrowRight, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star, Play, Image as ImageIcon } from 'lucide-react';
+import { Package, Truck, Shield, Store, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star, Play, Image as ImageIcon } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();

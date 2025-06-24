@@ -1043,16 +1043,27 @@ class BlockchainService:
             print(f"   QR data keys: {list(qr_data_dict.keys()) if isinstance(qr_data_dict, dict) else 'Not a dict'}")
             
             # Core verification fields for Algorithm 4
-            verification_fields = [
-                "token_id", "product_id", "uniqueProductID", 
-                "batchNumber", "manufacturer", "productType"
-            ]
+            # Define mandatory vs optional fields for strict verification
+            mandatory_fields = ["token_id", "manufacturer"]  # Must match exactly
+            important_fields = ["uniqueProductID", "batchNumber", "productType"]  # Should exist in both or have mapping
+            
+            all_fields = mandatory_fields + important_fields
             
             qr_metadata_match = True
+            verification_details = []
             
-            for field in verification_fields:
-                # Get QR value
-                qr_value = qr_data_dict.get(field, "") if isinstance(qr_data_dict, dict) else ""
+            for field in all_fields:
+                # Get QR value with proper field mapping
+                qr_value = ""
+                if field == "uniqueProductID":
+                    # uniqueProductID in NFT maps to product_id in QR data
+                    qr_value = qr_data_dict.get("product_id", "") if isinstance(qr_data_dict, dict) else ""
+                elif field == "manufacturer":
+                    # manufacturer field mapping
+                    qr_value = qr_data_dict.get("manufacturer", "") if isinstance(qr_data_dict, dict) else ""
+                else:
+                    # Standard field mapping
+                    qr_value = qr_data_dict.get(field, "") if isinstance(qr_data_dict, dict) else ""
                 
                 # Get NFT metadata value with proper field mapping
                 nft_value = ""
@@ -1060,6 +1071,14 @@ class BlockchainService:
                 # Special field mapping for QR vs NFT metadata
                 if field == "product_id":
                     # QR product_id maps to uniqueProductID in NFT metadata
+                    nft_value = (
+                        nft_metadata.get("uniqueProductID", "") or 
+                        mint_params.get("uniqueProductID", "") or
+                        nft_metadata.get("product_id", "") or 
+                        mint_params.get("product_id", "")
+                    )
+                elif field == "uniqueProductID":
+                    # uniqueProductID in NFT metadata
                     nft_value = (
                         nft_metadata.get("uniqueProductID", "") or 
                         mint_params.get("uniqueProductID", "") or
@@ -1078,6 +1097,20 @@ class BlockchainService:
                 elif field == "token_id":
                     # token_id should match the actual token_id
                     nft_value = product.get("token_id", product_id)
+                elif field == "batchNumber":
+                    # batchNumber field mapping
+                    nft_value = (
+                        nft_metadata.get("batchNumber", "") or 
+                        mint_params.get("batchNumber", "") or 
+                        product.get("batchNumber", "")
+                    )
+                elif field == "productType":
+                    # productType field mapping
+                    nft_value = (
+                        nft_metadata.get("productType", "") or 
+                        mint_params.get("productType", "") or 
+                        product.get("productType", "")
+                    )
                 else:
                     # Standard field mapping
                     nft_value = (
@@ -1086,21 +1119,64 @@ class BlockchainService:
                         product.get(field, "")
                     )
                 
-                # Compare values
+                # FIXED: Enhanced verification logic with strict field checking
                 if qr_value and nft_value:
+                    # Both have values - must match exactly
                     if str(qr_value).lower() == str(nft_value).lower():
                         print(f"✅ Field match - {field}: '{qr_value}'")
+                        verification_details.append({"field": field, "status": "match", "qr": qr_value, "nft": nft_value})
                     else:
                         print(f"❌ Field mismatch - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                        verification_details.append({"field": field, "status": "mismatch", "qr": qr_value, "nft": nft_value})
                         qr_metadata_match = False
                         break
                 elif qr_value or nft_value:
-                    # One has value, other doesn't - this could be normal for optional fields
-                    print(f"⚠️ Field partial data - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                    # One has value, other doesn't - check if this is acceptable
+                    if field in mandatory_fields:
+                        # Mandatory fields MUST exist in both QR and NFT
+                        print(f"❌ Mandatory field missing - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                        verification_details.append({"field": field, "status": "missing_mandatory", "qr": qr_value, "nft": nft_value})
+                        qr_metadata_match = False
+                        break
+                    elif field in important_fields:
+                        # Important fields should exist in both, but missing data is suspicious
+                        print(f"❌ Important field missing data - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                        verification_details.append({"field": field, "status": "missing_important", "qr": qr_value, "nft": nft_value})
+                        qr_metadata_match = False
+                        break
+                    else:
+                        # Optional fields - missing data is acceptable
+                        print(f"⚠️ Optional field partial data - {field}: QR='{qr_value}' vs NFT='{nft_value}'")
+                        verification_details.append({"field": field, "status": "partial_optional", "qr": qr_value, "nft": nft_value})
+                else:
+                    # Both empty - acceptable for optional fields
+                    print(f"ℹ️ Field empty in both - {field}: (acceptable)")
+                    verification_details.append({"field": field, "status": "empty_both", "qr": qr_value, "nft": nft_value})
             
             # Step 3 result: Check if QR data matches NFT metadata
             if not qr_metadata_match:
                 print(f"❌ Step 3: QR data does not match NFT metadata")
+                print(f"🔍 Verification Details:")
+                for detail in verification_details:
+                    print(f"   - {detail['field']}: {detail['status']} (QR='{detail['qr']}' vs NFT='{detail['nft']}')")
+                
+                # Record failed verification
+                verification_failure_details = {
+                    "status": "failed",
+                    "authentic": False,
+                    "product_id": product_id,
+                    "verifier": current_owner,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "failure_reason": "Field mismatch between QR and NFT metadata",
+                    "field_verification_details": verification_details,
+                    "verification_steps": [
+                        {"step": "nft_retrieval", "status": "passed", "details": "NFT found and accessible"},
+                        {"step": "qr_decryption", "status": "passed", "details": "QR data decrypted successfully"},
+                        {"step": "metadata_match", "status": "failed", "details": "QR metadata does not match NFT metadata"}
+                    ]
+                }
+                await self._record_verification_event(product_id, current_owner, "failed_data_mismatch", verification_failure_details)
+                
                 return "Product Data Mismatch"
             
             print(f"✅ Step 3: QR data matches NFT metadata")
