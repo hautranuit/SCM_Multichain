@@ -468,7 +468,7 @@ const ProductManagement = () => {
     }
   };
 
-  // Add shipping form submission handler
+  // Shipping form submission handler
   const handleShippingFormSubmit = async (shippingInfo) => {
     try {
       setLoading(true);
@@ -476,73 +476,7 @@ const ProductManagement = () => {
       const product = selectedProductForPurchase;
       const price = product.price || product.metadata?.price_eth || '0.001';
       
-      // Proceed with purchase including shipping info
-      const result = await blockchainService.buyProduct({
-        product_id: product.token_id,
-        buyer: user?.wallet_address,
-        price: parseFloat(price),
-        payment_method: 'ETH',
-        shipping_info: shippingInfo  // Include shipping information
-      });
-
-      if (result.success) {
-        alert('🎉 Purchase successful! Manufacturer has been notified to start shipping process.');
-        setShowShippingForm(false);
-        setSelectedProductForPurchase(null);
-        await fetchProducts();
-        if (activeTab === 'orders') {
-          await fetchBuyerPurchases();
-        }
-      }
-    } catch (error) {
-      console.error('Purchase error:', error);
-      alert(`❌ Purchase failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add shipping form submission handler
-  const handleShippingFormSubmit = async (shippingInfo) => {
-    try {
-      setLoading(true);
-      
-      const product = selectedProductForPurchase;
-      const price = product.price || product.metadata?.price_eth || '0.001';
-      
-      // Proceed with purchase including shipping info
-      const result = await blockchainService.buyProduct({
-        product_id: product.token_id,
-        buyer: user?.wallet_address,
-        price: parseFloat(price),
-        payment_method: 'ETH',
-        shipping_info: shippingInfo  // Include shipping information
-      });
-
-      if (result.success) {
-        alert('🎉 Purchase successful! Manufacturer has been notified to start shipping process.');
-        setShowShippingForm(false);
-        setSelectedProductForPurchase(null);
-        await fetchProducts();
-        if (activeTab === 'orders') {
-          await fetchBuyerPurchases();
-        }
-      }
-    } catch (error) {
-      console.error('Purchase error:', error);
-      alert(`❌ Purchase failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add shipping form submission handler
-  const handleShippingFormSubmit = async (shippingInfo) => {
-    try {
-      setLoading(true);
-      
-      const product = selectedProductForPurchase;
-      const price = product.price || product.metadata?.price_eth || '0.001';
+      console.log('🚢 Submitting purchase with shipping info:', shippingInfo);
       
       // Proceed with purchase including shipping info
       const result = await blockchainService.buyProduct({
