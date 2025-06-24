@@ -121,6 +121,16 @@ class EncryptionService:
         """
         Create QR payload with product-specific session information
         """
+        
+        # ✅ DEBUG: Log incoming product data
+        print(f"🔍 DEBUG Product QR Creation:")
+        print(f" Token ID: {token_id}")
+        print(f" Product Data Keys: {list(product_data.keys())}")
+        print(f" BatchNumber in data: {product_data.get('batchNumber', 'MISSING')}")
+        print(f" ProductType in data: {product_data.get('productType', 'MISSING')}")
+        print(f" Category in data: {product_data.get('category', 'MISSING')}")
+        print(f" ManufacturingDate in data: {product_data.get('manufacturingDate', 'MISSING')}")
+        
         qr_data = {
             # Core identification
             "token_id": token_id,
@@ -130,6 +140,14 @@ class EncryptionService:
             "product_id": product_data.get("uniqueProductID", ""),
             "name": product_data.get("name", ""),
             "manufacturer": product_data.get("manufacturerID", ""),
+            
+            # ✅ SECURITY FIX: Include all important verification fields
+            "batchNumber": product_data.get("batchNumber", ""),
+            "productType": product_data.get("productType", ""),
+            "category": product_data.get("category", ""),
+            "manufacturingDate": product_data.get("manufacturingDate", ""),
+            "expirationDate": product_data.get("expirationDate", ""),
+            "location": product_data.get("location", ""),
             
             # Blockchain info
             "blockchain": "Base Sepolia",
@@ -148,6 +166,13 @@ class EncryptionService:
             "version": "3.0"  # Updated version for product-specific keys
         }
         
+        # ✅ DEBUG: Log final QR data
+        print(f"🔍 DEBUG Final Product QR Keys: {list(qr_data.keys())}")
+        print(f" BatchNumber in QR: {qr_data.get('batchNumber', 'MISSING')}")
+        print(f" ProductType in QR: {qr_data.get('productType', 'MISSING')}")
+        print(f" Category in QR: {qr_data.get('category', 'MISSING')}")
+        print(f" ManufacturingDate in QR: {qr_data.get('manufacturingDate', 'MISSING')}")
+        
         return qr_data
         """Get the current session keys for storing with new products"""
         return self.session_keys.copy()
@@ -163,6 +188,10 @@ class EncryptionService:
         self.aes_key = self.session_aes_key
         self.hmac_key = self.session_hmac_key
         print(f"🔑 Reset to current session keys")
+    
+    def get_current_session_keys(self):
+        """Get the current session keys for storing with new products"""
+        return self.session_keys.copy()
     
     def _update_env_file(self, key_name: str, key_value: str):
         """Update .env file with current session keys for reference using atomic write"""
@@ -383,6 +412,15 @@ class EncryptionService:
         This includes all important fields needed for Algorithm 4 verification
         """
         
+        # ✅ DEBUG: Log incoming product data
+        print(f"🔍 DEBUG QR Creation:")
+        print(f" Token ID: {token_id}")
+        print(f" Product Data Keys: {list(product_data.keys())}")
+        print(f" BatchNumber in data: {product_data.get('batchNumber', 'MISSING')}")
+        print(f" ProductType in data: {product_data.get('productType', 'MISSING')}")
+        print(f" Category in data: {product_data.get('category', 'MISSING')}")
+        print(f" ManufacturingDate in data: {product_data.get('manufacturingDate', 'MISSING')}")
+        
         qr_data = {
             # Core identification
             "token_id": token_id,
@@ -417,6 +455,13 @@ class EncryptionService:
             "generated_at": int(time.time()),
             "version": "3.0"  # Updated version to indicate comprehensive data
         }
+        
+        # ✅ DEBUG: Log final QR data
+        print(f"🔍 DEBUG Final QR Keys: {list(qr_data.keys())}")
+        print(f" BatchNumber in QR: {qr_data.get('batchNumber', 'MISSING')}")
+        print(f" ProductType in QR: {qr_data.get('productType', 'MISSING')}")
+        print(f" Category in QR: {qr_data.get('category', 'MISSING')}")
+        print(f" ManufacturingDate in QR: {qr_data.get('manufacturingDate', 'MISSING')}")
         
         return qr_data
 
