@@ -709,6 +709,460 @@ class ChainFLIPMessagingService:
             print(f"🔍 Full traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
 
+    async def send_delivery_request_to_admin(
+        self,
+        manufacturer_chain: str,
+        order_id: str,
+        product_id: str,
+        buyer_address: str,
+        delivery_distance_miles: int,
+        manufacturer_address: str,
+        manufacturer_private_key: str = None
+    ) -> Dict[str, Any]:
+        """
+        Send delivery request message to admin on Hub chain (Polygon Amoy)
+        Admin address: 0x032041b4b356fEE1496805DD4749f181bC736FFA
+        """
+        # Ensure service has connections
+        if not self.web3_connections:
+            print("🔄 Initializing ChainFLIP service...")
+            await self.initialize()
+            
+        try:
+            target_chain = "polygon_amoy"  # Admin is on Hub chain
+            admin_address = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+            
+            print(f"\n📦 === DELIVERY REQUEST TO ADMIN ===")
+            print(f"🏭 From: {manufacturer_chain}")
+            print(f"🎯 To: {target_chain} (Hub - Admin)")
+            print(f"📋 Order ID: {order_id}")
+            print(f"🛍️ Product ID: {product_id}")
+            print(f"👤 Buyer: {buyer_address}")
+            print(f"📏 Distance: {delivery_distance_miles} miles")
+            print(f"👨‍💼 Admin: {admin_address}")
+            
+            # Calculate required transporters based on distance
+            required_transporters = self._calculate_required_transporters(delivery_distance_miles)
+            print(f"🚚 Required Transporters: {required_transporters}")
+            
+            # If no private key provided, use default manufacturer key
+            if not manufacturer_private_key:
+                from app.core.config import get_settings
+                settings = get_settings()
+                manufacturer_private_key = settings.private_key_2  # Default manufacturer key
+                
+            # Get connection and contract for source chain
+            source_web3 = self.web3_connections[manufacturer_chain]
+            source_contract = self.messenger_contracts[manufacturer_chain]
+            target_eid = LAYERZERO_ENDPOINTS[target_chain]
+            
+            # Create delivery request message (encoded as string for CID field)
+            delivery_request = {
+                "message_type": "delivery_request",
+                "order_id": order_id,
+                "product_id": product_id,
+                "buyer_address": buyer_address,
+                "manufacturer_address": manufacturer_address,
+                "delivery_distance_miles": delivery_distance_miles,
+                "required_transporters": required_transporters,
+                "timestamp": int(time.time()),
+                "admin_address": admin_address
+            }
+            
+            # Encode delivery request as JSON string (use metadata_cid field)
+            request_data = json.dumps(delivery_request)
+            
+            # Prepare sending account
+            sending_account = Account.from_key(manufacturer_private_key)
+            print(f"🔑 Sending from: {sending_account.address}")
+            
+            # Get LayerZero fee quote
+            fee_quote = source_contract.functions.quote(
+                target_eid,
+                f"DELIVERY_REQ_{order_id}",  # Use token_id field
+                request_data,  # Use metadata_cid field for delivery data
+                manufacturer_address,
+                b"",  # options
+                False  # payInLzToken
+            ).call()
+            
+            native_fee = fee_quote[0]  # fee.nativeFee
+            fee_eth = Web3.from_wei(native_fee, 'ether')
+            
+            print(f"💰 LayerZero Fee: {fee_eth} ETH")
+            
+            # Get gas price
+            gas_price = source_web3.eth.gas_price
+            print(f"⛽ Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+            
+            # Prepare transaction
+            transaction = source_contract.functions.sendCIDToChain(
+                target_eid,
+                f"DELIVERY_REQ_{order_id}",
+                request_data,
+                manufacturer_address
+            ).build_transaction({
+                'from': sending_account.address,
+                'value': native_fee,
+                'gas': 500000,  # Increased gas limit
+                'gasPrice': gas_price,
+                'nonce': source_web3.eth.get_transaction_count(sending_account.address)
+            })
+            
+            # Sign and send transaction
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, manufacturer_private_key)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash_hex = tx_hash.hex()
+            
+            print(f"📡 Delivery request transaction sent: {tx_hash_hex}")
+            print(f"⏳ Waiting for confirmation...")
+            
+            # Wait for transaction receipt
+            receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ Delivery request sent successfully!")
+                print(f"📊 Transaction details:")
+                print(f"   Transaction Hash: {tx_hash_hex}")
+                print(f"   Block Number: {receipt.blockNumber}")
+                print(f"   Gas Used: {receipt.gasUsed}")
+                print(f"   LayerZero Fee: {fee_eth} ETH")
+                
+                # Store delivery request in database
+                if self.database:
+                    delivery_request_record = {
+                        "delivery_request_id": f"DELREQ_{order_id}_{int(time.time())}",
+                        "order_id": order_id,
+                        "product_id": product_id,
+                        "buyer_address": buyer_address,
+                        "manufacturer_address": manufacturer_address,
+                        "delivery_distance_miles": delivery_distance_miles,
+                        "required_transporters": required_transporters,
+                        "admin_address": admin_address,
+                        "source_chain": manufacturer_chain,
+                        "target_chain": target_chain,
+                        "transaction_hash": tx_hash_hex,
+                        "block_number": receipt.blockNumber,
+                        "gas_used": receipt.gasUsed,
+                        "layerzero_fee_eth": float(fee_eth),
+                        "status": "sent_to_admin",
+                        "timestamp": time.time(),
+                        "message_type": "delivery_request"
+                    }
+                    
+                    await self.database.delivery_requests.insert_one(delivery_request_record)
+                    print(f"💾 Delivery request saved to database")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_eth),
+                    "delivery_request": delivery_request,
+                    "admin_address": admin_address,
+                    "target_chain": target_chain,
+                    "required_transporters": required_transporters,
+                    "message": f"Delivery request sent to admin on {target_chain}"
+                }
+            else:
+                print(f"❌ Delivery request transaction failed")
+                return {
+                    "success": False,
+                    "error": f"Transaction failed with status {receipt.status}",
+                    "transaction_hash": tx_hash_hex
+                }
+                
+        except Exception as e:
+            print(f"❌ Delivery request error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def send_delivery_stage_update(
+        self,
+        transporter_address: str,
+        delivery_request_id: str,
+        stage_number: int,
+        total_stages: int,
+        current_location: str,
+        next_location: str,
+        estimated_completion: str,
+        is_final_stage: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Send delivery stage update from transporter
+        For intermediate stages: sends to admin and next transporter
+        For final stage: sends to buyer to notify receipt
+        """
+        try:
+            print(f"\n🚛 === DELIVERY STAGE {stage_number}/{total_stages} UPDATE ===")
+            print(f"🚚 Transporter: {transporter_address}")
+            print(f"📦 Delivery ID: {delivery_request_id}")
+            print(f"📍 From: {current_location}")
+            print(f"📍 To: {next_location}")
+            print(f"⏰ ETA: {estimated_completion}")
+            
+            # Determine target chain and recipient based on stage
+            if is_final_stage:
+                # Final stage: notify buyer on their chain
+                target_chain = "optimism_sepolia"  # Buyer chain
+                print(f"🎯 FINAL STAGE: Notifying buyer on {target_chain}")
+            else:
+                # Intermediate stage: notify admin on hub
+                target_chain = "polygon_amoy"  # Admin hub
+                print(f"🎯 INTERMEDIATE STAGE: Notifying admin on {target_chain}")
+            
+            # Create stage update message
+            stage_update = {
+                "message_type": "delivery_stage_update",
+                "delivery_request_id": delivery_request_id,
+                "transporter_address": transporter_address,
+                "stage_number": stage_number,
+                "total_stages": total_stages,
+                "current_location": current_location,
+                "next_location": next_location,
+                "estimated_completion": estimated_completion,
+                "is_final_stage": is_final_stage,
+                "update_timestamp": int(time.time()),
+                "status": "in_transit" if not is_final_stage else "delivered"
+            }
+            
+            if is_final_stage:
+                stage_update["delivery_completed"] = True
+                stage_update["completion_timestamp"] = int(time.time())
+                stage_update["message_for_buyer"] = "Your product has been delivered successfully! You can now access your encryption keys to verify authenticity."
+            
+            # Encode as JSON for LayerZero message
+            message_data = json.dumps(stage_update)
+            
+            # Get source chain (transporters are on Arbitrum Sepolia)
+            source_chain = "arbitrum_sepolia"
+            source_web3 = self.web3_connections[source_chain]
+            source_contract = self.messenger_contracts[source_chain]
+            target_eid = LAYERZERO_ENDPOINTS[target_chain]
+            
+            # Use default transporter private key for simulation
+            from app.core.config import get_settings
+            settings = get_settings()
+            transporter_private_key = settings.private_key_3  # Transporter key
+            
+            # Prepare sending account
+            sending_account = Account.from_key(transporter_private_key)
+            print(f"🔑 Sending from transporter account: {sending_account.address}")
+            
+            # Get LayerZero fee quote
+            try:
+                fee_quote = source_contract.functions.quote(
+                    target_eid,
+                    f"DELIVERY_STAGE_{delivery_request_id}_{stage_number}",
+                    message_data,
+                    transporter_address,
+                    b"",  # options
+                    False  # payInLzToken
+                ).call()
+                
+                native_fee = fee_quote[0]
+                fee_eth = Web3.from_wei(native_fee, 'ether')
+            except Exception as quote_error:
+                print(f"⚠️ Quote failed, using fallback fee: {quote_error}")
+                native_fee = Web3.to_wei(2000000, 'gwei')  # 0.002 ETH fallback
+                fee_eth = Web3.from_wei(native_fee, 'ether')
+            
+            print(f"💰 LayerZero Fee: {fee_eth} ETH")
+            
+            # Check balance
+            account_balance = source_web3.eth.get_balance(sending_account.address)
+            if account_balance < native_fee:
+                return {
+                    "success": False,
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_eth} ETH"
+                }
+            
+            # Build and send transaction
+            gas_price = source_web3.eth.gas_price
+            nonce = source_web3.eth.get_transaction_count(sending_account.address)
+            
+            transaction = source_contract.functions.sendCIDToChain(
+                target_eid,
+                f"DELIVERY_STAGE_{delivery_request_id}_{stage_number}",
+                message_data,
+                transporter_address
+            ).build_transaction({
+                'from': sending_account.address,
+                'value': native_fee,
+                'gas': 500000,
+                'gasPrice': gas_price,
+                'nonce': nonce
+            })
+            
+            # Sign and send
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, transporter_private_key)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash_hex = tx_hash.hex()
+            
+            print(f"📡 Stage update transaction sent: {tx_hash_hex}")
+            print(f"⏳ Waiting for confirmation...")
+            
+            # Wait for receipt
+            receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ Stage {stage_number} update sent successfully!")
+                
+                # Store stage update in database
+                if self.database:
+                    stage_record = {
+                        "stage_update_id": f"STAGE_{delivery_request_id}_{stage_number}_{int(time.time())}",
+                        "delivery_request_id": delivery_request_id,
+                        "transporter_address": transporter_address,
+                        "stage_number": stage_number,
+                        "total_stages": total_stages,
+                        "current_location": current_location,
+                        "next_location": next_location,
+                        "estimated_completion": estimated_completion,
+                        "is_final_stage": is_final_stage,
+                        "source_chain": source_chain,
+                        "target_chain": target_chain,
+                        "transaction_hash": tx_hash_hex,
+                        "block_number": receipt.blockNumber,
+                        "gas_used": receipt.gasUsed,
+                        "layerzero_fee_eth": float(fee_eth),
+                        "status": "delivered" if is_final_stage else "in_transit",
+                        "timestamp": time.time(),
+                        "message_type": "delivery_stage_update"
+                    }
+                    
+                    await self.database.delivery_stage_updates.insert_one(stage_record)
+                    print(f"💾 Stage update saved to database")
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_eth),
+                    "stage_update": stage_update,
+                    "target_chain": target_chain,
+                    "is_final_stage": is_final_stage,
+                    "message": f"Stage {stage_number} update sent to {target_chain}"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Transaction failed with status {receipt.status}",
+                    "transaction_hash": tx_hash_hex
+                }
+                
+        except Exception as e:
+            print(f"❌ Delivery stage update error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def simulate_multi_stage_delivery(
+        self,
+        delivery_request_id: str,
+        assigned_transporters: List[str],
+        route_locations: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Simulate complete multi-stage delivery process
+        Each transporter handles one stage and sends cross-chain updates
+        """
+        try:
+            print(f"\n🛣️ === SIMULATING MULTI-STAGE DELIVERY ===")
+            print(f"📦 Delivery ID: {delivery_request_id}")
+            print(f"🚚 Transporters: {len(assigned_transporters)}")
+            print(f"📍 Route: {' → '.join(route_locations)}")
+            
+            total_stages = len(assigned_transporters)
+            delivery_results = []
+            
+            # Simulate each delivery stage
+            for stage_num in range(1, total_stages + 1):
+                transporter = assigned_transporters[stage_num - 1]
+                current_location = route_locations[stage_num - 1] if stage_num - 1 < len(route_locations) else f"Stage {stage_num} Start"
+                next_location = route_locations[stage_num] if stage_num < len(route_locations) else "Final Destination"
+                
+                is_final = (stage_num == total_stages)
+                
+                # Calculate estimated completion (simulate delivery time)
+                import datetime
+                eta = datetime.datetime.now() + datetime.timedelta(hours=stage_num * 2)
+                estimated_completion = eta.strftime("%Y-%m-%d %H:%M:%S")
+                
+                print(f"\n🚛 Stage {stage_num}/{total_stages}: {transporter}")
+                print(f"   📍 {current_location} → {next_location}")
+                print(f"   ⏰ ETA: {estimated_completion}")
+                
+                # Send stage update
+                stage_result = await self.send_delivery_stage_update(
+                    transporter_address=transporter,
+                    delivery_request_id=delivery_request_id,
+                    stage_number=stage_num,
+                    total_stages=total_stages,
+                    current_location=current_location,
+                    next_location=next_location,
+                    estimated_completion=estimated_completion,
+                    is_final_stage=is_final
+                )
+                
+                delivery_results.append({
+                    "stage": stage_num,
+                    "transporter": transporter,
+                    "result": stage_result,
+                    "is_final": is_final
+                })
+                
+                # Add delay between stages for realism
+                if not is_final:
+                    print(f"⏳ Simulating {stage_num * 1} second delivery time...")
+                    await asyncio.sleep(stage_num * 1)  # 1-3 second delays
+            
+            # Count successful stages
+            successful_stages = sum(1 for result in delivery_results if result["result"].get("success"))
+            
+            print(f"\n✅ Multi-stage delivery simulation complete!")
+            print(f"   📊 {successful_stages}/{total_stages} stages completed successfully")
+            
+            return {
+                "success": True,
+                "delivery_request_id": delivery_request_id,
+                "total_stages": total_stages,
+                "successful_stages": successful_stages,
+                "delivery_results": delivery_results,
+                "final_status": "delivered" if successful_stages == total_stages else "partially_delivered",
+                "message": f"Multi-stage delivery completed: {successful_stages}/{total_stages} stages successful"
+            }
+            
+        except Exception as e:
+            print(f"❌ Multi-stage delivery simulation error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _generate_delivery_route(self, distance_miles: int, num_transporters: int) -> List[str]:
+        """
+        Generate realistic delivery route locations based on distance and number of transporters
+        """
+        if num_transporters == 1:
+            return ["Manufacturer Warehouse", "Buyer Address"]
+        
+        # Generate intermediate locations
+        route = ["Manufacturer Warehouse"]
+        
+        for i in range(1, num_transporters):
+            if i == 1:
+                route.append("Regional Distribution Center")
+            elif i == 2:
+                route.append("Local Hub")
+            elif i == 3:
+                route.append("Last Mile Facility")
+            else:
+                route.append(f"Transfer Point {i}")
+        
+        route.append("Buyer Address")
+        return route
+
     async def _parse_sync_events(self, contract, receipt) -> List[Dict[str, Any]]:
         """Parse CIDSynced events from transaction receipt"""
         events = []

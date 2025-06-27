@@ -5,25 +5,24 @@ import { useAuth } from '../contexts/AuthContext';
 import blockchainService from '../services/blockchainService';
 import CrossChainTransfer from './CrossChainTransfer';
 import ShippingInformationForm from './ShippingInformationForm';
-import { Package, Truck, Shield, Store, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star, Play, Image as ImageIcon } from 'lucide-react';
+import { Package, Truck, Shield, Store, ShoppingCart, Plus, Upload, RefreshCw, Sparkles, Zap, Star, Play, Image as ImageIcon, Eye } from 'lucide-react';
 
 const ProductManagement = () => {
   const { user, userRole } = useAuth();
   const [products, setProducts] = useState([]);
-  const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [showCrossChainTransfer, setShowCrossChainTransfer] = useState(false);
   const [transferProductId, setTransferProductId] = useState(null);
-  const [showVerificationForm, setShowVerificationForm] = useState(false);
-  const [verificationProductId, setVerificationProductId] = useState(null);
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [selectedProductForPurchase, setSelectedProductForPurchase] = useState(null);
   const [multiChainStats, setMultiChainStats] = useState(null);
   const [productImage, setProductImage] = useState(null);
   const [productVideo, setProductVideo] = useState(null);
   const [activeTab, setActiveTab] = useState('marketplace'); // For buyer tabs: marketplace, orders, owned
+  // NEW: Delivery queue state for manufacturers
+  const [deliveryQueue, setDeliveryQueue] = useState([]);
+  const [loadingDelivery, setLoadingDelivery] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
@@ -60,15 +59,20 @@ const ProductManagement = () => {
   useEffect(() => {
     fetchProducts();
     loadMultiChainStats();
-    if (userRole === 'buyer' && activeTab === 'orders') {
-      fetchBuyerPurchases();
+    // Load delivery queue for manufacturers only
+    if (userRole === 'manufacturer' && activeTab === 'delivery') {
+      fetchDeliveryQueue();
     }
-  }, [activeTab]);
+  }, [activeTab, userRole]); // Fixed dependency array
 
   useEffect(() => {
     fetchProducts();
     loadMultiChainStats();
-  }, []);
+    // NEW: Load delivery queue on mount for manufacturers
+    if (userRole === 'manufacturer') {
+      fetchDeliveryQueue();
+    }
+  }, [userRole]); // Fixed dependency array
 
   const loadMultiChainStats = async () => {
     try {
@@ -90,8 +94,16 @@ const ProductManagement = () => {
         const params = new URLSearchParams({
           user_role: userRole,
           wallet_address: user.wallet_address,
-          view_type: activeTab  // marketplace, owned, created
+          view_type: activeTab  // marketplace, owned, created, orders
         });
+        
+        // ENHANCED: Add on-chain verification for "My Products" tab
+        if (activeTab === 'owned') {
+          // Enable on-chain verification for owned products to handle cross-chain transfers
+          params.append('verify_on_chain', 'true');
+          console.log('🔗 Enabling on-chain verification for "My Products" tab');
+        }
+        
         apiUrl += `?${params.toString()}`;
       }
       
@@ -107,6 +119,11 @@ const ProductManagement = () => {
       // Show filtering info to user
       if (response.data.filtered_by) {
         console.log(`🔍 Products filtered for ${response.data.filtered_by}: ${response.data.count} products`);
+        
+        // Show verification status for owned products
+        if (response.data.on_chain_verified !== undefined) {
+          console.log(`🔗 On-chain verification: ${response.data.on_chain_verified ? '✅ Enabled' : '❌ Disabled'}`);
+        }
       }
       
     } catch (error) {
@@ -116,41 +133,71 @@ const ProductManagement = () => {
     setLoading(false);
   };
 
-  const fetchBuyerPurchases = async () => {
-    if (userRole !== 'buyer' || !user?.wallet_address) return;
+  // NEW: Handle cleanup of duplicate delivery orders
+  const handleCleanupDuplicates = async () => {
+    if (!user?.wallet_address) return;
     
-    setLoading(true);
+    const confirmCleanup = window.confirm(
+      'This will remove duplicate orders in your delivery queue, keeping only the most recent order for each product. Continue?'
+    );
+    
+    if (!confirmCleanup) return;
+    
+    setLoadingDelivery(true);
     try {
-      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+      const response = await fetch(`${backendUrl}/api/blockchain/delivery/queue/cleanup/${user.wallet_address}`, {
+        method: 'DELETE'
+      });
       
-      // Fetch both completed purchases and waiting shipping purchases
-      const [purchasesResponse, waitingShippingResponse] = await Promise.all([
-        fetch(`${backendUrl}/api/products/buyer/${user.wallet_address}/purchases`),
-        fetch(`${backendUrl}/api/products/buyer/${user.wallet_address}/purchases/waiting-shipping`)
-      ]);
-      
-      if (purchasesResponse.ok) {
-        const purchasesData = await purchasesResponse.json();
-        const completedPurchases = purchasesData.purchases || [];
-        
-        let waitingShippingPurchases = [];
-        if (waitingShippingResponse.ok) {
-          const waitingData = await waitingShippingResponse.json();
-          waitingShippingPurchases = waitingData.purchases || [];
-        }
-        
-        // Combine and sort by date
-        const allPurchases = [...completedPurchases, ...waitingShippingPurchases]
-          .sort((a, b) => (b.created_at || b.purchase_timestamp || 0) - (a.created_at || a.purchase_timestamp || 0));
-        
-        setPurchases(allPurchases);
-        console.log(`📋 Loaded ${allPurchases.length} buyer purchases (${waitingShippingPurchases.length} waiting shipping)`);
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Cleanup successful! Removed ${result.total_removed} duplicate orders.`);
+        // Refresh the delivery queue
+        await fetchDeliveryQueue();
+      } else {
+        throw new Error('Failed to cleanup duplicates');
       }
     } catch (error) {
-      console.error('❌ Error fetching buyer purchases:', error);
-      setPurchases([]);
+      console.error('❌ Error cleaning up duplicates:', error);
+      alert('Failed to cleanup duplicates. Please try again.');
     }
-    setLoading(false);
+    setLoadingDelivery(false);
+  };
+
+  // NEW: Fetch delivery queue for manufacturers
+  const fetchDeliveryQueue = async () => {
+    if (userRole !== 'manufacturer' || !user?.wallet_address) {
+      console.log('❌ Cannot fetch delivery queue:', { userRole, wallet: user?.wallet_address });
+      return;
+    }
+    
+    setLoadingDelivery(true);
+    try {
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+      const apiUrl = `${backendUrl}/api/blockchain/delivery/queue/${user.wallet_address}`;
+      
+      console.log('🔍 Fetching delivery queue from:', apiUrl);
+      console.log('🔍 Manufacturer address:', user.wallet_address);
+      
+      const response = await fetch(apiUrl);
+      console.log('📡 Response status:', response.status, response.statusText);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📋 Delivery queue response:', data);
+        setDeliveryQueue(data.orders || []);
+        console.log(`📋 Loaded ${data.count || data.orders?.length || 0} delivery orders for manufacturer`);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to fetch delivery queue:', response.status, errorText);
+        setDeliveryQueue([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching delivery queue:', error);
+      setDeliveryQueue([]);
+    }
+    setLoadingDelivery(false);
   };
 
   const handleImageUpload = (e) => {
@@ -395,37 +442,6 @@ const ProductManagement = () => {
     }
   };
 
-  const handleQualityCheck = async (productTokenId) => {
-    try {
-      const score = prompt('Enter quality score (0-100):');
-      if (!score || isNaN(score) || score < 0 || score > 100) {
-        alert('Please enter a valid score between 0 and 100');
-        return;
-      }
-
-      const passed = parseInt(score) >= 70;
-      
-      setLoading(true);
-
-      // Perform quality check (manufacturer chain operation)
-      const result = await blockchainService.performQualityCheck(
-        productTokenId,
-        user?.wallet_address || 'inspector',
-        passed,
-        parseInt(score)
-      );
-
-      alert(`🔍 Quality Check ${passed ? 'PASSED' : 'FAILED'}!\n\n📊 Score: ${score}/100\n✅ Status: ${result.status}\n📅 Checked: ${new Date().toLocaleString()}`);
-      
-      await fetchProducts();
-    } catch (error) {
-      console.error('Quality check error:', error);
-      alert(`❌ Quality check failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCompleteShipping = async (productTokenId) => {
     try {
       const confirmation = window.confirm('Mark this product as delivered and complete shipping?');
@@ -492,15 +508,45 @@ const ProductManagement = () => {
         setShowShippingForm(false);
         setSelectedProductForPurchase(null);
         await fetchProducts();
-        if (activeTab === 'orders') {
-          await fetchBuyerPurchases();
-        }
       }
     } catch (error) {
       console.error('Purchase error:', error);
       alert(`❌ Purchase failed: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInitiateDelivery = async (orderId) => {
+    try {
+      setLoadingDelivery(true);
+      console.log('🚚 Initiating delivery for order:', orderId);
+      
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/blockchain/delivery/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_id: orderId,
+          manufacturer_address: user?.wallet_address
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        alert('✅ Delivery initiated successfully! NFT transferred and payment released.');
+        // Refresh delivery queue
+        await fetchDeliveryQueue();
+      } else {
+        alert(`❌ Failed to initiate delivery: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error initiating delivery:', error);
+      alert(`❌ Error initiating delivery: ${error.message}`);
+    } finally {
+      setLoadingDelivery(false);
     }
   };
 
@@ -543,12 +589,6 @@ const ProductManagement = () => {
 
   const getCurrentDate = () => {
     return new Date().toISOString().split('T')[0];
-  };
-
-  const getExpirationDate = () => {
-    const date = new Date();
-    date.setFullYear(date.getFullYear() + 1); // 1 year from now
-    return date.toISOString().split('T')[0];
   };
 
   const getRoleInfo = () => {
@@ -731,10 +771,52 @@ const ProductManagement = () => {
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {[
+                  {(userRole === 'buyer' ? [
                     { key: 'marketplace', label: 'Marketplace', icon: '🛒', desc: 'Discover products' },
                     { key: 'orders', label: 'Your Orders', icon: '📋', desc: 'Track purchases' },
                     { key: 'owned', label: 'My Products', icon: '👤', desc: 'Owned items' }
+                  ] : [
+                    { key: 'marketplace', label: 'Products', icon: '📦', desc: 'All products' },
+                    { key: 'delivery', label: 'Delivery Queue', icon: '🚚', desc: 'Orders to ship' },
+                    { key: 'owned', label: 'Created', icon: '🏭', desc: 'Your products' }
+                  ]).map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`group relative overflow-hidden p-6 rounded-2xl border transition-all duration-300 ${
+                        activeTab === tab.key
+                          ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-400/50 shadow-2xl shadow-cyan-500/25'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="relative text-center">
+                        <div className="text-3xl mb-2">{tab.icon}</div>
+                        <div className="text-white font-semibold">{tab.label}</div>
+                        <div className="text-white/60 text-sm mt-1">{tab.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modern Manufacturer Tabs */}
+          {userRole === 'manufacturer' && (
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
+              <div className="relative p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-white flex items-center space-x-3">
+                    <Package className="w-8 h-8 text-blue-400" />
+                    <span>Manufacturing Hub</span>
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { key: 'marketplace', label: 'Products', icon: '📦', desc: 'All products' },
+                    { key: 'delivery', label: 'Delivery Queue', icon: '🚚', desc: 'Orders to ship' },
+                    { key: 'owned', label: 'Created', icon: '🏭', desc: 'Your products' }
                   ].map((tab) => (
                     <button
                       key={tab.key}
@@ -757,7 +839,7 @@ const ProductManagement = () => {
             </div>
           )}
 
-          {/* Enhanced Product Creation Form with Missing Fields */}
+          {/* Create Product Form */}
           {showCreateForm && userRole === 'manufacturer' && (
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20"></div>
@@ -953,6 +1035,7 @@ const ProductManagement = () => {
                     {userRole === 'buyer' && activeTab === 'marketplace' ? '🛒 Marketplace Collection' :
                      userRole === 'buyer' && activeTab === 'orders' ? '📋 Purchase History' :
                      userRole === 'buyer' && activeTab === 'owned' ? '👤 Your Products' :
+                     userRole === 'manufacturer' && activeTab === 'delivery' ? '🚚 Delivery Queue' :
                      userRole === 'manufacturer' ? '🏭 My Creations' : 
                      userRole === 'transporter' ? '🚛 Products in Transit' : 
                      '📦 Products List'}
@@ -961,6 +1044,7 @@ const ProductManagement = () => {
                     {userRole === 'buyer' && activeTab === 'marketplace' ? 'Discover authentic products with verified supply chains' :
                      userRole === 'buyer' && activeTab === 'orders' ? 'Track your purchase journey and delivery status' :
                      userRole === 'buyer' && activeTab === 'owned' ? 'Products you currently own in your wallet' :
+                     userRole === 'manufacturer' && activeTab === 'delivery' ? 'Orders waiting for delivery initiation - click Start Delivery to transfer NFT and release payment' :
                      userRole === 'manufacturer' ? 'Products you have created and launched' :
                      userRole === 'transporter' ? 'Products in your custody for delivery' :
                      'All products in the ecosystem'}
@@ -969,8 +1053,8 @@ const ProductManagement = () => {
                 <button
                   onClick={() => {
                     fetchProducts();
-                    if (userRole === 'buyer' && activeTab === 'orders') {
-                      fetchBuyerPurchases();
+                    if (userRole === 'manufacturer' && activeTab === 'delivery') {
+                      fetchDeliveryQueue();
                     }
                   }}
                   className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 text-white px-6 py-3 rounded-2xl transition-all duration-300 hover:bg-white/20 hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/25"
@@ -990,7 +1074,7 @@ const ProductManagement = () => {
                 </div>
               )}
 
-              {!loading && (userRole !== 'buyer' || activeTab !== 'orders') && products.length === 0 && (
+              {!loading && (userRole !== 'buyer' || activeTab !== 'orders') && (userRole !== 'manufacturer' || activeTab !== 'delivery') && products.length === 0 && (
                 <div className="text-center py-20">
                   <div className="w-20 h-20 bg-gradient-to-r from-cyan-400/20 to-blue-400/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <Package className="w-10 h-10 text-cyan-400" />
@@ -1002,7 +1086,7 @@ const ProductManagement = () => {
                 </div>
               )}
 
-              {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length === 0 && (
+              {!loading && userRole === 'buyer' && activeTab === 'orders' && products.length === 0 && (
                 <div className="text-center py-20">
                   <div className="w-20 h-20 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <ShoppingCart className="w-10 h-10 text-purple-400" />
@@ -1013,7 +1097,7 @@ const ProductManagement = () => {
               )}
 
               {/* Modern Products Grid with Fixed Heights */}
-              {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && products.length > 0) && (
+              {!loading && ((userRole !== 'buyer' || activeTab !== 'orders') && (userRole !== 'manufacturer' || activeTab !== 'delivery') && products.length > 0) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {products.map((product, index) => (
                     <div key={product.token_id || product.id || index} className="group relative h-[700px] flex flex-col">
@@ -1212,33 +1296,33 @@ const ProductManagement = () => {
                 </div>
               )}
 
-              {/* Purchase History for Buyers */}
-              {!loading && userRole === 'buyer' && activeTab === 'orders' && purchases.length > 0 && (
+              {/* Purchase History for Buyers - NOW USING PRODUCTS STATE */}
+              {!loading && userRole === 'buyer' && activeTab === 'orders' && products.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {purchases.map((purchase, index) => (
-                    <div key={purchase.purchase_id || index} className="group relative h-[500px]">
+                  {products.map((product, index) => (
+                    <div key={product.token_id || index} className="group relative h-[500px]">
                       <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-white/30 transition-all duration-500"></div>
                       <div className="relative p-8 h-full flex flex-col">
                         <div className="flex items-start justify-between mb-6">
                           <h4 className="text-xl font-bold text-white">
-                            Order #{purchase.purchase_id?.substring(0, 12)}...
+                            {product.name || `Product ${product.token_id}`}
                           </h4>
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            purchase.status === 'paid_waiting_shipping' || purchase.stage === 'waiting_for_manufacture_shipping' 
+                            product.status === 'order_pending' 
                               ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' 
-                              : purchase.status === 'completed' 
-                              ? 'bg-green-500/20 text-green-100 border border-green-400/30' 
-                              : purchase.status === 'shipped' 
+                              : product.status === 'shipped' 
                               ? 'bg-blue-500/20 text-blue-100 border border-blue-400/30' 
-                              : purchase.status === 'pending' 
-                              ? 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30' 
+                              : product.status === 'delivered' 
+                              ? 'bg-green-500/20 text-green-100 border border-green-400/30' 
                               : 'bg-gray-500/20 text-gray-100 border border-gray-400/30'
                           }`}>
-                            {purchase.status === 'paid_waiting_shipping' || purchase.stage === 'waiting_for_manufacture_shipping' 
-                              ? 'Waiting for Manufacture Start Shipping Process'
-                              : purchase.status === 'completed' 
-                              ? 'Completed' 
-                              : purchase.status || 'Processing'}
+                            {product.status === 'order_pending' 
+                              ? 'Order Pending'
+                              : product.status === 'shipped' 
+                              ? 'Shipped' 
+                              : product.status === 'delivered' 
+                              ? 'Delivered' 
+                              : product.status || 'Processing'}
                           </span>
                         </div>
                         
@@ -1246,29 +1330,27 @@ const ProductManagement = () => {
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="p-3 bg-white/5 rounded-lg">
                               <span className="text-white/70 block">Product:</span>
-                              <span className="font-semibold text-white">{purchase.product_name || 'Unknown'}</span>
+                              <span className="font-semibold text-white">{product.name || 'Unknown Product'}</span>
                             </div>
                             <div className="p-3 bg-white/5 rounded-lg">
                               <span className="text-white/70 block">Price:</span>
-                              <span className="font-bold text-green-400">{purchase.price || '0.000'} ETH</span>
+                              <span className="font-bold text-green-400">{product.price || product.mint_params?.price || '0.000'} ETH</span>
                             </div>
                             <div className="p-3 bg-white/5 rounded-lg">
-                              <span className="text-white/70 block">Date:</span>
-                              <span className="text-white text-xs">{new Date(purchase.purchase_timestamp * 1000).toLocaleDateString()}</span>
+                              <span className="text-white/70 block">Order Date:</span>
+                              <span className="text-white text-xs">{product.purchase_date ? new Date(product.purchase_date * 1000).toLocaleDateString() : 'N/A'}</span>
                             </div>
                             <div className="p-3 bg-white/5 rounded-lg">
-                              <span className="text-white/70 block">Chain:</span>
-                              <span className="text-cyan-400 text-xs">{purchase.chain_name || 'Multi-Chain'}</span>
+                              <span className="text-white/70 block">Token ID:</span>
+                              <span className="text-cyan-400 text-xs">{product.token_id}</span>
                             </div>
                           </div>
                           
-                          {purchase.shipping_details && (
+                          {product.manufacturer && (
                             <div className="p-3 bg-white/5 rounded-lg">
-                              <span className="text-white/70 block mb-2">Shipping:</span>
+                              <span className="text-white/70 block mb-2">Manufacturer:</span>
                               <div className="text-xs text-white/80">
-                                <p>From: {purchase.shipping_details.origin}</p>
-                                <p>To: {purchase.shipping_details.destination}</p>
-                                <p>Transporter: {purchase.shipping_details.transporter?.substring(0, 10)}...</p>
+                                <p>{product.manufacturer?.substring(0, 16)}...</p>
                               </div>
                             </div>
                           )}
@@ -1276,7 +1358,7 @@ const ProductManagement = () => {
                         
                         <div className="mt-6 grid grid-cols-2 gap-4">
                           <button
-                            onClick={() => handleVerifyProduct(purchase.product_id)}
+                            onClick={() => handleVerifyProduct(product.token_id)}
                             className="group/btn relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/25"
                           >
                             <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/10 translate-x-[-100%] group-hover/btn:translate-x-0 transition-transform duration-500"></div>
@@ -1287,7 +1369,7 @@ const ProductManagement = () => {
                           </button>
                           <button
                             onClick={() => {
-                              const details = `Purchase Details:\n\nOrder ID: ${purchase.purchase_id}\nProduct: ${purchase.product_name}\nPrice: ${purchase.price} ETH\nStatus: ${purchase.status}\nDate: ${new Date(purchase.purchase_timestamp * 1000).toLocaleString()}\n${purchase.transaction_hash ? `\nTransaction: ${purchase.transaction_hash}` : ''}`;
+                              const details = `Order Details:\n\nProduct: ${product.name || `Product ${product.token_id}`}\nToken ID: ${product.token_id}\nPrice: ${product.metadata?.price_eth || 'N/A'} ETH\nStatus: ${product.status || 'Processing'}\nManufacturer: ${product.manufacturer || 'N/A'}\nListed Date: ${product.listing_timestamp ? new Date(product.listing_timestamp * 1000).toLocaleString() : 'N/A'}`;
                               alert(details);
                             }}
                             className="group/btn relative overflow-hidden bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-4 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/25"
@@ -1306,6 +1388,165 @@ const ProductManagement = () => {
               )}
             </div>
           </div>
+
+          {/* NEW: Delivery Queue for Manufacturers */}
+          {!loading && userRole === 'manufacturer' && activeTab === 'delivery' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-white">🚚 Delivery Queue</h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={fetchDeliveryQueue}
+                    disabled={loadingDelivery}
+                    className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 text-white px-4 py-2 rounded-xl transition-all duration-300 hover:bg-white/20 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingDelivery ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleCleanupDuplicates}
+                    disabled={loadingDelivery}
+                    className="group relative overflow-hidden bg-red-500/20 backdrop-blur-xl border border-red-400/30 text-white px-4 py-2 rounded-xl transition-all duration-300 hover:bg-red-500/30 disabled:opacity-50 text-sm"
+                  >
+                    🧹 Cleanup Duplicates
+                  </button>
+                </div>
+              </div>
+
+              {loadingDelivery && (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mb-4"></div>
+                  <p className="text-white/70">Loading delivery orders...</p>
+                </div>
+              )}
+
+              {!loadingDelivery && deliveryQueue.length === 0 && (
+                <div className="text-center py-20">
+                  <div className="w-20 h-20 bg-gradient-to-r from-green-400/20 to-blue-400/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <Truck className="w-10 h-10 text-green-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">No delivery orders</h3>
+                  <p className="text-white/60">Orders waiting for delivery will appear here</p>
+                </div>
+              )}
+
+              {!loadingDelivery && deliveryQueue.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {(() => {
+                    // Group orders by product_id to avoid duplicates
+                    const uniqueProducts = new Map();
+                    
+                    deliveryQueue.forEach(order => {
+                      const productId = order.product_id;
+                      if (!uniqueProducts.has(productId)) {
+                        // Keep the most recent order for each product
+                        uniqueProducts.set(productId, order);
+                      } else {
+                        // Replace with more recent order if found
+                        const existing = uniqueProducts.get(productId);
+                        if (order.order_timestamp > existing.order_timestamp) {
+                          uniqueProducts.set(productId, order);
+                        }
+                      }
+                    });
+                    
+                    // Get count of orders for each product
+                    const orderCounts = new Map();
+                    deliveryQueue.forEach(order => {
+                      const productId = order.product_id;
+                      orderCounts.set(productId, (orderCounts.get(productId) || 0) + 1);
+                    });
+                    
+                    return Array.from(uniqueProducts.values()).map((order, index) => {
+                      const orderCount = orderCounts.get(order.product_id) || 1;
+                      
+                      return (
+                        <div key={order.product_id || index} className="group relative">
+                          <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 group-hover:border-green-400/30 transition-all duration-500"></div>
+                          
+                          <div className="relative p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h4 className="text-xl font-bold text-white mb-1">
+                                  {order.product_details?.name || `Product #${order.product_id?.slice(-8)}`}
+                                </h4>
+                                <p className="text-white/60 text-sm">
+                                  {orderCount > 1 ? `${orderCount} orders pending` : 'Latest order:'} {new Date(order.order_timestamp * 1000).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="bg-yellow-400/20 px-3 py-1 rounded-full">
+                                <span className="text-yellow-400 text-xs font-semibold">
+                                  {orderCount > 1 ? `${orderCount} WAITING` : 'WAITING'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3 mb-6">
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70">Product ID:</span>
+                                <span className="text-white font-mono text-sm">
+                                  {order.product_id}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70">Latest Buyer:</span>
+                                <span className="text-white font-mono text-sm">
+                                  {order.buyer?.slice(0, 6)}...{order.buyer?.slice(-4)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70">Price Each:</span>
+                                <span className="text-white font-bold">{order.price_eth} ETH</span>
+                              </div>
+                              {orderCount > 1 && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/70">Total Value:</span>
+                                  <span className="text-white font-bold">{(order.price_eth * orderCount).toFixed(4)} ETH</span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70">Escrow:</span>
+                                <span className="text-green-400 text-sm">✅ All Secured</span>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                // Handle multiple orders for the same product
+                                if (orderCount > 1) {
+                                  // Show confirmation dialog for multiple orders
+                                  if (window.confirm(`This will initiate delivery for all ${orderCount} orders of this product. Continue?`)) {
+                                    // Get all order IDs for this product
+                                    const allOrderIds = deliveryQueue
+                                      .filter(o => o.product_id === order.product_id)
+                                      .map(o => o.order_id);
+                                    
+                                    // For now, start with the most recent order
+                                    handleInitiateDelivery(order.order_id);
+                                  }
+                                } else {
+                                  handleInitiateDelivery(order.order_id);
+                                }
+                              }}
+                              disabled={loadingDelivery}
+                              className="w-full group relative overflow-hidden bg-gradient-to-r from-green-500/20 to-green-600/20 backdrop-blur-xl border border-green-400/30 text-white py-3 rounded-2xl transition-all duration-300 hover:from-green-500/30 hover:to-green-600/30 hover:scale-105 hover:shadow-lg hover:shadow-green-500/25 disabled:opacity-50"
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-green-400/0 to-green-500/10 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
+                              <div className="relative flex items-center justify-center space-x-2">
+                                <Truck className="w-5 h-5" />
+                                <span className="font-semibold">
+                                  {orderCount > 1 ? `Start Delivery (${orderCount} orders)` : 'Start Delivery'}
+                                </span>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

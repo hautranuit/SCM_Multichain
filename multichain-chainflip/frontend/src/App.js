@@ -26,6 +26,13 @@ import TransporterRegistration from './components/TransporterRegistration';
 import QRScanner from './components/QRScanner';
 import TransporterLocationUpdate from './components/TransporterLocationUpdate';
 import BuyerProductView from './components/BuyerProductView';
+import BuyerKeyManagement from './components/BuyerKeyManagement';
+
+// New Delivery Management Components
+import AdminDeliveryDashboard from './components/AdminDeliveryDashboard';
+import TransporterDashboard from './components/TransporterDashboard';
+import BuyerDeliveryTracking from './components/BuyerDeliveryTracking';
+import BuyerProductReceipt from './components/BuyerProductReceipt';
 
 // Auth Pages
 const LoginPage = () => {
@@ -235,12 +242,118 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/buyer-keys" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <BuyerKeysWrapper />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buyer-keys" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <BuyerKeysWrapper />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            {/* New Delivery Management Routes */}
+            <Route 
+              path="/admin-delivery" 
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <AdminDeliveryDashboard />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/transporter-dashboard" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <TransporterDashboard />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/delivery-tracking" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <BuyerDeliveryTrackingWrapper />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/product-receipt" 
+              element={
+                <ProtectedRoute>
+                  <ModernAppLayout backendStatus={backendStatus}>
+                    <BuyerProductReceiptWrapper />
+                  </ModernAppLayout>
+                </ProtectedRoute>
+              } 
+            />
           </Routes>
         </div>
       </Router>
     </AuthProvider>
   );
 }
+
+// Wrapper component for BuyerKeyManagement to pass buyer address
+const BuyerKeysWrapper = () => {
+  const { user } = useAuth();
+  
+  if (!user?.address) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <p>Please log in to view your encryption keys.</p>
+      </div>
+    );
+  }
+  
+  return <BuyerKeyManagement buyerAddress={user.address} />;
+};
+
+// Wrapper component for BuyerDeliveryTracking to pass buyer address
+const BuyerDeliveryTrackingWrapper = () => {
+  const { user } = useAuth();
+  
+  if (!user?.address) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <p>Please log in to view your delivery tracking.</p>
+      </div>
+    );
+  }
+  
+  return <BuyerDeliveryTracking buyerAddress={user.address} />;
+};
+
+// Wrapper component for BuyerProductReceipt to pass buyer address
+const BuyerProductReceiptWrapper = () => {
+  const { user } = useAuth();
+  
+  if (!user?.address) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <p>Please log in to confirm product receipts.</p>
+      </div>
+    );
+  }
+  
+  return <BuyerProductReceipt buyerAddress={user.address} />;
+};
 
 // Modern App Layout Component for authenticated pages
 const ModernAppLayout = ({ children, backendStatus }) => {
@@ -310,6 +423,29 @@ const ModernAppLayout = ({ children, backendStatus }) => {
     if (userRole === 'manufacturer' || userRole === 'admin') {
       roleSpecificItems.push(
         { id: 'token-bridge', name: 'Token Bridge', icon: '🌉', path: '/token-bridge' }
+      );
+    }
+    
+    // Admin-specific features
+    if (userRole === 'admin') {
+      roleSpecificItems.push(
+        { id: 'admin-delivery', name: 'Delivery Management', icon: '📦', path: '/admin-delivery' }
+      );
+    }
+    
+    // Transporter-specific features
+    if (userRole === 'transporter') {
+      roleSpecificItems.push(
+        { id: 'transporter-dashboard', name: 'My Deliveries', icon: '🚛', path: '/transporter-dashboard' }
+      );
+    }
+    
+    // Buyer-specific features
+    if (userRole === 'buyer') {
+      roleSpecificItems.push(
+        { id: 'buyer-keys', name: 'My Encryption Keys', icon: '🔑', path: '/buyer-keys' },
+        { id: 'delivery-tracking', name: 'Track Deliveries', icon: '📍', path: '/delivery-tracking' },
+        { id: 'product-receipt', name: 'Confirm Receipt', icon: '✅', path: '/product-receipt' }
       );
     }
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.services.blockchain_service import BlockchainService
 from app.services.fl_service import FederatedLearningService
+from app.services.ownership_verification_service import OwnershipVerificationService
 
 router = APIRouter()
 
@@ -32,6 +33,29 @@ async def get_fl_service():
     await service.initialize()
     return service
 
+async def get_ownership_verification_service(blockchain_service: BlockchainService = Depends(get_blockchain_service)):
+    """Create ownership verification service with blockchain connections"""
+    # Get available web3 connections from blockchain service
+    web3_connections = {}
+    contract_addresses = {}
+    
+    # Only add connections that actually exist in the blockchain service
+    if hasattr(blockchain_service, 'pos_web3') and blockchain_service.pos_web3:
+        web3_connections["polygon_amoy"] = blockchain_service.pos_web3
+        contract_addresses["polygon_amoy"] = getattr(blockchain_service, 'polygon_contract_address', None)
+    
+    if hasattr(blockchain_service, 'manufacturer_web3') and blockchain_service.manufacturer_web3:
+        web3_connections["base_sepolia"] = blockchain_service.manufacturer_web3
+        contract_addresses["base_sepolia"] = getattr(blockchain_service, 'base_contract_address', None)
+    
+    # Note: For now, we'll create the service with limited connections
+    # On-chain verification can be enhanced later when all chain connections are available
+    return OwnershipVerificationService(
+        database=blockchain_service.database,
+        web3_connections=web3_connections,
+        contract_addresses=contract_addresses
+    )
+
 @router.get("/")
 async def get_products(
     manufacturer: Optional[str] = None,
@@ -40,9 +64,11 @@ async def get_products(
     user_role: Optional[str] = None,
     wallet_address: Optional[str] = None,
     view_type: Optional[str] = None,  # "marketplace", "owned", "created"
+    verify_on_chain: bool = False,  # NEW: Optional on-chain verification for "owned" view
     limit: int = 100,  # Increased limit to show more products
     offset: int = 0,
-    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+    blockchain_service: BlockchainService = Depends(get_blockchain_service),
+    ownership_service: OwnershipVerificationService = Depends(get_ownership_verification_service)
 ):
     """Get products with role-based filtering following Algorithm 5"""
     try:
@@ -60,8 +86,39 @@ async def get_products(
                     {"buyer": {"$ne": wallet_address}}  # NEW: Not purchased by buyer
                 ]
             elif view_type == "owned":
-                # Show products owned by the buyer
-                filters["current_owner"] = wallet_address
+                # ENHANCED: Use ownership verification service for "My Products" tab
+                print(f"🔍 Getting owned products for buyer {wallet_address} (verify_on_chain={verify_on_chain})")
+                owned_products = await ownership_service.get_owned_products_for_buyer(
+                    wallet_address, verify_on_chain=verify_on_chain
+                )
+                
+                # Apply offset and limit to owned products
+                total_owned = len(owned_products)
+                paginated_products = owned_products[offset:offset + limit]
+                
+                print(f"✅ Found {total_owned} owned products, returning {len(paginated_products)} (offset={offset}, limit={limit})")
+                
+                # Format response for owned products
+                response = {
+                    "products": paginated_products,
+                    "total_count": total_owned,
+                    "limit": limit,
+                    "offset": offset,
+                    "filtered_by": f"buyer_owned_enhanced",
+                    "count": len(paginated_products),
+                    "on_chain_verified": verify_on_chain
+                }
+                return response
+                
+            elif view_type == "orders":
+                # NEW: Show products purchased by the buyer (their orders)
+                filters["$or"] = [
+                    {"buyer": wallet_address},  # Products purchased by this buyer
+                    {"$and": [
+                        {"current_owner": wallet_address},  # Products owned by buyer
+                        {"status": {"$in": ["order_pending", "shipped", "delivered"]}}  # With order status
+                    ]}
+                ]
             else:
                 # Default for buyers: marketplace view
                 filters["$and"] = [
@@ -408,3 +465,147 @@ async def get_recent_counterfeits(
         return {"recent_counterfeits": counterfeits}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ==========================================
+# BUYER PURCHASES ENDPOINTS
+# ==========================================
+
+@router.get("/buyer/{buyer_address}/purchases")
+async def get_buyer_purchases(
+    buyer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get all purchases made by a buyer"""
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get purchases from purchases collection
+        purchases = []
+        async for purchase in database.purchases.find({"buyer": buyer_address}).sort("created_at", -1):
+            purchase["_id"] = str(purchase["_id"])
+            
+            # Get product details
+            product = await database.products.find_one({"token_id": purchase["product_id"]})
+            if product:
+                purchase["product_details"] = {
+                    "name": product.get("name", "Unknown Product"),
+                    "category": product.get("category"),
+                    "description": product.get("description"),
+                    "image_url": product.get("image_url"),
+                    "manufacturer": product.get("manufacturer")
+                }
+            
+            purchases.append(purchase)
+        
+        return {
+            "success": True,
+            "purchases": purchases,
+            "count": len(purchases)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch purchases: {str(e)}")
+
+@router.get("/buyer/{buyer_address}/purchases/waiting-shipping")
+async def get_buyer_waiting_shipping_purchases(
+    buyer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get purchases that are waiting for shipping/delivery initiation"""
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get orders from delivery queue that are waiting for manufacturer action
+        purchases = []
+        async for order in database.delivery_queue.find({
+            "buyer": buyer_address,
+            "status": "waiting_for_delivery_initiation"
+        }).sort("order_timestamp", -1):
+            order["_id"] = str(order["_id"])
+            
+            # Get product details
+            product = await database.products.find_one({"token_id": order["product_id"]})
+            if product:
+                order["product_details"] = {
+                    "name": product.get("name", "Unknown Product"),
+                    "category": product.get("category"),
+                    "description": product.get("description"),
+                    "image_url": product.get("image_url"),
+                    "manufacturer": product.get("manufacturer")
+                }
+            
+            # Format order as purchase for frontend compatibility
+            purchase = {
+                "purchase_id": order["order_id"],
+                "product_id": order["product_id"],
+                "buyer": order["buyer"],
+                "seller": order.get("seller"),
+                "manufacturer": order.get("manufacturer"),
+                "amount_eth": order["price_eth"],
+                "status": "paid_waiting_shipping",
+                "created_at": order["order_timestamp"],
+                "buyer_chain": order["cross_chain_details"].get("buyer_chain"),
+                "escrow_id": order["escrow_id"],
+                "product_details": order.get("product_details"),
+                "delivery_status": order.get("delivery_status", "pending_manufacturer_action")
+            }
+            
+            purchases.append(purchase)
+        
+        return {
+            "success": True,
+            "purchases": purchases,
+            "count": len(purchases)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch waiting shipping purchases: {str(e)}")
+
+@router.get("/buyer/{buyer_address}/purchase-status/{purchase_id}")
+async def get_purchase_status(
+    buyer_address: str,
+    purchase_id: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """Get detailed status of a specific purchase"""
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Check purchase record
+        purchase = await database.purchases.find_one({
+            "purchase_id": purchase_id,
+            "buyer": buyer_address
+        })
+        
+        if not purchase:
+            # Check in delivery queue
+            order = await database.delivery_queue.find_one({
+                "order_id": purchase_id,
+                "buyer": buyer_address
+            })
+            
+            if not order:
+                raise HTTPException(status_code=404, detail="Purchase not found")
+                
+            return {
+                "success": True,
+                "purchase_id": purchase_id,
+                "status": order.get("status"),
+                "delivery_status": order.get("delivery_status"),
+                "order_details": order
+            }
+        
+        return {
+            "success": True,
+            "purchase_id": purchase_id,
+            "status": purchase.get("status"),
+            "purchase_details": purchase
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get purchase status: {str(e)}")

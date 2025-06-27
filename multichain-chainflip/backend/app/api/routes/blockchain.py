@@ -2,7 +2,7 @@
 Comprehensive ChainFLIP Blockchain API Routes
 Implements all 5 algorithms from the 6 smart contracts
 """
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, Form
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, Form, Query, Body
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field, Field
 import base64
@@ -14,6 +14,11 @@ import json
 from web3 import Web3
 
 from app.services.blockchain_service import BlockchainService
+from app.core.config import get_settings
+from app.core.database import get_database
+
+# Get settings instance
+settings = get_settings()
 
 # Dependency to get blockchain service - MOVED HERE TO FIX NAMEERROR
 async def get_blockchain_service():
@@ -722,7 +727,7 @@ async def buy_product_from_marketplace(
                 product_id=buy_data.product_id,
                 buyer=buy_data.buyer,
                 transaction_hash=transaction_hash,
-                purchase_id=result["purchase_id"],
+                purchase_id=result["order_id"],  # Fixed: use order_id instead of purchase_id
                 payment_amount=buy_data.price,
                 cross_chain_details=cross_chain_details
             )
@@ -803,6 +808,95 @@ async def initiate_product_purchase(
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ==========================================
+# DELIVERY WORKFLOW MANAGEMENT (NEW - SIMPLIFIED)
+# ==========================================
+
+@router.post("/delivery/initiate/{order_id}")
+async def initiate_delivery(
+    order_id: str,
+    manufacturer_data: dict,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    NEW DELIVERY WORKFLOW: Manufacturer initiates delivery
+    This triggers NFT transfer + payment release (separate from purchase)
+    """
+    try:
+        manufacturer_address = manufacturer_data.get("manufacturer_address")
+        if not manufacturer_address:
+            raise HTTPException(status_code=400, detail="Manufacturer address required")
+        
+        print(f"🚚 Delivery initiation request:")
+        print(f"   📦 Order ID: {order_id}")
+        print(f"   🏭 Manufacturer: {manufacturer_address}")
+        
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Execute delivery workflow
+        result = await crosschain_purchase_service.initiate_delivery_workflow(order_id, manufacturer_address)
+        
+        if result["success"]:
+            print(f"✅ Delivery initiated successfully")
+            return {
+                "success": True,
+                "message": "Delivery initiated successfully",
+                "order_id": order_id,
+                "nft_transfer_tx": result.get("nft_transfer_tx"),
+                "payment_release_tx": result.get("payment_release_tx"),
+                "new_owner": result.get("new_owner"),
+                "delivery_details": result.get("delivery_details")
+            }
+        else:
+            print(f"❌ Delivery initiation failed: {result['error']}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Delivery initiation failed: {result['error']}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delivery initiation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Delivery initiation failed: {str(e)}")
+
+@router.get("/delivery/queue/{manufacturer_address}")
+async def get_manufacturer_delivery_queue(
+    manufacturer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    Get pending delivery orders for manufacturer
+    """
+    try:
+        print(f"📋 Getting delivery queue for manufacturer: {manufacturer_address}")
+        
+        # Initialize cross-chain purchase service
+        from app.services.crosschain_purchase_service import crosschain_purchase_service
+        await crosschain_purchase_service.initialize()
+        
+        # Get manufacturer's delivery queue
+        result = await crosschain_purchase_service.get_manufacturer_delivery_queue(manufacturer_address)
+        
+        if result["success"]:
+            print(f"✅ Retrieved {result['count']} pending orders")
+            return {
+                "success": True,
+                "orders": result["orders"],
+                "count": result["count"],
+                "manufacturer": manufacturer_address
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delivery queue error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get delivery queue: {str(e)}")
 
 # ==========================================
 # CROSS-CHAIN STATISTICS AND MONITORING
@@ -1294,3 +1388,908 @@ async def sync_cross_chain_data(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ==========================================
+# BUYER ENCRYPTION KEYS API
+# ==========================================
+
+@router.get("/buyer/keys/{buyer_address}")
+async def get_buyer_encryption_keys(
+    buyer_address: str,
+    purchase_id: str = None,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    Get encryption keys for buyer to decrypt QR codes
+    
+    Args:
+        buyer_address: Buyer's wallet address
+        purchase_id: Optional specific purchase ID to get keys for
+    """
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Build query
+        query = {"buyer_address": buyer_address}
+        if purchase_id:
+            query["purchase_id"] = purchase_id
+            
+        # Get keys from buyer_keys collection
+        keys = []
+        async for key in database.buyer_keys.find(query).sort("timestamp", -1):
+            keys.append(key)
+        
+        if not keys:
+            raise HTTPException(
+                status_code=404, 
+                detail="No encryption keys found for this buyer"
+            )
+        
+        # Update access count for each key
+        for key in keys:
+            await database.buyer_keys.update_one(
+                {"_id": key["_id"]},
+                {"$inc": {"access_count": 1}}
+            )
+        
+        # Return keys data (remove MongoDB _id)
+        formatted_keys = []
+        for key in keys:
+            formatted_keys.append({
+                "purchase_id": key["purchase_id"],
+                "product_id": key["product_id"],
+                "aes_key": key["aes_key"],
+                "hmac_key": key["hmac_key"],
+                "timestamp": key["timestamp"],
+                "access_count": key.get("access_count", 0) + 1
+            })
+        
+        return {
+            "success": True,
+            "buyer_address": buyer_address,
+            "keys": formatted_keys,
+            "message": f"Found {len(keys)} encryption key sets"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve keys: {str(e)}")
+
+@router.get("/buyer/purchases/{buyer_address}")
+async def get_buyer_purchases(
+    buyer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    Get all purchases made by a buyer with key availability status
+    """
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get purchases from purchase_history
+        purchases = []
+        async for purchase in database.purchase_history.find(
+            {"buyer_address": buyer_address}
+        ).sort("timestamp", -1):
+            purchases.append(purchase)
+        
+        # Enhance with key status
+        for purchase in purchases:
+            # Check if keys are available
+            keys_exist = await database.buyer_keys.find_one({
+                "purchase_id": purchase["purchase_id"],
+                "buyer_address": buyer_address
+            })
+            purchase["keys_available"] = bool(keys_exist)
+            purchase["keys_sent"] = purchase.get("keys_sent", False)
+        
+        return {
+            "success": True,
+            "buyer_address": buyer_address,
+            "purchases": purchases,
+            "count": len(purchases)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve purchases: {str(e)}")
+
+@router.post("/delivery/test-order/{manufacturer_address}")
+async def create_test_delivery_order(
+    manufacturer_address: str,
+    blockchain_service: BlockchainService = Depends(get_blockchain_service)
+):
+    """
+    Create a test delivery order for debugging
+    """
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        import time
+        import uuid
+        
+        # Create a test order
+        test_order = {
+            "order_id": f"TEST-{int(time.time())}",
+            "product_id": "TEST-PRODUCT-123",
+            "buyer": "0x1234567890123456789012345678901234567890",
+            "manufacturer": manufacturer_address,
+            "price_eth": 0.01,
+            "escrow_id": f"ESCROW-{uuid.uuid4()}",
+            "status": "waiting_for_delivery_initiation",
+            "order_timestamp": time.time(),
+            "cross_chain_details": {
+                "buyer_chain": "optimism_sepolia",
+                "product_chain": "base_sepolia"
+            },
+            "delivery_status": "pending_manufacturer_action"
+        }
+        
+        # Insert test order
+        await database.delivery_queue.insert_one(test_order)
+        
+        return {
+            "success": True,
+            "message": "Test delivery order created",
+            "order_id": test_order["order_id"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create test order: {str(e)}")
+
+@router.delete("/delivery/queue/cleanup/{manufacturer_address}")
+async def cleanup_duplicate_delivery_orders(
+    manufacturer_address: str
+):
+    """
+    Clean up duplicate delivery queue entries, keeping only the most recent order per product
+    """
+    try:
+        from app.core.database import get_database
+        database = await get_database()
+        
+        print(f"🧹 Cleaning up duplicate delivery orders for manufacturer: {manufacturer_address}")
+        
+        # Get all delivery queue entries for this manufacturer
+        cursor = database.delivery_queue.find({
+            "manufacturer": manufacturer_address,
+            "status": "waiting_for_delivery_initiation"
+        })
+        
+        orders = []
+        async for order in cursor:
+            orders.append(order)
+        
+        print(f"📋 Found {len(orders)} delivery queue entries")
+        
+        # Group orders by product_id
+        product_groups = {}
+        for order in orders:
+            product_id = order["product_id"]
+            if product_id not in product_groups:
+                product_groups[product_id] = []
+            product_groups[product_id].append(order)
+        
+        total_removed = 0
+        cleanup_summary = []
+        
+        # For each product, keep only the most recent order
+        for product_id, product_orders in product_groups.items():
+            if len(product_orders) > 1:
+                # Sort by timestamp (most recent first)
+                product_orders.sort(key=lambda x: x["order_timestamp"], reverse=True)
+                
+                # Keep the most recent order
+                keep_order = product_orders[0]
+                remove_orders = product_orders[1:]
+                
+                print(f"🔄 Product {product_id}: Keeping most recent order {keep_order['order_id']}, removing {len(remove_orders)} duplicates")
+                
+                # Remove duplicate orders
+                order_ids_to_remove = [order["order_id"] for order in remove_orders]
+                
+                delete_result = await database.delivery_queue.delete_many({
+                    "order_id": {"$in": order_ids_to_remove}
+                })
+                
+                total_removed += delete_result.deleted_count
+                cleanup_summary.append({
+                    "product_id": product_id,
+                    "product_name": keep_order.get("product_details", {}).get("name", f"Product {product_id}"),
+                    "kept_order": keep_order["order_id"],
+                    "removed_count": delete_result.deleted_count,
+                    "removed_orders": order_ids_to_remove
+                })
+                
+                print(f"✅ Removed {delete_result.deleted_count} duplicate orders for product {product_id}")
+        
+        print(f"🧹 Cleanup complete: Removed {total_removed} duplicate delivery queue entries")
+        
+        return {
+            "success": True,
+            "message": f"Cleanup complete: Removed {total_removed} duplicate orders",
+            "total_removed": total_removed,
+            "cleanup_summary": cleanup_summary,
+            "manufacturer": manufacturer_address
+        }
+        
+    except Exception as e:
+        print(f"❌ Cleanup error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup delivery queue: {str(e)}")
+
+# ==========================================
+# ADMIN DELIVERY REQUESTS MANAGEMENT
+# ==========================================
+
+@router.get("/delivery/admin/requests")
+async def get_admin_delivery_requests(
+    admin_address: str = Query(..., description="Admin wallet address"),
+    status: str = Query("sent_to_admin", description="Request status filter")
+):
+    """
+    Get delivery requests for admin to assign transporters
+    """
+    try:
+        print(f"📋 Getting delivery requests for admin: {admin_address}")
+        
+        # Verify admin authority (in production, add proper admin verification)
+        expected_admin = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        if admin_address.lower() != expected_admin.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: Admin access required")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get delivery requests from LayerZero messages
+        cursor = database.delivery_requests.find({
+            "status": status
+        }).sort("timestamp", -1)
+        
+        requests = []
+        async for request in cursor:
+            request["_id"] = str(request["_id"])
+            requests.append(request)
+        
+        print(f"📋 Found {len(requests)} delivery requests for admin")
+        
+        return {
+            "success": True,
+            "requests": requests,
+            "count": len(requests),
+            "admin_address": admin_address
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting admin delivery requests: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/delivery/admin/assign-transporters")
+async def assign_transporters_to_delivery(
+    request: dict
+):
+    """
+    Admin assigns transporters to a delivery request
+    """
+    try:
+        delivery_request_id = request.get("delivery_request_id")
+        assigned_transporters = request.get("assigned_transporters", [])
+        admin_address = request.get("admin_address")
+        
+        print(f"🚚 Admin assigning transporters to delivery: {delivery_request_id}")
+        print(f"   👨‍💼 Admin: {admin_address}")
+        print(f"   🚛 Transporters: {assigned_transporters}")
+        
+        # Verify admin authority
+        expected_admin = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        if admin_address.lower() != expected_admin.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: Admin access required")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get the delivery request
+        delivery_request = await database.delivery_requests.find_one({
+            "delivery_request_id": delivery_request_id
+        })
+        
+        if not delivery_request:
+            raise HTTPException(status_code=404, detail="Delivery request not found")
+        
+        # Update delivery request with assigned transporters
+        update_data = {
+            "assigned_transporters": assigned_transporters,
+            "admin_address": admin_address,
+            "status": "transporters_assigned",
+            "assignment_timestamp": time.time(),
+            "assignment_details": {
+                "assigned_by": admin_address,
+                "assigned_at": time.time(),
+                "transporter_count": len(assigned_transporters),
+                "assignment_method": "admin_manual"
+            }
+        }
+        
+        await database.delivery_requests.update_one(
+            {"delivery_request_id": delivery_request_id},
+            {"$set": update_data}
+        )
+        
+        # Create transporter assignments
+        for transporter_address in assigned_transporters:
+            assignment_record = {
+                "assignment_id": f"ASSIGN_{delivery_request_id}_{transporter_address[-8:]}_{int(time.time())}",
+                "delivery_request_id": delivery_request_id,
+                "order_id": delivery_request["order_id"],
+                "transporter_address": transporter_address,
+                "assigned_by": admin_address,
+                "assigned_at": time.time(),
+                "status": "assigned",
+                "chain": "arbitrum_sepolia",  # Transporters are on Arbitrum Sepolia
+                "expected_delivery_distance": delivery_request.get("delivery_distance_miles", 0),
+                "delivery_fee_percentage": round(100 / len(assigned_transporters), 2) if assigned_transporters else 0
+            }
+            
+            await database.transporter_assignments.insert_one(assignment_record)
+        
+        print(f"✅ Transporters assigned successfully!")
+        print(f"   📦 Delivery request: {delivery_request_id}")
+        print(f"   🚛 {len(assigned_transporters)} transporters assigned")
+        
+        # TODO: Send LayerZero message to each transporter on Arbitrum Sepolia
+        # This will notify transporters about their new delivery assignment
+        
+        return {
+            "success": True,
+            "message": f"Successfully assigned {len(assigned_transporters)} transporters",
+            "delivery_request_id": delivery_request_id,
+            "assigned_transporters": assigned_transporters,
+            "assignment_timestamp": update_data["assignment_timestamp"]
+        }
+        
+    except Exception as e:
+        print(f"❌ Error assigning transporters: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to assign transporters: {str(e)}")
+
+@router.get("/delivery/admin/transporters")
+async def get_available_transporters(
+    admin_address: str = Query(..., description="Admin wallet address"),
+    chain: str = Query("arbitrum_sepolia", description="Transporter chain")
+):
+    """
+    Get list of available transporters for assignment
+    """
+    try:
+        print(f"🚛 Getting available transporters for admin: {admin_address}")
+        
+        # Verify admin authority
+        expected_admin = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        if admin_address.lower() != expected_admin.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: Admin access required")
+        
+        # For demo purposes, return a list of known transporter addresses
+        # In production, this would query the blockchain or database for registered transporters
+        available_transporters = [
+            {
+                "address": "0x742d35Cc6635C0532925a3b8D5c9E9F18f5b4f8F",
+                "name": "Express Logistics Co.",
+                "rating": 4.8,
+                "active_deliveries": 3,
+                "max_distance": 500,
+                "specialties": ["Electronics", "Fragile Items"],
+                "location": "Regional Hub A",
+                "availability": "available"
+            },
+            {
+                "address": "0x8fDc8A9f62AA8f2a09cE8F1E3Dd9C7A4B5E6F7G8",
+                "name": "Swift Transport Ltd.",
+                "rating": 4.6,
+                "active_deliveries": 1,
+                "max_distance": 300,
+                "specialties": ["Consumer Goods", "Same-Day Delivery"],
+                "location": "Regional Hub B",
+                "availability": "available"
+            },
+            {
+                "address": "0x1A2B3C4D5E6F7890aBcDeFgHiJkLmNoPqRsTuVwX",
+                "name": "Secure Delivery Services",
+                "rating": 4.9,
+                "active_deliveries": 2,
+                "max_distance": 750,
+                "specialties": ["High-Value Items", "Long Distance"],
+                "location": "Regional Hub C",
+                "availability": "available"
+            },
+            {
+                "address": "0x9Z8Y7X6W5V4U3T2S1R0QpOnMlKjIhGfEdCbA",
+                "name": "Green Mile Logistics",
+                "rating": 4.7,
+                "active_deliveries": 0,
+                "max_distance": 400,
+                "specialties": ["Eco-Friendly", "Electronics"],
+                "location": "Regional Hub D",
+                "availability": "available"
+            }
+        ]
+        
+        print(f"🚛 Found {len(available_transporters)} available transporters")
+        
+        return {
+            "success": True,
+            "transporters": available_transporters,
+            "count": len(available_transporters),
+            "chain": chain
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting transporters: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get transporters: {str(e)}")
+
+@router.get("/delivery/admin/dashboard")
+async def get_admin_delivery_dashboard(
+    admin_address: str = Query(..., description="Admin wallet address")
+):
+    """
+    Get admin dashboard data for delivery management
+    """
+    try:
+        print(f"📊 Getting admin delivery dashboard for: {admin_address}")
+        
+        # Verify admin authority
+        expected_admin = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        if admin_address.lower() != expected_admin.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: Admin access required")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get statistics
+        pending_requests = await database.delivery_requests.count_documents({"status": "sent_to_admin"})
+        assigned_requests = await database.delivery_requests.count_documents({"status": "transporters_assigned"})
+        completed_deliveries = await database.delivery_requests.count_documents({"status": "delivered"})
+        
+        # Get recent delivery requests
+        recent_cursor = database.delivery_requests.find({}).sort("timestamp", -1).limit(10)
+        recent_requests = []
+        async for request in recent_cursor:
+            request["_id"] = str(request["_id"])
+            recent_requests.append(request)
+        
+        dashboard_data = {
+            "statistics": {
+                "pending_requests": pending_requests,
+                "assigned_requests": assigned_requests,
+                "completed_deliveries": completed_deliveries,
+                "total_requests": pending_requests + assigned_requests + completed_deliveries
+            },
+            "recent_requests": recent_requests,
+            "admin_address": admin_address
+        }
+        
+        print(f"📊 Dashboard stats: {pending_requests} pending, {assigned_requests} assigned, {completed_deliveries} completed")
+        
+        return {
+            "success": True,
+            "dashboard": dashboard_data
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting admin dashboard: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get admin dashboard: {str(e)}")
+
+# ==========================================
+# DELIVERY SIMULATION AND TRANSPORTER MANAGEMENT
+# ==========================================
+
+@router.post("/delivery/admin/simulate-delivery")
+async def simulate_delivery_process(
+    request: dict
+):
+    """
+    Simulate the complete multi-stage delivery process
+    """
+    try:
+        delivery_request_id = request.get("delivery_request_id")
+        assigned_transporters = request.get("assigned_transporters", [])
+        admin_address = request.get("admin_address")
+        
+        print(f"🎬 Starting delivery simulation for: {delivery_request_id}")
+        print(f"   👨‍💼 Admin: {admin_address}")
+        print(f"   🚚 Transporters: {assigned_transporters}")
+        
+        # Verify admin authority
+        expected_admin = "0x032041b4b356fEE1496805DD4749f181bC736FFA"
+        if admin_address.lower() != expected_admin.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: Admin access required")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get the delivery request details
+        delivery_request = await database.delivery_requests.find_one({
+            "delivery_request_id": delivery_request_id
+        })
+        
+        if not delivery_request:
+            raise HTTPException(status_code=404, detail="Delivery request not found")
+        
+        # Calculate delivery route based on distance and number of transporters
+        distance_miles = delivery_request.get("delivery_distance_miles", 150)
+        num_transporters = len(assigned_transporters)
+        
+        # Generate route locations
+        from app.services.chainflip_messaging_service import chainflip_messaging_service
+        route_locations = chainflip_messaging_service._generate_delivery_route(distance_miles, num_transporters)
+        
+        print(f"🗺️ Generated route: {' → '.join(route_locations)}")
+        
+        # Start simulation
+        simulation_result = await chainflip_messaging_service.simulate_multi_stage_delivery(
+            delivery_request_id=delivery_request_id,
+            assigned_transporters=assigned_transporters,
+            route_locations=route_locations
+        )
+        
+        if simulation_result.get("success"):
+            # Update delivery request status
+            await database.delivery_requests.update_one(
+                {"delivery_request_id": delivery_request_id},
+                {"$set": {
+                    "status": "delivery_in_progress",
+                    "simulation_started": True,
+                    "simulation_timestamp": time.time(),
+                    "route_locations": route_locations,
+                    "delivery_simulation": simulation_result
+                }}
+            )
+            
+            print(f"✅ Delivery simulation completed successfully!")
+            
+            return {
+                "success": True,
+                "message": "Delivery simulation completed successfully",
+                "delivery_request_id": delivery_request_id,
+                "simulation_result": simulation_result,
+                "route": route_locations
+            }
+        else:
+            print(f"❌ Delivery simulation failed: {simulation_result.get('error')}")
+            return {
+                "success": False,
+                "error": simulation_result.get("error"),
+                "delivery_request_id": delivery_request_id
+            }
+            
+    except Exception as e:
+        print(f"❌ Error simulating delivery: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to simulate delivery: {str(e)}")
+
+@router.post("/delivery/buyer/confirm-receipt")
+async def confirm_product_receipt(
+    request: dict
+):
+    """
+    Buyer confirms product receipt - triggers escrow release and NFT transfer
+    This is the final step in the delivery process
+    """
+    try:
+        delivery_request_id = request.get("delivery_request_id")
+        buyer_address = request.get("buyer_address")
+        product_verification_passed = request.get("product_verification_passed", True)
+        authenticity_check_passed = request.get("authenticity_check_passed", True)
+        condition_satisfactory = request.get("condition_satisfactory", True)
+        notes = request.get("notes", "")
+        
+        print(f"🎯 Buyer confirming product receipt: {delivery_request_id}")
+        print(f"   👤 Buyer: {buyer_address}")
+        print(f"   ✅ Verification: {product_verification_passed}")
+        print(f"   🔐 Authenticity: {authenticity_check_passed}")
+        print(f"   📦 Condition: {condition_satisfactory}")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get the delivery request details
+        delivery_request = await database.delivery_requests.find_one({
+            "delivery_request_id": delivery_request_id
+        })
+        
+        if not delivery_request:
+            raise HTTPException(status_code=404, detail="Delivery request not found")
+        
+        # Verify this is the correct buyer
+        if delivery_request.get("buyer_address", "").lower() != buyer_address.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized: You are not the buyer for this delivery")
+        
+        # Check if delivery is complete
+        if delivery_request.get("status") != "delivery_in_progress":
+            raise HTTPException(status_code=400, detail=f"Delivery status is {delivery_request.get('status')}, cannot confirm receipt")
+        
+        # Find the purchase order associated with this delivery
+        purchase_order = await database.purchase_history.find_one({
+            "order_id": delivery_request.get("order_id")
+        })
+        
+        if not purchase_order:
+            print(f"⚠️ No purchase order found for order_id: {delivery_request.get('order_id')}")
+            purchase_order = {
+                "product_id": delivery_request.get("product_id"),
+                "buyer": buyer_address,
+                "manufacturer": delivery_request.get("manufacturer_address"),
+                "price": "0.01",  # Default price
+                "escrow_id": f"ESCROW_{delivery_request_id}_{int(time.time())}"
+            }
+        
+        overall_satisfaction = (
+            product_verification_passed and 
+            authenticity_check_passed and 
+            condition_satisfactory
+        )
+        
+        print(f"📋 Overall satisfaction: {overall_satisfaction}")
+        
+        if overall_satisfaction:
+            print("🎉 Product receipt confirmed - triggering escrow release and NFT transfer")
+            
+            # Trigger cross-chain escrow release and NFT transfer
+            from app.services.crosschain_purchase_service import crosschain_purchase_service
+            
+            # Prepare the delivery completion request
+            delivery_completion_request = {
+                "order_id": delivery_request.get("order_id", delivery_request_id),
+                "product_id": delivery_request.get("product_id"),
+                "buyer": buyer_address,
+                "manufacturer": delivery_request.get("manufacturer_address"),
+                "escrow_id": purchase_order.get("escrow_id", f"ESCROW_{delivery_request_id}"),
+                "price": purchase_order.get("price", "0.01"),
+                "delivery_confirmed": True,
+                "buyer_satisfaction": True,
+                "verification_passed": product_verification_passed,
+                "authenticity_passed": authenticity_check_passed,
+                "condition_passed": condition_satisfactory
+            }
+            
+            print(f"🚀 Executing final delivery with escrow release...")
+            
+            # Execute the final delivery step (escrow release + NFT transfer)
+            delivery_result = await crosschain_purchase_service.execute_final_delivery_step(
+                delivery_completion_request
+            )
+            
+            if delivery_result.get("success"):
+                # Update delivery request status
+                await database.delivery_requests.update_one(
+                    {"delivery_request_id": delivery_request_id},
+                    {"$set": {
+                        "status": "completed",
+                        "buyer_confirmation": {
+                            "confirmed_at": time.time(),
+                            "buyer_address": buyer_address,
+                            "verification_passed": product_verification_passed,
+                            "authenticity_passed": authenticity_check_passed,
+                            "condition_passed": condition_satisfactory,
+                            "overall_satisfaction": overall_satisfaction,
+                            "notes": notes
+                        },
+                        "completion_timestamp": time.time(),
+                        "final_delivery_result": delivery_result
+                    }}
+                )
+                
+                # Create buyer receipt confirmation record
+                receipt_confirmation = {
+                    "confirmation_id": f"RECEIPT_{delivery_request_id}_{int(time.time())}",
+                    "delivery_request_id": delivery_request_id,
+                    "order_id": delivery_request.get("order_id"),
+                    "product_id": delivery_request.get("product_id"),
+                    "buyer_address": buyer_address,
+                    "manufacturer_address": delivery_request.get("manufacturer_address"),
+                    "confirmed_at": time.time(),
+                    "verification_results": {
+                        "product_verification": product_verification_passed,
+                        "authenticity_check": authenticity_check_passed,
+                        "condition_check": condition_satisfactory,
+                        "overall_satisfaction": overall_satisfaction
+                    },
+                    "cross_chain_results": {
+                        "escrow_release": delivery_result.get("escrow_release"),
+                        "nft_transfer": delivery_result.get("nft_transfer"),
+                        "transaction_hashes": delivery_result.get("transaction_hashes", {})
+                    },
+                    "buyer_notes": notes,
+                    "status": "completed"
+                }
+                
+                await database.buyer_receipt_confirmations.insert_one(receipt_confirmation)
+                
+                print(f"✅ Product receipt confirmed and recorded!")
+                print(f"   💰 Escrow released: {delivery_result.get('escrow_release', {}).get('success', False)}")
+                print(f"   🎨 NFT transferred: {delivery_result.get('nft_transfer', {}).get('success', False)}")
+                
+                return {
+                    "success": True,
+                    "message": "Product receipt confirmed successfully",
+                    "confirmation_id": receipt_confirmation["confirmation_id"],
+                    "delivery_request_id": delivery_request_id,
+                    "buyer_satisfaction": overall_satisfaction,
+                    "cross_chain_results": delivery_result,
+                    "transaction_hashes": delivery_result.get("transaction_hashes", {}),
+                    "escrow_released": delivery_result.get("escrow_release", {}).get("success", False),
+                    "nft_transferred": delivery_result.get("nft_transfer", {}).get("success", False)
+                }
+            else:
+                print(f"❌ Final delivery failed: {delivery_result.get('error')}")
+                
+                # Still update the buyer confirmation but mark as partial success
+                await database.delivery_requests.update_one(
+                    {"delivery_request_id": delivery_request_id},
+                    {"$set": {
+                        "status": "buyer_confirmed_but_settlement_failed",
+                        "buyer_confirmation": {
+                            "confirmed_at": time.time(),
+                            "buyer_address": buyer_address,
+                            "verification_passed": product_verification_passed,
+                            "authenticity_passed": authenticity_check_passed,
+                            "condition_passed": condition_satisfactory,
+                            "overall_satisfaction": overall_satisfaction,
+                            "notes": notes
+                        },
+                        "settlement_error": delivery_result.get("error")
+                    }}
+                )
+                
+                return {
+                    "success": False,
+                    "message": "Product receipt confirmed but cross-chain settlement failed",
+                    "error": delivery_result.get("error"),
+                    "buyer_confirmation_recorded": True,
+                    "manual_intervention_required": True
+                }
+        else:
+            print("⚠️ Product receipt confirmation with issues - buyer not satisfied")
+            
+            # Update delivery request with buyer feedback
+            await database.delivery_requests.update_one(
+                {"delivery_request_id": delivery_request_id},
+                {"$set": {
+                    "status": "buyer_confirmed_with_issues",
+                    "buyer_confirmation": {
+                        "confirmed_at": time.time(),
+                        "buyer_address": buyer_address,
+                        "verification_passed": product_verification_passed,
+                        "authenticity_passed": authenticity_check_passed,
+                        "condition_passed": condition_satisfactory,
+                        "overall_satisfaction": overall_satisfaction,
+                        "notes": notes
+                    },
+                    "requires_dispute_resolution": True
+                }}
+            )
+            
+            return {
+                "success": False,
+                "message": "Product receipt confirmed but buyer not satisfied",
+                "buyer_satisfaction": overall_satisfaction,
+                "verification_results": {
+                    "product_verification": product_verification_passed,
+                    "authenticity_check": authenticity_check_passed,
+                    "condition_check": condition_satisfactory
+                },
+                "dispute_resolution_required": True,
+                "next_steps": "Please contact support for dispute resolution"
+            }
+            
+    except Exception as e:
+        print(f"❌ Error confirming product receipt: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to confirm receipt: {str(e)}")
+
+@router.get("/delivery/buyer/receipt-history/{buyer_address}")
+async def get_buyer_receipt_history(
+    buyer_address: str
+):
+    """
+    Get buyer's product receipt confirmation history
+    """
+    try:
+        print(f"📋 Getting receipt history for buyer: {buyer_address}")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Get receipt confirmations for this buyer
+        cursor = database.buyer_receipt_confirmations.find({
+            "buyer_address": buyer_address
+        }).sort("confirmed_at", -1)
+        
+        receipt_history = []
+        async for confirmation in cursor:
+            confirmation["_id"] = str(confirmation["_id"])
+            receipt_history.append(confirmation)
+        
+        return {
+            "success": True,
+            "buyer_address": buyer_address,
+            "receipt_count": len(receipt_history),
+            "receipt_history": receipt_history
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting receipt history: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get receipt history: {str(e)}")
+
+@router.post("/delivery/buyer/report-issue")
+async def report_delivery_issue(
+    request: dict
+):
+    """
+    Buyer reports an issue with delivered product
+    """
+    try:
+        delivery_request_id = request.get("delivery_request_id")
+        buyer_address = request.get("buyer_address")
+        issue_type = request.get("issue_type")  # "damaged", "counterfeit", "wrong_product", "other"
+        issue_description = request.get("issue_description")
+        evidence_images = request.get("evidence_images", [])
+        requested_resolution = request.get("requested_resolution")  # "refund", "replacement", "partial_refund"
+        
+        print(f"⚠️ Buyer reporting delivery issue: {delivery_request_id}")
+        print(f"   👤 Buyer: {buyer_address}")
+        print(f"   🚨 Issue: {issue_type}")
+        print(f"   💬 Description: {issue_description}")
+        
+        from app.core.database import get_database
+        database = await get_database()
+        
+        # Verify the delivery request exists and belongs to this buyer
+        delivery_request = await database.delivery_requests.find_one({
+            "delivery_request_id": delivery_request_id,
+            "buyer_address": buyer_address
+        })
+        
+        if not delivery_request:
+            raise HTTPException(status_code=404, detail="Delivery request not found or unauthorized")
+        
+        # Create issue report
+        issue_report = {
+            "issue_id": f"ISSUE_{delivery_request_id}_{int(time.time())}",
+            "delivery_request_id": delivery_request_id,
+            "order_id": delivery_request.get("order_id"),
+            "product_id": delivery_request.get("product_id"),
+            "buyer_address": buyer_address,
+            "manufacturer_address": delivery_request.get("manufacturer_address"),
+            "issue_type": issue_type,
+            "issue_description": issue_description,
+            "evidence_images": evidence_images,
+            "requested_resolution": requested_resolution,
+            "reported_at": time.time(),
+            "status": "pending_review",
+            "escalation_level": "level_1"
+        }
+        
+        await database.delivery_issue_reports.insert_one(issue_report)
+        
+        # Update delivery request status
+        await database.delivery_requests.update_one(
+            {"delivery_request_id": delivery_request_id},
+            {"$set": {
+                "has_reported_issues": True,
+                "latest_issue_id": issue_report["issue_id"],
+                "issue_reported_at": time.time()
+            }}
+        )
+        
+        print(f"📝 Issue report created: {issue_report['issue_id']}")
+        
+        return {
+            "success": True,
+            "message": "Issue report submitted successfully",
+            "issue_id": issue_report["issue_id"],
+            "status": "pending_review",
+            "next_steps": "Your issue will be reviewed within 24 hours. You will receive updates via notifications."
+        }
+        
+    except Exception as e:
+        print(f"❌ Error reporting delivery issue: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to report issue: {str(e)}")

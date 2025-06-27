@@ -399,6 +399,35 @@ class BlockchainService {
   }
 
   // ==========================================
+  // NEW DELIVERY WORKFLOW METHODS  
+  // ==========================================
+
+  async getManufacturerDeliveryQueue(manufacturerAddress) {
+    try {
+      console.log('📋 Fetching delivery queue for manufacturer:', manufacturerAddress);
+      
+      return await this.request(`/delivery/queue/${manufacturerAddress}`);
+    } catch (error) {
+      throw new Error(`Failed to get delivery queue: ${error.message}`);
+    }
+  }
+
+  async initiateDelivery(orderId, manufacturerAddress) {
+    try {
+      console.log('🚚 Initiating delivery for order:', orderId);
+      
+      return await this.request(`/delivery/initiate/${orderId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          manufacturer_address: manufacturerAddress
+        }),
+      });
+    } catch (error) {
+      throw new Error(`Failed to initiate delivery: ${error.message}`);
+    }
+  }
+
+  // ==========================================
   // UTILITY METHODS
   // ==========================================
 
@@ -526,6 +555,34 @@ class BlockchainService {
     if (!amount) return '$0.00';
     return `$${parseFloat(amount).toFixed(2)}`;
   }
+
+  // ==========================================
+  // BUYER ENCRYPTION KEYS
+  // ==========================================
+
+  async getBuyerEncryptionKeys(buyerAddress, purchaseId = null) {
+    try {
+      let endpoint = `/buyer/keys/${buyerAddress}`;
+      if (purchaseId) {
+        endpoint += `?purchase_id=${purchaseId}`;
+      }
+      
+      return await this.request(endpoint);
+    } catch (error) {
+      console.error('Failed to get buyer encryption keys:', error);
+      throw error;
+    }
+  }
+
+  async getBuyerPurchases(buyerAddress) {
+    try {
+      return await this.request(`/buyer/purchases/${buyerAddress}`);
+    } catch (error) {
+      console.error('Failed to get buyer purchases:', error);
+      throw error;
+    }
+  }
 }
 
-export default new BlockchainService();
+const blockchainServiceInstance = new BlockchainService();
+export default blockchainServiceInstance;
