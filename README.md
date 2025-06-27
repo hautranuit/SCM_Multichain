@@ -1,4 +1,4 @@
-# ChainFLIP Multi-Chain Supply Chain Management System
+# ChainFLIP - A Multi-Chain Supply Chain Management System
 
 <p align="center">
   <img src="https://img.shields.io/badge/Blockchain-Multi--Chain-blue" alt="Multi-Chain" />
