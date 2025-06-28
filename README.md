@@ -142,6 +142,28 @@ cd ../frontend
 npm start
 ```
 
+### ⚡ Quick Start
+
+After completing the installation steps above, you can start both services:
+
+**Terminal 1 (Backend):**
+```bash
+cd multichain-chainflip/backend
+.\venv\Scripts\Activate.ps1
+python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+**Terminal 2 (Frontend):**
+```bash
+cd multichain-chainflip/frontend
+npm start
+```
+
+The system will be available at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+
 ### 🔧 Environment Configuration
 
 **Backend (.env):**
