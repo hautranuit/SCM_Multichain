@@ -126,7 +126,20 @@ npm start
 5. **Start Backend Server**
 ```bash
 cd ../backend
-python main.py
+
+# Activate virtual environment (Windows)
+.\venv\Scripts\Activate.ps1
+
+# Start FastAPI server with uvicorn
+python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+6. **Start Frontend Development Server**
+```bash
+cd ../frontend
+
+# Start React development server
+npm start
 ```
 
 ### 🔧 Environment Configuration
