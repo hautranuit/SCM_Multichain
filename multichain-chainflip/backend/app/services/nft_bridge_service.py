@@ -269,6 +269,10 @@ class NFTBridgeService:
             print(f"   From: {from_chain} ({from_address})")
             print(f"   To: {to_chain} ({to_address})")
             
+            # Ensure token_id is an integer
+            if isinstance(token_id, str):
+                token_id = int(token_id)
+            
             # Validate input parameters
             if from_chain not in NETWORK_CONFIG:
                 raise ValueError(f"Unsupported source chain: {from_chain}")
@@ -367,6 +371,10 @@ class NFTBridgeService:
     ) -> Dict[str, Any]:
         """Burn NFT on source chain using burnForBridge function"""
         try:
+            # Ensure token_id is an integer
+            if isinstance(token_id, str):
+                token_id = int(token_id)
+                
             web3 = self.web3_connections[chain]
             nft_contract = self.nft_contracts[chain]
             config = NETWORK_CONFIG[chain]
@@ -607,6 +615,10 @@ class NFTBridgeService:
             print(f"   To Address: {to_address}")
             print(f"   Token URI: {token_uri}")
             print(f"   Using Admin Account: {use_admin_account}")
+            
+            # Ensure token_id is an integer
+            if isinstance(token_id, str):
+                token_id = int(token_id)
             
             if to_chain not in self.web3_connections:
                 raise Exception(f"No connection to destination chain: {to_chain}")

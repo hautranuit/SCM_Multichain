@@ -25,7 +25,7 @@ const BuyerProductReceipt = ({ buyerAddress }) => {
   const [finalizing, setFinalizing] = useState(false);
 
   // Buyer address - in production this would come from wallet connection
-  const currentBuyerAddress = buyerAddress || "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
+  const currentBuyerAddress = buyerAddress || "0xc6A050a538a9E857B4DCb4A33436280c202F6941";
 
   useEffect(() => {
     loadDeliveredProducts();

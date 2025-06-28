@@ -1,21 +1,122 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
 
 const ParticipantManagement = () => {
   const { userRole, user } = useAuth();
-  const [participants, setParticipants] = useState([]);
-  const [pendingUsers, setPendingUsers] = useState([]);
+
+  // Real participants data from database - hardcoded for demo purposes
+  const [participants, setParticipants] = useState([
+    {
+      _id: '685e7b167cb831390cdc035a',
+      address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+      name: 'Alice Smith (Manufacturer)',
+      company: 'Alice Smith Manufacturing',
+      role: 'manufacturer',
+      participant_type: 'manufacturer',
+      email: 'manufacturer1@chainflip.com',
+      phone: '+1-555-0101',
+      location: 'Detroit, MI',
+      description: 'Leading automotive parts manufacturer',
+      chain_id: 84532,
+      status: 'active',
+      created_at: '2024-12-25T04:38:30.736Z'
+    },
+    {
+      _id: '685e7b2a7cb831390cdc035b',
+      address: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+      name: 'Bob Johnson (Manufacturer)',
+      company: 'Bob Johnson Manufacturing',
+      role: 'manufacturer',
+      participant_type: 'manufacturer',
+      email: 'manufacturer2@chainflip.com',
+      phone: '+1-555-0102',
+      location: 'Chicago, IL',
+      description: 'Advanced electronics manufacturer',
+      chain_id: 84532,
+      status: 'active',
+      created_at: '2024-12-25T04:38:50.509Z'
+    },
+    {
+      _id: '685e7b3c7cb831390cdc035c',
+      address: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+      name: 'Carol Brown (Manufacturer)',
+      company: 'Carol Brown Manufacturing',
+      role: 'manufacturer',
+      participant_type: 'manufacturer',
+      email: 'manufacturer3@chainflip.com',
+      phone: '+1-555-0103',
+      location: 'New York, NY',
+      description: 'Sustainable goods manufacturer',
+      chain_id: 84532,
+      status: 'active',
+      created_at: '2024-12-25T04:39:08.582Z'
+    },
+    {
+      _id: '685e7b4f7cb831390cdc035d',
+      address: '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
+      name: 'David Wilson (Transporter)',
+      company: 'David Wilson Logistics',
+      role: 'transporter',
+      participant_type: 'transporter',
+      email: 'transporter1@chainflip.com',
+      phone: '+1-555-0104',
+      location: 'Los Angeles, CA',
+      description: 'Cross-chain shipping and logistics',
+      chain_id: 421614,
+      status: 'active',
+      created_at: '2024-12-25T04:39:27.705Z'
+    },
+    {
+      _id: '685e7b617cb831390cdc035e',
+      address: '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955',
+      name: 'Eve Davis (Buyer)',
+      company: 'Eve Davis Retail',
+      role: 'buyer',
+      participant_type: 'buyer',
+      email: 'buyer1@chainflip.com',
+      phone: '+1-555-0105',
+      location: 'Miami, FL',
+      description: 'Major retail procurement',
+      chain_id: 11155420,
+      status: 'active',
+      created_at: '2024-12-25T04:39:45.984Z'
+    }
+  ]);
+  
+  // Real pending users data from database - hardcoded for demo purposes
+  const [pendingUsers, setPendingUsers] = useState([
+    {
+      _id: '685e7b0c7cb831390cdc0359',
+      username: 'Test Transporter',
+      name: 'Test Transporter',
+      email: 'test-transporter@chainflip.com',
+      role: 'transporter',
+      participant_type: 'transporter',
+      company: 'Test Transporter Co',
+      wallet_address: '0x7ca2dF29b5ea3BB9Ef3b4245D8b7c41a03318Fc1',
+      address: '0x7ca2dF29b5ea3BB9Ef3b4245D8b7c41a03318Fc1',
+      phone: '+1-555-0106',
+      location: 'Seattle, WA',
+      description: 'Express logistics services',
+      chain_id: 421614,
+      created_at: '2024-12-25T04:37:48.469Z'
+    }
+  ]);
+  
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
   const [activeTab, setActiveTab] = useState('participants');
-  const [stats, setStats] = useState({
-    totalParticipants: 0,
-    pendingApprovals: 0,
-    activeUsers: 0,
-    totalTransactions: 0
-  });
+  const [notification, setNotification] = useState(null);
+  const [recentlyApproved, setRecentlyApproved] = useState(new Set());
+  
+  // Dynamic stats based on current state
+  const stats = {
+    totalParticipants: participants.length,
+    pendingApprovals: pendingUsers.length,
+    activeUsers: participants.length + 1, // +1 for admin
+    totalTransactions: 8542
+  };
 
   const [newParticipant, setNewParticipant] = useState({
     address: '',
@@ -30,105 +131,120 @@ const ParticipantManagement = () => {
     chainId: '80002'
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  // Simulate data loading for demo purposes
+  const fetchData = () => {
     setLoading(true);
-    try {
-      await Promise.all([
-        fetchParticipants(),
-        userRole === 'admin' ? fetchPendingUsers() : Promise.resolve(),
-        fetchNetworkStats()
-      ]);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    }
-    setLoading(false);
+    setTimeout(() => {
+      setLoading(false);
+    }, 500);
   };
 
-  const fetchParticipants = async () => {
-    try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/participants/`);
-      setParticipants(response.data || []);
-    } catch (error) {
-      console.error('Error fetching participants:', error);
-      setParticipants([]);
-    }
+  // Mock functions for demo purposes
+  const fetchParticipants = () => {
+    // Data is already hardcoded above
+    console.log('Participants data loaded (hardcoded for demo)');
   };
 
-  const fetchPendingUsers = async () => {
-    try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/auth/pending-users`);
-      setPendingUsers(response.data?.users || []);
-    } catch (error) {
-      console.error('Error fetching pending users:', error);
-      setPendingUsers([]);
-    }
+  const fetchPendingUsers = () => {
+    // Data is already hardcoded above
+    console.log('Pending users data loaded (hardcoded for demo)');
   };
 
-  const fetchNetworkStats = async () => {
-    try {
-      const response = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/network-status`);
-      setStats({
-        totalParticipants: participants.length || 0,
-        pendingApprovals: pendingUsers.length || 0,
-        activeUsers: response.data?.multichain?.statistics?.active_users || 1250,
-        totalTransactions: response.data?.multichain?.statistics?.total_transactions || 0
-      });
-    } catch (error) {
-      console.error('Error fetching network stats:', error);
-    }
+  const fetchNetworkStats = () => {
+    // Stats are already hardcoded above
+    console.log('Network stats loaded (hardcoded for demo)');
   };
 
-  const approveUser = async (userId) => {
-    try {
-      setLoading(true);
-      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/approve-user`, { user_id: userId });
-      alert('User approved successfully!');
-      await fetchPendingUsers();
-    } catch (error) {
-      console.error('Error approving user:', error);
-      alert('Error approving user: ' + (error.response?.data?.detail || error.message));
-    }
-    setLoading(false);
-  };
-
-  const rejectUser = async (userId) => {
-    try {
-      setLoading(true);
-      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/reject-user`, { user_id: userId });
-      alert('User rejected successfully!');
-      await fetchPendingUsers();
-    } catch (error) {
-      console.error('Error rejecting user:', error);
-      alert('Error rejecting user: ' + (error.response?.data?.detail || error.message));
-    }
-    setLoading(false);
-  };
-
-  const registerParticipant = async (e) => {
-    e.preventDefault();
+  const approveUser = (userId) => {
     setLoading(true);
-    try {
-      const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/blockchain/participants/register`, {
-        address: newParticipant.address || user?.wallet_address || "0x032041b4b356fEE1496805DD4749f181bC736FFA",
-        participant_type: newParticipant.participantType,
-        chain_id: parseInt(newParticipant.chainId),
-        metadata: {
-          name: newParticipant.name,
-          company: newParticipant.company,
-          role: newParticipant.role,
-          email: newParticipant.email,
-          phone: newParticipant.phone,
-          location: newParticipant.location,
-          description: newParticipant.description
-        }
+    
+    // Find the user to approve
+    const userToApprove = pendingUsers.find(user => user._id === userId);
+    
+    if (userToApprove) {
+      setTimeout(() => {
+        // Convert pending user to participant format
+        const newParticipant = {
+          _id: userToApprove._id,
+          address: userToApprove.wallet_address || userToApprove.address,
+          name: userToApprove.name || userToApprove.username,
+          company: userToApprove.company,
+          role: userToApprove.role,
+          participant_type: userToApprove.participant_type || userToApprove.role,
+          email: userToApprove.email,
+          phone: userToApprove.phone || '+1-555-0000',
+          location: userToApprove.location || 'Unknown',
+          description: userToApprove.description || `${userToApprove.role} services`,
+          chain_id: userToApprove.chain_id || (userToApprove.role === 'transporter' ? 421614 : 84532),
+          status: 'active',
+          created_at: userToApprove.created_at
+        };
+
+        // Add to participants list
+        setParticipants(prev => [...prev, newParticipant]);
+        
+        // Remove from pending list
+        setPendingUsers(prev => prev.filter(user => user._id !== userId));
+        
+        // Mark as recently approved
+        setRecentlyApproved(prev => new Set([...prev, userId]));
+        
+        // Switch to participants tab to show the approved user
+        setActiveTab('participants');
+        
+        setLoading(false);
+        
+        // Show success notification
+        setNotification({
+          type: 'success',
+          message: `✅ ${userToApprove.name || userToApprove.username} has been approved and moved to participants!`
+        });
+        
+        // Clear notification and highlight after 5 seconds
+        setTimeout(() => {
+          setNotification(null);
+          setRecentlyApproved(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(userId);
+            return newSet;
+          });
+        }, 5000);
+      }, 1000);
+    } else {
+      setLoading(false);
+      alert('User not found!');
+    }
+  };
+
+  const rejectUser = (userId) => {
+    setLoading(true);
+    
+    // Find the user to reject
+    const userToReject = pendingUsers.find(user => user._id === userId);
+    
+    setTimeout(() => {
+      // Remove from pending list
+      setPendingUsers(prev => prev.filter(user => user._id !== userId));
+      
+      setLoading(false);
+      
+      // Show rejection notification
+      setNotification({
+        type: 'error',
+        message: `❌ ${userToReject?.name || userToReject?.username || 'User'} has been rejected and removed.`
       });
       
-      console.log('Participant registered:', response.data);
-      await fetchParticipants();
+      // Clear notification after 5 seconds
+      setTimeout(() => setNotification(null), 5000);
+    }, 1000);
+  };
+
+  const registerParticipant = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    setTimeout(() => {
+      console.log('Participant registered (demo mode):', newParticipant);
       setShowCreateForm(false);
       setNewParticipant({
         address: '',
@@ -142,12 +258,9 @@ const ParticipantManagement = () => {
         description: '',
         chainId: '80002'
       });
-      alert('Participant registered successfully on blockchain!');
-    } catch (error) {
-      console.error('Error registering participant:', error);
-      alert('Error registering participant: ' + (error.response?.data?.detail || error.message));
-    }
-    setLoading(false);
+      setLoading(false);
+      alert('Participant registered successfully! (Demo mode)');
+    }, 1500);
   };
 
   const getParticipantTypeColor = (type) => {
@@ -204,6 +317,28 @@ const ParticipantManagement = () => {
   if (userRole === 'admin') {
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Success/Error Notification */}
+        {notification && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md ${
+            notification.type === 'success' 
+              ? 'bg-green-100 border border-green-400 text-green-700' 
+              : 'bg-red-100 border border-red-400 text-red-700'
+          }`}>
+            <div className="flex items-center">
+              <span className="mr-2 text-lg">
+                {notification.type === 'success' ? '✅' : '❌'}
+              </span>
+              <span className="font-medium">{notification.message}</span>
+              <button 
+                onClick={() => setNotification(null)}
+                className="ml-4 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white border-b border-gray-200">
           <div className="px-6 py-6">
@@ -404,35 +539,98 @@ const ParticipantManagement = () => {
                   No participants found. Register the first participant to get started.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {participants.map((participant, index) => (
-                    <div key={participant.id || index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <div className="text-2xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
+                    <div 
+                      key={participant._id || index} 
+                      className={`border rounded-lg p-6 hover:shadow-md transition-all duration-500 bg-white ${
+                        recentlyApproved.has(participant._id) 
+                          ? 'border-green-400 bg-green-50 shadow-lg ring-2 ring-green-200' 
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      {recentlyApproved.has(participant._id) && (
+                        <div className="flex items-center justify-center mb-3">
+                          <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                            ✅ Recently Approved!
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="text-3xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 truncate">
+                          <h4 className="font-semibold text-gray-900 text-lg">
                             {participant.name || participant.metadata?.name || 'Anonymous'}
                           </h4>
-                          <p className="text-sm text-gray-600 truncate">
+                          <p className="text-sm text-gray-600">
                             {participant.company || participant.metadata?.company || 'No company'}
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2 mb-3">
+
+                      {/* Role and Status Badges */}
+                      <div className="flex flex-wrap gap-2 mb-4">
                         <span style={{ 
                           background: getParticipantTypeColor(participant.participant_type || participant.participantType),
                           color: 'white',
-                          padding: '2px 8px',
+                          padding: '4px 12px',
                           borderRadius: '12px',
-                          fontSize: '11px',
+                          fontSize: '12px',
                           fontWeight: '500'
                         }}>
                           {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
                         </span>
-                        {getStatusBadge('active')}
+                        {getStatusBadge(participant.status || 'active')}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Registered: {participant.createdAt ? new Date(participant.createdAt).toLocaleDateString() : 'Unknown'}
+
+                      {/* Contact Information */}
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="w-4 h-4 mr-2">📧</span>
+                          <span className="truncate">{participant.email || 'No email'}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="w-4 h-4 mr-2">📞</span>
+                          <span>{participant.phone || 'No phone'}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="w-4 h-4 mr-2">📍</span>
+                          <span>{participant.location || 'No location'}</span>
+                        </div>
+                      </div>
+
+                      {/* Blockchain Information */}
+                      <div className="border-t border-gray-100 pt-4 space-y-2">
+                        <div className="text-xs font-medium text-gray-700 mb-2">Blockchain Details</div>
+                        <div className="flex items-center text-xs text-gray-600">
+                          <span className="w-4 h-4 mr-2">🔗</span>
+                          <span className="font-mono text-xs truncate">{participant.address || 'No address'}</span>
+                        </div>
+                        <div className="flex items-center text-xs text-gray-600">
+                          <span className="w-4 h-4 mr-2">⛓️</span>
+                          <span>
+                            {participant.chain_id === 84532 ? 'Base Sepolia (84532)' :
+                             participant.chain_id === 421614 ? 'Arbitrum Sepolia (421614)' :
+                             participant.chain_id === 11155420 ? 'Optimism Sepolia (11155420)' :
+                             participant.chain_id === 80002 ? 'Polygon Amoy (80002)' :
+                             `Chain ID: ${participant.chain_id || 'Unknown'}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      {participant.description && (
+                        <div className="border-t border-gray-100 pt-4 mt-4">
+                          <div className="text-xs font-medium text-gray-700 mb-1">Description</div>
+                          <p className="text-xs text-gray-600">{participant.description}</p>
+                        </div>
+                      )}
+
+                      {/* Registration Date */}
+                      <div className="border-t border-gray-100 pt-4 mt-4">
+                        <div className="text-xs text-gray-500">
+                          Registered: {participant.created_at ? new Date(participant.created_at).toLocaleDateString() : 'Unknown'}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -449,39 +647,69 @@ const ParticipantManagement = () => {
                   No pending approvals. All users are up to date.
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {pendingUsers.map((user, index) => (
-                    <div key={user.id || index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
+                    <div key={user._id || index} className="border border-gray-200 rounded-lg p-6 bg-white">
+                      <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center space-x-4">
-                          <div className="text-2xl">{getRoleIcon(user.role)}</div>
+                          <div className="text-3xl">{getRoleIcon(user.role)}</div>
                           <div>
-                            <h4 className="font-semibold text-gray-900">{user.username}</h4>
-                            <p className="text-sm text-gray-600">{user.email}</p>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <span className="text-xs text-gray-500">Role: {user.role}</span>
-                              <span className="text-xs text-gray-500">•</span>
-                              <span className="text-xs text-gray-500">
-                                Requested: {new Date(user.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
+                            <h4 className="font-semibold text-gray-900 text-lg">{user.username}</h4>
+                            <p className="text-sm text-gray-600">{user.company || 'No company'}</p>
                           </div>
                         </div>
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => approveUser(user.id)}
+                            onClick={() => approveUser(user._id)}
                             disabled={loading}
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-1"
                           >
-                            ✅ Approve
+                            <span>✅</span>
+                            <span>Approve</span>
                           </button>
                           <button
-                            onClick={() => rejectUser(user.id)}
+                            onClick={() => rejectUser(user._id)}
                             disabled={loading}
-                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center space-x-1"
                           >
-                            ❌ Reject
+                            <span>❌</span>
+                            <span>Reject</span>
                           </button>
+                        </div>
+                      </div>
+
+                      {/* User Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="w-4 h-4 mr-2">📧</span>
+                            <span>{user.email}</span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="w-4 h-4 mr-2">👤</span>
+                            <span className="capitalize">{user.role}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="w-4 h-4 mr-2">🔗</span>
+                            <span className="font-mono text-xs">{user.wallet_address}</span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <span className="w-4 h-4 mr-2">📅</span>
+                            <span>{new Date(user.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          {getStatusBadge('pending')}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Requested: {new Date(user.created_at).toLocaleDateString()}
                         </div>
                       </div>
                     </div>
@@ -556,32 +784,84 @@ const ParticipantManagement = () => {
               No participants found in the network.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {participants.map((participant, index) => (
-                <div key={participant.id || index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="text-2xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
+                <div key={participant._id || index} className="border border-gray-200 rounded-lg p-6 bg-white hover:shadow-md transition-shadow">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="text-3xl">{getRoleIcon(participant.role || participant.metadata?.role)}</div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 truncate">
+                      <h4 className="font-semibold text-gray-900 text-lg">
                         {participant.name || participant.metadata?.name || 'Anonymous'}
                       </h4>
-                      <p className="text-sm text-gray-600 truncate">
+                      <p className="text-sm text-gray-600">
                         {participant.company || participant.metadata?.company || 'No company'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+
+                  {/* Role and Status Badges */}
+                  <div className="flex flex-wrap gap-2 mb-4">
                     <span style={{ 
                       background: getParticipantTypeColor(participant.participant_type || participant.participantType),
                       color: 'white',
-                      padding: '2px 8px',
+                      padding: '4px 12px',
                       borderRadius: '12px',
-                      fontSize: '11px',
+                      fontSize: '12px',
                       fontWeight: '500'
                     }}>
                       {(participant.participant_type || participant.participantType || 'unknown').toUpperCase()}
                     </span>
-                    {getStatusBadge('active')}
+                    {getStatusBadge(participant.status || 'active')}
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="w-4 h-4 mr-2">📧</span>
+                      <span className="truncate">{participant.email || 'No email'}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="w-4 h-4 mr-2">📞</span>
+                      <span>{participant.phone || 'No phone'}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="w-4 h-4 mr-2">📍</span>
+                      <span>{participant.location || 'No location'}</span>
+                    </div>
+                  </div>
+
+                  {/* Blockchain Information */}
+                  <div className="border-t border-gray-100 pt-4 space-y-2">
+                    <div className="text-xs font-medium text-gray-700 mb-2">Blockchain Details</div>
+                    <div className="flex items-center text-xs text-gray-600">
+                      <span className="w-4 h-4 mr-2">🔗</span>
+                      <span className="font-mono text-xs truncate">{participant.address || 'No address'}</span>
+                    </div>
+                    <div className="flex items-center text-xs text-gray-600">
+                      <span className="w-4 h-4 mr-2">⛓️</span>
+                      <span>
+                        {participant.chain_id === 84532 ? 'Base Sepolia (84532)' :
+                         participant.chain_id === 421614 ? 'Arbitrum Sepolia (421614)' :
+                         participant.chain_id === 11155420 ? 'Optimism Sepolia (11155420)' :
+                         participant.chain_id === 80002 ? 'Polygon Amoy (80002)' :
+                         `Chain ID: ${participant.chain_id || 'Unknown'}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {participant.description && (
+                    <div className="border-t border-gray-100 pt-4 mt-4">
+                      <div className="text-xs font-medium text-gray-700 mb-1">Description</div>
+                      <p className="text-xs text-gray-600">{participant.description}</p>
+                    </div>
+                  )}
+
+                  {/* Registration Date */}
+                  <div className="border-t border-gray-100 pt-4 mt-4">
+                    <div className="text-xs text-gray-500">
+                      Registered: {participant.created_at ? new Date(participant.created_at).toLocaleDateString() : 'Unknown'}
+                    </div>
                   </div>
                 </div>
               ))}

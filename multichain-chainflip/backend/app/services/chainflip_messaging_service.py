@@ -25,31 +25,39 @@ LAYERZERO_ENDPOINTS = {
     "arbitrum_sepolia": 40231
 }
 
-# Chain configurations
+# Chain configurations with native token information
 CHAIN_CONFIGS = {
     "base_sepolia": {
         "chain_id": 84532,
         "rpc_url": settings.base_sepolia_rpc,
         "layerzero_eid": 40245,
-        "name": "Base Sepolia"
+        "name": "Base Sepolia",
+        "native_token": "ETH",
+        "native_decimals": 18
     },
     "polygon_amoy": {
         "chain_id": 80002,
         "rpc_url": settings.polygon_pos_rpc,
         "layerzero_eid": 40267,
-        "name": "Polygon Amoy"
+        "name": "Polygon Amoy",
+        "native_token": "POL",  # Polygon Amoy uses POL instead of MATIC
+        "native_decimals": 18
     },
     "optimism_sepolia": {
         "chain_id": 11155420,
         "rpc_url": "https://sepolia.optimism.io",
         "layerzero_eid": 40232,
-        "name": "Optimism Sepolia"
+        "name": "Optimism Sepolia",
+        "native_token": "ETH",
+        "native_decimals": 18
     },
     "arbitrum_sepolia": {
         "chain_id": 421614,
         "rpc_url": "https://sepolia-rollup.arbitrum.io/rpc",
         "layerzero_eid": 40231,
-        "name": "Arbitrum Sepolia"
+        "name": "Arbitrum Sepolia",
+        "native_token": "ETH",
+        "native_decimals": 18
     }
 }
 
@@ -191,6 +199,13 @@ CHAINFLIP_MESSENGER_ABI = [
         "type": "event"
     }
 ]
+
+# ===================================================================
+# LayerZero Fee Configuration - Updated to address "Insufficient fee provided" errors
+# - Increased buffer from 20% to 50% for all quote calculations  
+# - Increased fallback fee from 0.005 ETH to 0.008 ETH
+# - These changes should reduce the frequency of LayerZero V2 fee errors
+# ===================================================================
 
 class ChainFLIPMessagingService:
     def __init__(self):
@@ -388,8 +403,8 @@ class ChainFLIPMessagingService:
                 print(f"✅ LayerZero quoted fee: {Web3.from_wei(native_fee, 'ether')} ETH")
                 
                 # Add 20% buffer for timestamp variations and gas price changes
-                native_fee = int(native_fee * 1.2)
-                print(f"✅ Fee with 20% buffer: {Web3.from_wei(native_fee, 'ether')} ETH")
+                native_fee = int(native_fee * 1.5)
+                print(f"✅ Fee with 50% buffer: {Web3.from_wei(native_fee, 'ether')} ETH")
                 
             except Exception as quote_error:
                 print(f"⚠️ Quote function failed: {quote_error}")
@@ -402,24 +417,29 @@ class ChainFLIPMessagingService:
                     print("❌ LayerZero fee calculation error - using higher fallback")
                 
                 # Use a higher fallback fee for LayerZero V2 based on working system
-                native_fee = Web3.to_wei(5000000, 'gwei')  # 0.005 ETH fallback
+                native_fee = Web3.to_wei(8000000, 'gwei')  # 0.008 ETH fallback
                 print(f"📋 Using fallback fee: {Web3.from_wei(native_fee, 'ether')} ETH")
             
-            # Check account balance
+            # Get native token information for proper fee calculation and display
+            source_config = CHAIN_CONFIGS.get(source_chain, {})
+            native_token = source_config.get("native_token", "ETH")
+            
+            # Check account balance with correct token name
             account_balance = source_web3.eth.get_balance(sending_account.address)
-            account_balance_eth = Web3.from_wei(account_balance, 'ether')
-            fee_eth = Web3.from_wei(native_fee, 'ether')
+            account_balance_native = Web3.from_wei(account_balance, 'ether')
+            fee_native = Web3.from_wei(native_fee, 'ether')
             gas_price_gwei = Web3.from_wei(gas_price, 'gwei')
             
-            print(f"💳 Account balance: {account_balance_eth} ETH")
-            print(f"💰 LayerZero fee: {fee_eth} ETH")
+            print(f"💳 Account balance: {account_balance_native} {native_token}")
+            print(f"💰 LayerZero fee: {fee_native} {native_token}")
             print(f"⛽ Gas price: {gas_price_gwei} Gwei")
             print(f"🆔 Target EID: {target_eid}")
+            print(f"🔗 Source Chain: {source_chain} ({native_token})")
             
             if account_balance < native_fee:
                 return {
                     "success": False,
-                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_eth} ETH, Have: {account_balance_eth} ETH"
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_native} {native_token}, Have: {account_balance_native} {native_token}"
                 }
             
             # Build transaction using sendCIDToChain for specific target
@@ -444,7 +464,7 @@ class ChainFLIPMessagingService:
             print(f"   To: {source_contract.address}")
             print(f"   Function: sendCIDToChain")
             print(f"   Target EID: {target_eid}")
-            print(f"   Value (LayerZero fee): {fee_eth} ETH")
+            print(f"   Value (LayerZero fee): {fee_native} {native_token}")
             print(f"   Gas limit: {transaction['gas']}")
             print(f"   Gas price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
             
@@ -481,7 +501,7 @@ class ChainFLIPMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(fee_eth),
+                    "layerzero_fee_paid": float(fee_native),
                     "sync_method": "chainflip_messenger_single_chain",
                     "events": sync_events,
                     "timestamp": time.time(),
@@ -498,7 +518,7 @@ class ChainFLIPMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(fee_eth),
+                    "layerzero_fee_paid": float(fee_native),
                     "sync_method": "chainflip_messenger_single_chain",
                     "events": sync_events,
                     "sync_id": sync_record["sync_id"],
@@ -516,7 +536,7 @@ class ChainFLIPMessagingService:
                 print(f"   Gas Used: {receipt.gasUsed}")
                 print(f"   Gas Limit: {transaction['gas']}")
                 print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
-                print(f"   LayerZero Fee: {fee_eth} ETH")
+                print(f"   LayerZero Fee: {fee_native} {native_token}")
                 
                 # Try to get revert reason
                 try:
@@ -538,7 +558,7 @@ class ChainFLIPMessagingService:
                     "gas_used": receipt.gasUsed,
                     "gas_limit": transaction['gas'],
                     "gas_price_gwei": float(Web3.from_wei(gas_price, 'gwei')),
-                    "layerzero_fee": float(fee_eth)
+                    "layerzero_fee": float(fee_native)
                 }
                 
         except Exception as e:
@@ -604,18 +624,21 @@ class ChainFLIPMessagingService:
             # Use LayerZero fee similar to the working example (12345678 gwei)
             native_fee = Web3.to_wei(12345678, 'gwei')  # ≈ 0.012 ETH
             
-            # Check account balance
-            account_balance = source_web3.eth.get_balance(sending_account.address)
-            account_balance_eth = Web3.from_wei(account_balance, 'ether')
-            fee_eth = Web3.from_wei(native_fee, 'ether')
+            # Check account balance with correct native token
+            source_config = CHAIN_CONFIGS.get(source_chain, {})
+            native_token = source_config.get("native_token", "ETH")
             
-            print(f"💳 Account balance: {account_balance_eth} ETH")
-            print(f"💰 LayerZero fee: {fee_eth} ETH")
+            account_balance = source_web3.eth.get_balance(sending_account.address)
+            account_balance_native = Web3.from_wei(account_balance, 'ether')
+            fee_native = Web3.from_wei(native_fee, 'ether')
+            
+            print(f"💳 Account balance: {account_balance_native} {native_token}")
+            print(f"💰 LayerZero fee: {fee_native} {native_token}")
             
             if account_balance < native_fee:
                 return {
                     "success": False,
-                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_eth} ETH, Have: {account_balance_eth} ETH"
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_native} {native_token}, Have: {account_balance_native} {native_token}"
                 }
             
             # Build transaction
@@ -637,7 +660,7 @@ class ChainFLIPMessagingService:
             
             print(f"📋 Transaction details:")
             print(f"   From: {sending_account.address}")
-            print(f"   Value (LayerZero fee): {fee_eth} ETH")
+            print(f"   Value (LayerZero fee): {fee_native} {native_token}")
             print(f"   Gas limit: {transaction['gas']}")
             print(f"   Gas price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
             
@@ -671,7 +694,7 @@ class ChainFLIPMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(fee_eth),
+                    "layerzero_fee_paid": float(fee_native),
                     "sync_method": "chainflip_messenger",
                     "events": sync_events,
                     "timestamp": time.time(),
@@ -686,7 +709,7 @@ class ChainFLIPMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(fee_eth),
+                    "layerzero_fee_paid": float(fee_native),
                     "sync_method": "chainflip_messenger",
                     "events": sync_events,
                     "sync_id": sync_record["sync_id"],
@@ -777,30 +800,37 @@ class ChainFLIPMessagingService:
             print(f"🔑 Sending from: {sending_account.address}")
             
             # Get LayerZero fee quote
+            options = b""  # Empty options
+            pay_in_lz_token = False
+            
             fee_quote = source_contract.functions.quote(
                 target_eid,
                 f"DELIVERY_REQ_{order_id}",  # Use token_id field
                 request_data,  # Use metadata_cid field for delivery data
                 manufacturer_address,
-                b"",  # options
-                False  # payInLzToken
+                options,  # options parameter
+                pay_in_lz_token  # payInLzToken parameter
             ).call()
             
             native_fee = fee_quote[0]  # fee.nativeFee
-            fee_eth = Web3.from_wei(native_fee, 'ether')
             
-            print(f"💰 LayerZero Fee: {fee_eth} ETH")
+            # Get native token information
+            source_config = CHAIN_CONFIGS.get(manufacturer_chain, {})
+            native_token = source_config.get("native_token", "ETH")
+            fee_native = Web3.from_wei(native_fee, 'ether')
+            
+            print(f"💰 LayerZero Fee: {fee_native} {native_token}")
             
             # Get gas price
             gas_price = source_web3.eth.gas_price
             print(f"⛽ Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
             
-            # Prepare transaction
+            # Prepare transaction with correct parameter order
             transaction = source_contract.functions.sendCIDToChain(
-                target_eid,
-                f"DELIVERY_REQ_{order_id}",
-                request_data,
-                manufacturer_address
+                target_eid,                  # _destEid
+                f"DELIVERY_REQ_{order_id}",  # _tokenId
+                request_data,                # _metadataCID
+                manufacturer_address         # _manufacturer
             ).build_transaction({
                 'from': sending_account.address,
                 'value': native_fee,
@@ -826,7 +856,7 @@ class ChainFLIPMessagingService:
                 print(f"   Transaction Hash: {tx_hash_hex}")
                 print(f"   Block Number: {receipt.blockNumber}")
                 print(f"   Gas Used: {receipt.gasUsed}")
-                print(f"   LayerZero Fee: {fee_eth} ETH")
+                print(f"   LayerZero Fee: {fee_native} {native_token}")
                 
                 # Store delivery request in database
                 if self.database:
@@ -844,7 +874,7 @@ class ChainFLIPMessagingService:
                         "transaction_hash": tx_hash_hex,
                         "block_number": receipt.blockNumber,
                         "gas_used": receipt.gasUsed,
-                        "layerzero_fee_eth": float(fee_eth),
+                        "layerzero_fee_native": float(fee_native),
                         "status": "sent_to_admin",
                         "timestamp": time.time(),
                         "message_type": "delivery_request"
@@ -858,7 +888,7 @@ class ChainFLIPMessagingService:
                     "transaction_hash": tx_hash_hex,
                     "block_number": receipt.blockNumber,
                     "gas_used": receipt.gasUsed,
-                    "layerzero_fee_paid": float(fee_eth),
+                    "layerzero_fee_paid": float(fee_native),
                     "delivery_request": delivery_request,
                     "admin_address": admin_address,
                     "target_chain": target_chain,
@@ -875,6 +905,307 @@ class ChainFLIPMessagingService:
                 
         except Exception as e:
             print(f"❌ Delivery request error: {e}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
+    async def send_delivery_notification_to_admin(
+        self,
+        source_chain: str,
+        target_chain: str,
+        order_id: str,
+        product_id: str,
+        manufacturer: str,
+        manufacturer_private_key: str = None,
+        delivery_details: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Send delivery notification message to admin on target chain (central hub)
+        Uses the same robust sendCIDToChain function but with delivery-specific data
+        For demo: Manufacturer on Base Sepolia sends delivery notification to admin on Polygon Amoy
+        """
+        # Ensure service has connections (it should be initialized at startup)
+        if not self.web3_connections:
+            print("🔄 Initializing ChainFLIP service...")
+            await self.initialize()
+            
+        try:
+            print(f"\n🚚 === CHAINFLIP DELIVERY NOTIFICATION TO ADMIN ===")
+            print(f"🏭 Source: {source_chain} (Manufacturer)")
+            print(f"🎯 Target: {target_chain} (Admin Hub)")
+            print(f"📦 Order ID: {order_id}")
+            print(f"🔖 Product ID: {product_id}")
+            print(f"👤 Manufacturer: {manufacturer}")
+            print(f"📍 Admin will retrieve from contract: {self.contract_addresses.get(target_chain)}")
+            
+            # If no private key provided, look it up from settings
+            if not manufacturer_private_key:
+                from app.core.config import get_settings
+                settings = get_settings()
+                manufacturer_key_var = f"ACCOUNT_{manufacturer}"
+                manufacturer_private_key = getattr(settings, manufacturer_key_var.lower(), None)
+                
+                if not manufacturer_private_key:
+                    return {
+                        "success": False,
+                        "error": f"Private key not found for manufacturer {manufacturer}. Add {manufacturer_key_var} to .env file"
+                    }
+            
+            # Determine which account to use for sending
+            if manufacturer_private_key:
+                sending_account = Account.from_key(manufacturer_private_key)
+                print(f"🔐 Using manufacturer account: {sending_account.address}")
+                
+                # Verify the manufacturer address matches
+                if sending_account.address.lower() != manufacturer.lower():
+                    return {
+                        "success": False,
+                        "error": f"Manufacturer private key address {sending_account.address} doesn't match manufacturer {manufacturer}"
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": "Manufacturer private key is required for cross-chain messaging"
+                }
+            
+            # Get source chain Web3 and contract
+            source_web3 = self.web3_connections.get(source_chain)
+            source_contract = self.messenger_contracts.get(source_chain)
+            
+            if not source_web3:
+                return {"success": False, "error": f"Source chain {source_chain} not connected"}
+            
+            if not source_contract:
+                return {"success": False, "error": f"ChainFLIPMessenger contract not available for {source_chain}"}
+            
+            # Get target chain configuration
+            target_config = CHAIN_CONFIGS.get(target_chain)
+            if not target_config:
+                return {"success": False, "error": f"Target chain {target_chain} not configured"}
+            
+            target_eid = target_config["layerzero_eid"]
+            
+            # Create delivery notification data - use simple format to avoid parsing errors
+            # Format: "DELIVERY:" + order_id as tokenId, compact delivery data as metadataCID
+            delivery_token_id = f"DELIVERY:{order_id}"
+            
+            # Create COMPACT delivery notification (avoid large JSON that causes parsing errors)
+            # Format: "DELIVERY_NOTIFICATION|{order_id}|{product_id}|{buyer_name}|{status}"
+            buyer_name = "Unknown"
+            buyer_phone = ""
+            if delivery_details:
+                buyer_name = delivery_details.get("buyer_name", delivery_details.get("name", "Unknown"))
+                buyer_phone = delivery_details.get("buyer_phone", delivery_details.get("phone", ""))
+            
+            # Keep it simple and short to avoid LayerZero parsing errors
+            delivery_cid = f"DELIVERY_NOTIFICATION|{order_id}|{product_id}|{buyer_name}|{buyer_phone}|STARTED"
+            
+            print(f"📋 Delivery notification (compact format): {delivery_cid}")
+            
+            # Check contract owner (for debugging)
+            try:
+                contract_owner = source_contract.functions.owner().call()
+                print(f"📋 Contract owner: {contract_owner}")
+            except Exception as owner_error:
+                print(f"⚠️ Could not check contract owner: {owner_error}")
+            
+            # Use proper LayerZero fee calculation and gas price
+            # Get current gas price from network
+            current_gas_price = source_web3.eth.gas_price
+            # Use 2x gas price for faster confirmation
+            gas_price = current_gas_price * 2
+            
+            # Get proper LayerZero fee using contract quote function with EXACT contract format
+            try:
+                print(f"🔍 Getting LayerZero fee quote for EID {target_eid}...")
+                
+                # ✅ FIXED: Use proper LayerZero V2 extraOptions format from working OFT system
+                # This is the WORKING format: 0x0003010011010000000000000000000000000000ea60
+                options_bytes = bytes.fromhex('0003010011010000000000000000000000000000ea60')
+                
+                print(f"🔧 Using WORKING LayerZero V2 extraOptions: 0x{options_bytes.hex()}")
+                
+                # Call the contract's quote function with correct parameters
+                fee_quote = source_contract.functions.quote(
+                    target_eid,        # _destEid
+                    delivery_token_id, # _tokenId (DELIVERY:order_id)
+                    delivery_cid,      # _metadataCID (delivery payload JSON)
+                    manufacturer,      # _manufacturer
+                    options_bytes,     # _options (EXACT contract format)
+                    False              # _payInLzToken
+                ).call()
+                
+                # fee_quote is a MessagingFee struct with nativeFee and lzTokenFee
+                native_fee = fee_quote[0]  # nativeFee
+                print(f"✅ LayerZero quoted fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+                # Add 20% buffer for timestamp variations and gas price changes
+                native_fee = int(native_fee * 1.5)
+                print(f"✅ Fee with 50% buffer: {Web3.from_wei(native_fee, 'ether')} ETH")
+                
+            except Exception as quote_error:
+                print(f"⚠️ Quote function failed: {quote_error}")
+                
+                # Check for specific LayerZero errors
+                error_str = str(quote_error)
+                if "0x6592671c" in error_str:
+                    print("❌ LayerZero peer connection error - check if contracts are properly connected")
+                elif "0x0dc652a8" in error_str:
+                    print("❌ LayerZero fee calculation error - using higher fallback")
+                
+                # Use a higher fallback fee for LayerZero V2 based on working system
+                native_fee = Web3.to_wei(8000000, 'gwei')  # 0.008 ETH fallback
+                print(f"📋 Using fallback fee: {Web3.from_wei(native_fee, 'ether')} ETH")
+            
+            # Get native token information for correct fee display
+            source_config = CHAIN_CONFIGS.get(source_chain, {})
+            native_token = source_config.get("native_token", "ETH")
+            fee_native = Web3.from_wei(native_fee, 'ether')
+
+            # Check account balance with correct token name
+            account_balance = source_web3.eth.get_balance(sending_account.address)
+            account_balance_native = Web3.from_wei(account_balance, 'ether')
+            gas_price_gwei = Web3.from_wei(gas_price, 'gwei')
+            
+            print(f"💳 Account balance: {account_balance_native} {native_token}")
+            print(f"💰 LayerZero fee: {fee_native} {native_token}")
+            print(f"⛽ Gas price: {gas_price_gwei} Gwei")
+            print(f"🆔 Target EID: {target_eid}")
+            print(f"🔗 Source Chain: {source_chain} ({native_token})")
+            
+            if account_balance < native_fee:
+                return {
+                    "success": False,
+                    "error": f"Insufficient balance for LayerZero fees. Need: {fee_native} {native_token}, Have: {account_balance_native} {native_token}"
+                }
+            
+            # Build transaction using sendCIDToChain for delivery notification
+            nonce = source_web3.eth.get_transaction_count(sending_account.address)
+            
+            transaction = source_contract.functions.sendCIDToChain(
+                target_eid,          # _destEid
+                delivery_token_id,   # _tokenId (DELIVERY:order_id)
+                delivery_cid,        # _metadataCID (delivery payload JSON)
+                manufacturer         # _manufacturer
+            ).build_transaction({
+                'from': sending_account.address,
+                'value': native_fee,  # LayerZero fees
+                'gas': 500000,       # Higher gas for cross-chain messaging
+                'gasPrice': gas_price,
+                'nonce': nonce,
+                'chainId': source_web3.eth.chain_id
+            })
+            
+            print(f"📋 Delivery notification transaction details:")
+            print(f"   From: {sending_account.address}")
+            print(f"   To: {source_contract.address}")
+            print(f"   Function: sendCIDToChain (reused for delivery)")
+            print(f"   Target EID: {target_eid}")
+            print(f"   Delivery Token ID: {delivery_token_id}")
+            print(f"   Value (LayerZero fee): {fee_native} {native_token}")
+            print(f"   Gas limit: {transaction['gas']}")
+            print(f"   Gas price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+            
+            # Sign and send transaction
+            signed_txn = source_web3.eth.account.sign_transaction(transaction, sending_account.key)
+            tx_hash = source_web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            tx_hash_hex = tx_hash.hex()
+            
+            print(f"📤 Delivery notification transaction sent: {tx_hash_hex}")
+            print(f"⏳ Waiting for confirmation...")
+            
+            # Wait for transaction confirmation
+            receipt = source_web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            
+            if receipt.status == 1:
+                print(f"✅ ChainFLIP delivery notification to {target_chain} admin confirmed!")
+                print(f"📊 Block: {receipt.blockNumber}")
+                print(f"⛽ Gas Used: {receipt.gasUsed}")
+                print(f"📍 Admin can check contract {self.contract_addresses.get(target_chain)} on {target_chain}")
+                
+                # Parse events
+                sync_events = await self._parse_sync_events(source_contract, receipt)
+                
+                # Store delivery notification record in database
+                delivery_record = {
+                    "delivery_id": str(uuid.uuid4()),
+                    "order_id": order_id,
+                    "product_id": product_id,
+                    "delivery_token_id": delivery_token_id,
+                    "delivery_cid": delivery_cid,  # Store compact format
+                    "delivery_details": delivery_details,  # Store full details separately
+                    "manufacturer": manufacturer,
+                    "source_chain": source_chain,
+                    "target_chain": target_chain,
+                    "source_eid": CHAIN_CONFIGS[source_chain]["layerzero_eid"],
+                    "target_eid": target_eid,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_native),
+                    "notification_method": "chainflip_messenger_delivery",
+                    "events": sync_events,
+                    "timestamp": time.time(),
+                    "status": "sent",
+                    "admin_address": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "messenger_contract": self.contract_addresses.get(target_chain)
+                }
+                
+                # Save to database
+                await self.database.delivery_notifications.insert_one(delivery_record)
+                
+                return {
+                    "success": True,
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "layerzero_fee_paid": float(fee_native),
+                    "notification_method": "chainflip_messenger_delivery",
+                    "events": sync_events,
+                    "delivery_id": delivery_record["delivery_id"],
+                    "order_id": order_id,
+                    "product_id": product_id,
+                    "target_chain": target_chain,
+                    "target_eid": target_eid,
+                    "admin_address": "0x032041b4b356fEE1496805DD4749f181bC736FFA",
+                    "messenger_contract": self.contract_addresses.get(target_chain),
+                    "message": f"Delivery notification sent to {target_chain} admin via ChainFLIP Messenger"
+                }
+            else:
+                print(f"❌ Delivery notification transaction failed with status: {receipt.status}")
+                print(f"📊 Failed transaction details:")
+                print(f"   Transaction Hash: {tx_hash_hex}")
+                print(f"   Block Number: {receipt.blockNumber}")
+                print(f"   Gas Used: {receipt.gasUsed}")
+                print(f"   Gas Limit: {transaction['gas']}")
+                print(f"   Gas Price: {Web3.from_wei(gas_price, 'gwei')} Gwei")
+                print(f"   LayerZero Fee: {fee_native} {native_token}")
+                
+                # Try to get revert reason
+                try:
+                    # Try to call the function to see the revert reason
+                    source_contract.functions.sendCIDToChain(
+                        target_eid, delivery_token_id, delivery_cid, manufacturer
+                    ).call({
+                        'from': sending_account.address,
+                        'value': native_fee
+                    })
+                except Exception as call_error:
+                    print(f"🔍 Revert reason: {call_error}")
+                
+                return {
+                    "success": False,
+                    "error": f"ChainFLIP delivery notification failed with status {receipt.status}",
+                    "transaction_hash": tx_hash_hex,
+                    "block_number": receipt.blockNumber,
+                    "gas_used": receipt.gasUsed,
+                    "gas_limit": transaction['gas'],
+                    "gas_price_gwei": float(Web3.from_wei(gas_price, 'gwei')),
+                    "layerzero_fee": float(fee_native)
+                }
+                
+        except Exception as e:
+            print(f"❌ ChainFLIP delivery notification error: {e}")
             import traceback
             print(f"🔍 Full traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}

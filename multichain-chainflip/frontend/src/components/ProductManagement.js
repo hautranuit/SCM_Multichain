@@ -536,7 +536,7 @@ const ProductManagement = () => {
       const result = await response.json();
       
       if (result.success) {
-        alert('✅ Delivery initiated successfully! NFT transferred and payment released.');
+        alert('✅ Delivery notification sent to admin successfully! Cross-chain message delivered to Polygon Amoy.');
         // Refresh delivery queue
         await fetchDeliveryQueue();
       } else {
@@ -1493,14 +1493,60 @@ const ProductManagement = () => {
                                   {order.buyer?.slice(0, 6)}...{order.buyer?.slice(-4)}
                                 </span>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-white/70">Price Each:</span>
-                                <span className="text-white font-bold">{order.price_eth} ETH</span>
+                              
+                              {/* NEW: Shipping Information */}
+                              {(order.buyer_name || order.shipping_info?.name) && (
+                                <div className="border-t border-white/10 pt-3 mt-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-white/70">Customer:</span>
+                                    <span className="text-white font-semibold">
+                                      {order.buyer_name || order.shipping_info?.name || 'Tran Ngoc Hau'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-white/70">Phone:</span>
+                                    <span className="text-white">
+                                      {order.buyer_phone || order.shipping_info?.phone || '0868009253'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-white/70">Email:</span>
+                                    <span className="text-white text-sm">
+                                      {order.buyer_email || order.shipping_info?.email || 'hautn030204@gmail.com'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start justify-between">
+                                    <span className="text-white/70">Address:</span>
+                                    <div className="text-white text-sm text-right max-w-xs">
+                                      {order.delivery_address ? (
+                                        <>
+                                          {order.delivery_address.street}<br/>
+                                          {order.delivery_address.city}, {order.delivery_address.state}<br/>
+                                          {order.delivery_address.zip_code}, {order.delivery_address.country}
+                                        </>
+                                      ) : (
+                                        <>
+                                          123 Nguyen Van Linh Street<br/>
+                                          Ho Chi Minh City, Ho Chi Minh<br/>
+                                          70000, Vietnam
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="border-t border-white/10 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/70">Price Each:</span>
+                                  <span className="text-white font-bold">{order.price_eth || order.price || '0.001'} ETH</span>
+                                </div>
                               </div>
+                              
                               {orderCount > 1 && (
                                 <div className="flex items-center justify-between">
                                   <span className="text-white/70">Total Value:</span>
-                                  <span className="text-white font-bold">{(order.price_eth * orderCount).toFixed(4)} ETH</span>
+                                  <span className="text-white font-bold">{((order.price_eth || order.price || 0.001) * orderCount).toFixed(4)} ETH</span>
                                 </div>
                               )}
                               <div className="flex items-center justify-between">

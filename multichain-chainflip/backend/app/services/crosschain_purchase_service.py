@@ -448,8 +448,9 @@ class CrossChainPurchaseService:
             from app.services.layerzero_oft_bridge_service import layerzero_oft_bridge_service
             await layerzero_oft_bridge_service.initialize()
             
-            # Step 2: Deposit ETH into wrapperETH contract and mint cfWETH for buyer
-            print(f"💰 Step 1-2: Depositing {amount} ETH → Minting cfWETH for buyer...")
+            # Step 2: Always deposit full ETH amount into wrapperETH contract and mint cfWETH for buyer
+            print(f"💰 Step 1-2: ALWAYS Depositing {amount} ETH → Minting cfWETH for buyer...")
+            print(f"🏦 LIQUIDITY POOL MODEL: Full ETH deposit required for every transaction")
             
             # Use the buyer's original chain (could be optimism_sepolia, base_sepolia, etc.)
             # For this implementation, we'll use optimism_sepolia as the buyer chain
@@ -458,7 +459,7 @@ class CrossChainPurchaseService:
             deposit_result = await layerzero_oft_bridge_service.deposit_eth_for_tokens(
                 chain=buyer_chain,
                 user_address=buyer,
-                amount_eth=amount
+                amount_eth=amount  # ALWAYS deposit full amount
             )
             
             if not deposit_result["success"]:

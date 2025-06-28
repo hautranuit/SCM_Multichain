@@ -797,43 +797,44 @@ class LayerZeroOFTBridgeService:
             
             user_account = user_account_info['account']
             
-            # STEP 1: Check token balance and provide tokens if needed
-            print(f"\n💰 === STEP 1: CHECK TOKEN BALANCE ===")
+            # STEP 1: Always deposit full ETH amount for liquidity pool model
+            print(f"\n💰 === STEP 1: DEPOSIT FULL ETH AMOUNT ===")
             oft_contract = self.oft_instances[from_chain]
             
-            # Check current cfWETH balance
+            # Check current cfWETH balance (for information only)
             oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
             oft_balance_eth = float(Web3.from_wei(oft_balance, 'ether'))
             
-            print(f"💳 User cfWETH balance: {oft_balance_eth} cfWETH")
-            print(f"🎯 Required amount: {amount_eth} cfWETH")
+            print(f"💳 User current cfWETH balance: {oft_balance_eth} cfWETH")
+            print(f"💰 ETH amount to deposit: {amount_eth} ETH")
+            print(f"🏦 LIQUIDITY POOL MODEL: Always deposit full ETH amount regardless of existing cfWETH balance")
             
-            if oft_balance_eth < amount_eth:
-                needed_amount = amount_eth - oft_balance_eth
-                print(f"⚠️ Insufficient cfWETH balance. Need to provide {needed_amount} cfWETH")
+            # ALWAYS deposit the full ETH amount for liquidity pool model
+            print(f"📥 Depositing {amount_eth} ETH into Wrapper contract...")
+            
+            # Use direct OFT provisioning for the full amount
+            provision_result = await self.deposit_eth_for_tokens(
+                from_chain, from_address, amount_eth  # ALWAYS deposit full amount
+            )
+            
+            if not provision_result["success"]:
+                return {"success": False, "error": f"Failed to deposit ETH: {provision_result['error']}"}
                 
-                # Use direct OFT provisioning (bypass wrapper)
-                provision_result = await self.deposit_eth_for_tokens(
-                    from_chain, from_address, needed_amount
-                )
-                
-                if not provision_result["success"]:
-                    return {"success": False, "error": f"Failed to provide cfWETH tokens: {provision_result['error']}"}
-                    
-                print(f"✅ Successfully provided {needed_amount} cfWETH via direct OFT!")
-                
-                # Re-check balance after provisioning
-                new_oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
-                new_oft_balance_eth = float(Web3.from_wei(new_oft_balance, 'ether'))
-                print(f"💳 Updated cfWETH balance: {new_oft_balance_eth} cfWETH")
-                
-                if new_oft_balance_eth < amount_eth:
-                    print(f"⚠️ Still insufficient balance after provisioning. Using available balance for test.")
-                    amount_eth = new_oft_balance_eth  # Use what we have for testing
-                    amount_wei = Web3.to_wei(amount_eth, 'ether')
-                    print(f"🧪 Adjusted transfer amount: {amount_eth} cfWETH")
+            print(f"✅ Successfully deposited {amount_eth} ETH and received cfWETH!")
+            
+            # Re-check balance after deposit
+            new_oft_balance = oft_contract.functions.balanceOf(user_account.address).call()
+            new_oft_balance_eth = float(Web3.from_wei(new_oft_balance, 'ether'))
+            print(f"💳 Updated cfWETH balance: {new_oft_balance_eth} cfWETH")
+            
+            # Verify we have enough cfWETH for the transfer
+            if new_oft_balance_eth < amount_eth:
+                print(f"⚠️ After deposit, still insufficient cfWETH for transfer. Using available balance.")
+                amount_eth = new_oft_balance_eth  # Use what we have
+                amount_wei = Web3.to_wei(amount_eth, 'ether')
+                print(f"🔧 Adjusted transfer amount: {amount_eth} cfWETH")
             else:
-                print(f"✅ Sufficient cfWETH tokens available for transfer")
+                print(f"✅ Sufficient cfWETH tokens available for transfer: {amount_eth} cfWETH")
             
             # STEP 2: Execute LayerZero OFT transfer
             print(f"\n🚀 === STEP 2: EXECUTE LAYERZERO TRANSFER VIA OFT ===")

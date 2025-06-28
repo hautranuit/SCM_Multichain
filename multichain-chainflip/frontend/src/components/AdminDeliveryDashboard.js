@@ -51,7 +51,8 @@ const AdminDeliveryDashboard = () => {
       const dashboardResponse = await fetch('http://localhost:8001/api/blockchain/delivery/admin/dashboard');
       if (dashboardResponse.ok) {
         const dashboardData = await dashboardResponse.json();
-        setDashboardStats(dashboardData);
+        // Extract statistics from the response
+        setDashboardStats(dashboardData.statistics || dashboardData);
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -59,8 +60,9 @@ const AdminDeliveryDashboard = () => {
     setLoading(false);
   };
 
-  const assignTransporters = async (deliveryRequestId) => {
-    if (!selectedRequest) return;
+  const assignTransporters = async (deliveryRequestId, requestData = null) => {
+    const currentRequest = requestData || selectedRequest;
+    if (!currentRequest) return;
 
     setLoading(true);
     try {
@@ -70,13 +72,65 @@ const AdminDeliveryDashboard = () => {
         body: JSON.stringify({
           delivery_request_id: deliveryRequestId,
           admin_address: adminAddress,
-          delivery_distance_miles: selectedRequest.delivery_distance_miles || 150
+          delivery_distance_miles: currentRequest.delivery_distance_miles || 150
         })
       });
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Transporters assigned successfully!\nAssigned: ${result.assigned_transporters.join(', ')}`);
+        
+        // Check the cross_chain_success flag for precise error handling
+        if (result.cross_chain_success === false) {
+          // Show warning message for cross-chain failures
+          const warningMessage = `⚠️ Chỉ định transporter thành công (cục bộ) nhưng có lỗi cross-chain!
+          
+🚚 Transporter: ${result.transporter_name || 'ChainFLIP Express Delivery'}
+📧 Email: ${result.transporter_email || 'hau322004hd@gmail.com'}
+🏠 Address: ${result.transporter_address || '0x04351e7dF40d04B5E610c4aA033faCf435b98711'}
+
+❌ Cross-chain message failed: ${result.warning || 'Unknown error'}
+🔍 Error Type: ${result.error_type || 'Unknown'}
+
+⚠️ Transporter đã được chỉ định trong database nhưng chưa nhận được thông báo qua blockchain.
+📞 Vui lòng liên hệ trực tiếp với transporter hoặc thử lại sau.
+
+📍 Pickup: 12 Nguyen Trai Street, District 1, Ho Chi Minh City
+📍 Delivery: 45 Le Loi Street, Hai Ba Trung District, Hanoi`;
+
+          alert(warningMessage);
+        } else if (result.cross_chain_success === true && result.cross_chain_tx) {
+          // Show success message for complete success
+          const successMessage = `✅ Chỉ định transporter thành công!
+          
+🚚 Transporter: ${result.transporter_name || 'ChainFLIP Express Delivery'}
+📧 Email: ${result.transporter_email || 'hau322004hd@gmail.com'}
+🏠 Address: ${result.transporter_address || '0x04351e7dF40d04B5E610c4aA033faCf435b98711'}
+⛓️ Chain: Arbitrum Sepolia
+
+🌐 Cross-chain message sent successfully!
+🔗 Transaction: ${result.cross_chain_tx}
+💰 LayerZero Fee: ${result.layerzero_fee_paid || 'N/A'} ETH
+
+📍 Pickup: 12 Nguyen Trai Street, District 1, Ho Chi Minh City
+📍 Delivery: 45 Le Loi Street, Hai Ba Trung District, Hanoi`;
+
+          alert(successMessage);
+        } else {
+          // Show partial success message for unclear status
+          const partialMessage = `✅ Chỉ định transporter thành công!
+          
+🚚 Transporter: ${result.transporter_name || 'ChainFLIP Express Delivery'}
+📧 Email: ${result.transporter_email || 'hau322004hd@gmail.com'}
+🏠 Address: ${result.transporter_address || '0x04351e7dF40d04B5E610c4aA033faCf435b98711'}
+
+⏳ Cross-chain message status: Đang xử lý...
+
+📍 Pickup: 12 Nguyen Trai Street, District 1, Ho Chi Minh City
+📍 Delivery: 45 Le Loi Street, Hai Ba Trung District, Hanoi`;
+
+          alert(partialMessage);
+        }
+        
         loadDashboardData(); // Refresh data
       } else {
         const error = await response.json();
@@ -145,7 +199,10 @@ const AdminDeliveryDashboard = () => {
   const renderDeliveryRequests = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Delivery Requests</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Delivery Management</h3>
+          <p className="text-sm text-gray-600">Delivery requests and FL transporter recommendations</p>
+        </div>
         <button
           onClick={loadDashboardData}
           className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -171,7 +228,7 @@ const AdminDeliveryDashboard = () => {
                     {request.delivery_request_id}
                   </h4>
                   <p className="text-sm text-gray-600">
-                    Product: {request.product_id}
+                    Product: {request.product_name || `Product #${request.product_id}`}
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -185,15 +242,15 @@ const AdminDeliveryDashboard = () => {
               <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
                 <div>
                   <span className="font-medium">Buyer:</span>
-                  <p className="truncate">{request.buyer_address}</p>
+                  <p className="truncate">{request.buyer_name || request.buyer_address || request.buyer}</p>
                 </div>
                 <div>
                   <span className="font-medium">Manufacturer:</span>
-                  <p className="truncate">{request.manufacturer_address}</p>
+                  <p className="truncate">{request.manufacturer_name || request.manufacturer_address || request.manufacturer}</p>
                 </div>
                 <div>
                   <span className="font-medium">Distance:</span>
-                  <p>{request.delivery_distance_miles || 150} miles</p>
+                  <p>{request.distance || request.delivery_distance_miles || '80 miles'}</p>
                 </div>
                 <div>
                   <span className="font-medium">Priority:</span>
@@ -214,18 +271,38 @@ const AdminDeliveryDashboard = () => {
                 </div>
               )}
 
+              {/* FL Recommendation Section */}
+              {request.fl_recommendation && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    <span className="text-sm font-medium text-blue-900">🤖 FL Recommendation</span>
+                    <span className="ml-auto text-xs text-blue-600 font-semibold">
+                      {Math.round(request.fl_recommendation.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-800 mb-2">{request.fl_recommendation.reasoning}</p>
+                  {request.assigned_transporter && (
+                    <div className="text-xs text-blue-700">
+                      <p><strong>Recommended:</strong> {request.assigned_transporter.name}</p>
+                      <p><strong>Address:</strong> {request.assigned_transporter.address}</p>
+                      <p><strong>Specialization:</strong> {request.assigned_transporter.specialization?.join(', ')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex space-x-2">
                 {request.status === 'pending_assignment' && (
                   <button
                     onClick={() => {
-                      setSelectedRequest(request);
-                      assignTransporters(request.delivery_request_id);
+                      assignTransporters(request.delivery_request_id, request);
                     }}
                     className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     disabled={loading}
                   >
                     <Users className="w-4 h-4" />
-                    <span>Assign Transporters</span>
+                    <span>Accept the delivery assignment</span>
                   </button>
                 )}
 
@@ -273,10 +350,10 @@ const AdminDeliveryDashboard = () => {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h4 className="font-medium text-gray-900 truncate">
-                    {transporter.address}
-                  </h4>
-                  <p className="text-sm text-gray-600">
                     {transporter.name || 'Transporter'}
+                  </h4>
+                  <p className="text-sm text-gray-600 truncate">
+                    {transporter.address}
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -337,7 +414,7 @@ const AdminDeliveryDashboard = () => {
           <div>
             <p className="text-sm text-gray-600">In Transit</p>
             <p className="text-2xl font-bold text-purple-600">
-              {dashboardStats.delivery_in_progress || 0}
+              {dashboardStats.in_transit || 0}
             </p>
           </div>
           <Truck className="w-8 h-8 text-purple-500" />
@@ -384,18 +461,7 @@ const AdminDeliveryDashboard = () => {
             }`}
           >
             <Package className="w-4 h-4" />
-            <span>Delivery Requests</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('transporters')}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'transporters'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>Transporters</span>
+            <span>Delivery Management</span>
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
@@ -413,7 +479,6 @@ const AdminDeliveryDashboard = () => {
 
       <div>
         {activeTab === 'requests' && renderDeliveryRequests()}
-        {activeTab === 'transporters' && renderTransporters()}
         {activeTab === 'analytics' && (
           <div className="text-center py-8 text-gray-500">
             <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -445,9 +510,16 @@ const AdminDeliveryDashboard = () => {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Product ID</label>
-                    <p className="text-sm text-gray-900">{selectedRequest.product_id}</p>
+                    <label className="block text-sm font-medium text-gray-700">Product</label>
+                    <p className="text-sm text-gray-900">{selectedRequest.product_name || `Product #${selectedRequest.product_id}`}</p>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Token ID</label>
+                    <p className="text-sm text-gray-900">{selectedRequest.token_id || selectedRequest.product_id}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Status</label>
                     <div className="flex items-center space-x-2">
@@ -457,22 +529,37 @@ const AdminDeliveryDashboard = () => {
                       </span>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Request Time</label>
+                    <p className="text-sm text-gray-900">{selectedRequest.request_time || '17:00 28/06/2025'}</p>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Buyer Address</label>
-                  <p className="text-sm text-gray-900 break-all">{selectedRequest.buyer_address}</p>
+                  <label className="block text-sm font-medium text-gray-700">Buyer</label>
+                  <p className="text-sm text-gray-900">{selectedRequest.buyer_name || selectedRequest.buyer_address || selectedRequest.buyer}</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Manufacturer Address</label>
-                  <p className="text-sm text-gray-900 break-all">{selectedRequest.manufacturer_address}</p>
+                  <label className="block text-sm font-medium text-gray-700">Manufacturer</label>
+                  <p className="text-sm text-gray-900">{selectedRequest.manufacturer_name || selectedRequest.manufacturer_address || selectedRequest.manufacturer}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Pickup Location</label>
+                    <p className="text-sm text-gray-900">{selectedRequest.pickup_location || '12 Nguyen Trai Street, District 1, Ho Chi Minh City'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Delivery Location</label>
+                    <p className="text-sm text-gray-900">{selectedRequest.delivery_location || '45 Le Loi Street, Hai Ba Trung District, Hanoi'}</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Distance</label>
-                    <p className="text-sm text-gray-900">{selectedRequest.delivery_distance_miles || 150} miles</p>
+                    <p className="text-sm text-gray-900">{selectedRequest.distance || selectedRequest.delivery_distance_miles || '80 miles'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Priority</label>
@@ -482,13 +569,17 @@ const AdminDeliveryDashboard = () => {
 
                 {selectedRequest.assigned_transporters && selectedRequest.assigned_transporters.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Transporters</label>
-                    <div className="space-y-2">
-                      {selectedRequest.assigned_transporters.map((transporter, index) => (
-                        <div key={index} className="bg-gray-50 p-2 rounded text-sm">
-                          <span className="font-medium">Stage {index + 1}:</span> {transporter}
-                        </div>
-                      ))}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Transporter</label>
+                    <div className="bg-gray-50 p-3 rounded text-sm space-y-2">
+                      <p><span className="font-medium">Address:</span> {selectedRequest.assigned_transporters[0]}</p>
+                      {selectedRequest.assigned_transporter && (
+                        <>
+                          <p><span className="font-medium">Name:</span> {selectedRequest.assigned_transporter.name}</p>
+                          <p><span className="font-medium">Email:</span> {selectedRequest.assigned_transporter.email}</p>
+                          <p><span className="font-medium">Phone:</span> {selectedRequest.assigned_transporter.phone}</p>
+                          <p><span className="font-medium">Chain:</span> {selectedRequest.assigned_transporter.chain}</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -503,13 +594,6 @@ const AdminDeliveryDashboard = () => {
                     </div>
                   </div>
                 )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Request Time</label>
-                  <p className="text-sm text-gray-900">
-                    {selectedRequest.timestamp ? new Date(selectedRequest.timestamp * 1000).toLocaleString() : 'N/A'}
-                  </p>
-                </div>
               </div>
             </div>
           </div>

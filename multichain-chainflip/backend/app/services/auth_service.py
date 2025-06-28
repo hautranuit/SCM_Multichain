@@ -269,7 +269,7 @@ class AuthService:
         return UserResponse(
             id=str(user["_id"]),
             email=user["email"],
-            name=user["name"],
+            name=user.get("name", ""),  # Make name optional with default empty string
             wallet_address=user["wallet_address"],
             role=user["role"],
             approval_status=user["approval_status"],
