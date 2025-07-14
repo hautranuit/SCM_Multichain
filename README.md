@@ -11,6 +11,8 @@
 
 ## 🌟 Overview
 
+🎥 **Demo Video**: [Watch the demo on YouTube](https://www.youtube.com/watch?v=WTfmBqlDRUc)
+
 ChainFLIP is a comprehensive **multi-chain supply chain management system** that leverages blockchain technology, NFTs, and cross-chain messaging to provide transparent, secure, and efficient product tracking from manufacturing to final delivery. The system integrates multiple blockchain networks using LayerZero protocol and implements advanced features like federated learning, dispute resolution, and post-supply chain marketplace.
 
 ### 🎯 Key Innovations
